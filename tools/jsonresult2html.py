@@ -147,8 +147,8 @@ while curve_:
     t = body.table(border = "1")
     li = t.tr(align = "center").td('#', bgcolor = "#C0FFC0")
     for i in range(0, len(curve1)):
-        c += 1
         li.td(str(c), bgcolor="#E0E0E0")
+        c += 1
     for lbl in ['x', 'y', 't', 'speed', 'turn_angle', 'turn_smooth', 'sharp_turn']:
         li = t.tr(align = "center").td(lbl, bgcolor="#C0FFC0")
         for pt in curve1:

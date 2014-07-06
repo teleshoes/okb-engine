@@ -133,7 +133,7 @@ def score1(json_str, expected, typ):
     return score
 
 def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, silent = False):
-    total, n = 0, 0
+    total, n = 0.0, 0
     for (word, json_in, lang) in tests:
         log1("# %s (%s)" % (word, lang))
         if not silent: print "%s (%s): " % (word, lang),
@@ -149,7 +149,12 @@ def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, s
             raise Exception("negative score in reference test data: %s (type=%s, score=%d)" % (word, typ, score))
         total += score
         n += 1
-        if return_dict is not None: return_dict[word] = score
+        if return_dict is not None:
+            wordk, i = word, 0
+            while wordk in return_dict:
+                i += 1
+                wordk = "%s:%d" % (word, i)
+            return_dict[wordk] = score
     if not silent: print "OK"
     return total / n
 

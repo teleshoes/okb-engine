@@ -11,8 +11,8 @@ using namespace std;
 
 /* --- parameters --- */
 static Params default_params = {
-  85, // dist_max_start
-  110, // dist_max_nex
+  70, // dist_max_start
+  100, // dist_max_next
   7, // match_wait
   45, // max_angle
   20, // max_turn_error1
@@ -309,6 +309,7 @@ Point Scenario::expected_tangent(int index) {
 
 float Scenario::begin_end_angle_score(bool end) {
   /* bonus score for curve ends pointing in the right direction */
+
   Point expected, actual;
   Point origin(0, 0);
 
@@ -322,10 +323,13 @@ float Scenario::begin_end_angle_score(bool end) {
     actual = (*curve)[2] - (*curve)[0];
   }
 
-  if (distancep(actual, origin) < params->curve_score_min_dist) { return 0; } // direction of a small segment is irrelevant
-
   float cosa = cos_angle(expected.x, expected.y, actual.x, actual.y);
   float sc = 0.5 - pow(acos(cosa) / (params->max_angle * M_PI / 180), 2) / 2; // this is a relative score
+
+  if (distancep(actual, origin) < params->curve_score_min_dist) {
+    // direction of a small segment may be irrelevant
+    if (sc < 0) { sc = 0; }
+  }
   
   return sc;
 }
@@ -439,8 +443,8 @@ float Scenario::calc_distance_score(unsigned char letter, int index, int count) 
     dx = (*curve)[idx].x - (*curve)[idx-1].x;
     dy = (*curve)[idx].y - (*curve)[idx-1].y;      
   } else if ((*curve)[index].sharp_turn) {
-    dx = (*curve)[index].normalx;
-    dy = (*curve)[index].normaly;
+    dx = (*curve)[index].normalx * 100;
+    dy = (*curve)[index].normaly * 100; // why did i use integers ?!
     cminus = 1;
   } else { // unremarkable point
     cplus = cminus = 0; // use standard formula
@@ -450,6 +454,8 @@ float Scenario::calc_distance_score(unsigned char letter, int index, int count) 
   float py = k.y - (*curve)[index].y;
   
   float dist;
+  float u = 0;
+  float v = 0;
   if (cplus == 0 && cminus == 0) {
     // good old standard formula for distance
     dist = sqrt(px * px + py * py) / ratio;
@@ -457,18 +463,31 @@ float Scenario::calc_distance_score(unsigned char letter, int index, int count) 
   } else {
     // distance with a bit of anisotropy
     float d = sqrt(dx * dx + dy * dy);
-    float u = (px * dx + py * dy) / d;
-    float v = (px * dy - py * dx) / d;
+    u = (px * dx + py * dy) / d;
+    v = (px * dy - py * dx) / d;
     
     dist = sqrt(pow(u * (u > 0?cplus:cminus) / ratio, 2) +
 		pow(v / ratio, 2));
   }
-
+  
   float score = 1 - dist;
+
+  // @todo add a "more verbose" debug option
+  //DBG("    distance_score[%c:%d] offset=%d:%d direction=%d:%d u=%.3f v=%.3f coefs=%.2f:%.2f dist=%.3f score=%.3f",
+  //    letter, index, (int) px, (int) py, (int) dx, (int) dy, u, v, cplus, cminus, dist, score);
+
   return score;
 }
 
 float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &new_index_list) {
+  /* given an index on the curve, and a possible next letter key, evaluate the following:
+     - if the next letter is a good candidate (i.e. the curve pass by the key)
+     - compute a score based on curve to point distance
+     - return the list on possible next_indexes (sometime more than one solution is possible, 
+       e.g. depending if we match the key with a near sharp turn or not)
+     (multiple indexes for a same scenario will be removed on later iterations,
+      when we know which one is the better) */
+
   float score = -99999;
   int count = 0;
   int retry = 0;
@@ -491,6 +510,9 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &
     if (index >= (*curve).size()) { break; }
     
     float new_score = calc_distance_score(letter, index, this -> count);
+
+    // @todo add a "more verbose" debug option
+    // DBG("    get_next_key_match(%c, %d) index=%d score=%.3f)", letter, start_index, index, new_score); // QQQ
 
     if (new_score > max_score) {
       max_score = new_score;
@@ -852,11 +874,12 @@ void CurveMatch::curvePreprocess() {
       }
       if (abs(total) > params.turn_threshold2) {
 	int middle_index = int(0.5 + abs(t_index / total));
-	curve[middle_index].sharp_turn = true;
-	if (i >= 2 && i < l - 2) {
+	if (middle_index >= 2 && middle_index < l - 2) {
+	  curve[middle_index].sharp_turn = true;
+
 	  // compute "normal" vector (really lame algorithm)
-	  int i1 = i - 1;
-	  int i2 = i + 1;
+	  int i1 = middle_index - 1;
+	  int i2 = middle_index + 1;
 	  float x1 = curve[i1].x - curve[i1 - 1].x;
 	  float y1 = curve[i1].y - curve[i1 - 1].y;
 	  float x2 = curve[i2 + 1].x - curve[i2].x;
