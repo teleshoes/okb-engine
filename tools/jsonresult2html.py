@@ -112,7 +112,7 @@ def mkimg(scale = 1, scenario = None):
     return "data:image/png;base64," + base64.b64encode(out.getvalue())
 
 # generate html
-title = 'Okboard - result ' + input['datetime']
+title = 'Okboard result ' + input['datetime']
 
 html = HTML()
 html.head.title(title)
