@@ -130,6 +130,7 @@ class Scenario {
   float calc_length_score(unsigned char prev_letter, unsigned char letter, int index, int new_index);
   float calc_turn_score(unsigned char letter, int index);
   float calc_curviness_score(int index);
+  float begin_end_angle_score(bool end);
   Point expected_tangent(int index);
   float get_next_key_match(unsigned char letter, int index, QList<int> &new_index);
   float speedCoef(int index);

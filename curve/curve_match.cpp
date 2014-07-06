@@ -28,7 +28,7 @@ static Params default_params = {
   0.1, // weight_curve2;
   1.0, // weight_turn;
   0.001, // length_penalty
-  25, // turn_threshold;
+  15, // turn_threshold;
   80, // turn_threshold2;
   5, // max_turn_index_gap;
   120, // curve_dist_threshold
@@ -305,6 +305,29 @@ Point Scenario::expected_tangent(int index) {
     d2 = d2 * (1000 / distancep(origin, d2));
   }
   return d1 + d2;
+}
+
+float Scenario::begin_end_angle_score(bool end) {
+  /* bonus score for curve ends pointing in the right direction */
+  Point expected, actual;
+  Point origin(0, 0);
+
+  if (end) {
+    int l = index_history.size();
+    int nc = curve -> size();
+    expected = expected_tangent(l - 1);
+    actual = (*curve)[nc - 1] - (*curve)[nc - 3];
+  } else {
+    expected = expected_tangent(0);
+    actual = (*curve)[2] - (*curve)[0];
+  }
+
+  if (distancep(actual, origin) < params->curve_score_min_dist) { return 0; } // direction of a small segment is irrelevant
+
+  float cosa = cos_angle(expected.x, expected.y, actual.x, actual.y);
+  float sc = 0.5 - pow(acos(cosa) / (params->max_angle * M_PI / 180), 2) / 2; // this is a relative score
+  
+  return sc;
 }
 
 float Scenario::calc_curviness_score(int index) {
@@ -689,6 +712,9 @@ void Scenario::postProcess() {
   int l = index_history.size();
   for(int i = 0; i < l - 1; i ++) {
     float sc = calc_curviness_score(i);
+    if (i == 0) { sc += begin_end_angle_score(false); }
+    if (i == l - 2) { sc += begin_end_angle_score(true); }
+
     scores[i + 1].curve_score2 = sc; // just for logging
     final_score += sc * params->weight_curve2;
     if (final_score < 0) { final_score = 0; /* this one is really bad */ }
