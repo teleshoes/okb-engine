@@ -1,0 +1,11 @@
+Makefile
+.UNISON*
+build*
+.ropeproject
+__pycache__
+*.pyc
+html.py
+*.log
+*.bak
+db
+
