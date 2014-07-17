@@ -32,7 +32,7 @@ class CorpusImporter:
         self.words = set()
         for word in words:
             id += 1
-            word = word.strip().decode('utf-8')
+            word = word.strip()  # .decode('utf-8')
             self.words.add(word)
 
     def parse_line(self, line):
@@ -102,7 +102,12 @@ class CorpusImporter:
             roll.append(word)
 
             # 3-grams
-            self.count(roll)
+            if roll[1] == '#START':
+                # a 3-gram is meaningless for a single word at the beginning of a sentence
+                # and it's no use having both [ #START, #START, word ] and [ #NA, #START, word ]
+                pass
+            else:
+                self.count(roll)
 
             # 2-grams
             self.count(roll[1:3])
@@ -137,7 +142,7 @@ class CorpusImporter:
 # 1) load dictionary
 ci = CorpusImporter()
 if dictfile[-3:] == '.gz': f = gzip.open(dictfile)
-else: f = file(dictfile)
+else: f = open(dictfile)
 ci.load_words(f.readlines())
 
 # 2) import corpus (in-memory, not meant to be efficient)
@@ -154,3 +159,4 @@ while line:
 
 # 3) result to stdout CSV
 ci.print_grams()
+
