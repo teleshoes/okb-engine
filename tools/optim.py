@@ -1,9 +1,9 @@
-#!/usr/bin/python2
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
 """
-Tries to find the best set of parameters to get the "best" results.
-"best" is defined by the scoring function. The current one is pretty useless :-)
+This script tries to find the best set of parameters to get the "best" results.
+"best" is defined by the scoring function. The current one is pretty lame :-)
 """
 
 import json
@@ -16,6 +16,7 @@ import copy
 import time
 import fcntl
 import getopt
+from get_params import get_params
 
 CLI = "../cli/build/cli"
 TRE_DIR = "../db"
@@ -24,53 +25,55 @@ LOG = None  # "/tmp/optim.log"
 OUT = "optim.log"
 
 defparams = [
-    [ "dist_max_start", 85, int, 0, 150 ],
-    [ "dist_max_next", 110, int, 0, 150 ],
-    [ "match_wait", 7, int, 4, 12 ],
-    [ "max_angle", 45, int, 10, 90 ],
-    [ "max_turn_error1", 20, int, 10, 60 ],
-    [ "max_turn_error2", 150, int, 30, 145 ],
-    [ "max_turn_error3", 80, int, 10, 145 ],
-    [ "length_score_scale", 80, int, 30, 150 ],
-    [ "curve_score_min_dist", 50, int, 20, 100 ],
-    [ "score_pow", 2, float, 0.1, 10 ],
-    [ "weight_distance", 1 ],  # reference
-    [ "weight_cos", 4, float, 0.1, 10 ],
-    [ "weight_length", 2, float, 0.1, 10 ],
-    [ "weight_curve", 4, float, 0.1, 10 ],
-    [ "weight_curve2", 0.2, float, 0.1, 10 ],
-    [ "weight_turn", 2, float, 0.1, 10 ],
-    [ "length_penalty", 0.001, float, -0.1, 0.1 ],
-    [ "turn_threshold", 25, int, 10, 45 ],
-    [ "turn_threshold2", 80, int, 45, 120 ],
-    [ "max_turn_index_gap", 5, int, 2, 10],
-    [ "curve_dist_threshold", 120, int, 30, 200 ],
-    [ "small_segment_min_score", 0.35, float, 0.01, 0.9 ],
-    [ "anisotropy_ratio", 1.25, float, 1, 2 ],
-    [ "sharp_turn_penalty", 0.4, float, 0, 1 ],
-    [ "curv_amin", 5, int, 1, 45 ],
-    [ "curv_amax", 75, int, 45, 89 ],
-    [ "curv_turnmax", 70, int, 40, 89 ],
-    [ "max_active_scenarios", 50 ],  # no optimization, larger is always better
-    [ "max_candidates", 30 ],  # idem
+    [ "dist_max_start", int, 0, 150 ],
+    [ "dist_max_next", int, 0, 150 ],
+    [ "match_wait", int, 4, 12 ],
+    [ "max_angle", int, 10, 90 ],
+    [ "max_turn_error1", int, 10, 60 ],
+    [ "max_turn_error2", int, 30, 145 ],
+    [ "max_turn_error3", int, 10, 145 ],
+    [ "length_score_scale", int, 30, 150 ],
+    [ "curve_score_min_dist", int, 20, 100 ],
+    [ "score_pow", float, 0.1, 10 ],
+    [ "weight_distance", float ],  # reference (=1)
+    [ "weight_cos", float, 0.1, 10 ],
+    [ "weight_length", float, 0.1, 10 ],
+    [ "weight_curve", float, 0.1, 10 ],
+    [ "weight_curve2", float, 0.1, 10 ],
+    [ "weight_turn", float, 0.1, 10 ],
+    [ "length_penalty", float, -0.1, 0.1 ],
+    [ "turn_threshold", int, 10, 45 ],
+    [ "turn_threshold2", int, 45, 120 ],
+    [ "max_turn_index_gap", int, 2, 10],
+    [ "curve_dist_threshold", int, 30, 200 ],
+    [ "small_segment_min_score", float, 0.01, 0.9 ],
+    [ "anisotropy_ratio", float, 1, 2 ],
+    [ "sharp_turn_penalty", float, 0, 1 ],
+    [ "curv_amin", int, 1, 45 ],
+    [ "curv_amax", int, 45, 89 ],
+    [ "curv_turnmax", int, 40, 89 ],
+    [ "max_active_scenarios", int ],  # no optimization, larger is always better
+    [ "max_candidates", int ],  # idem
 ]
 
 params = dict()
 for p in defparams:
     if len(p) > 2:
-        (name, default, type, min_value, max_value) = tuple(p)
-        params[name] = dict(value = default, type = type, min = min_value, max = max_value)
+        (name, type, min_value, max_value) = tuple(p)
+        params[name] = dict(value = None, type = type, min = min_value, max = max_value)
     else:
-        params[p[0]] = dict(value=p[1])
+        params[p[0]] = dict(value = None, type = p[1])
 
-
+cfparams = get_params(os.path.join(os.path.dirname(__file__), '..', "okboard.cf"))
+for name, value in cfparams.items():
+    params[name]["value"] = params[name]["type"](value)
 
 def dump(txt, id = ""):
     sep = '--8<----[' + id + ']' + '-' * (65 - len(id))
-    print sep
-    print txt
-    print sep
-    print
+    print(sep)
+    print(txt)
+    print(sep)
+    print()
 
 def log1(txt):
     if LOG is None: return
@@ -81,7 +84,8 @@ def log1(txt):
 def run1(json_str, lang):
     log1(">>>> " + json_str)
     sp = subprocess.Popen([ CLI, os.path.join(TRE_DIR, "%s.tre" % lang) ], stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
-    (json_out, err) = sp.communicate(json_str)
+    (json_out, err) = sp.communicate(bytes(json_str, "UTF-8"))
+    json_out, err = str(json_out), str(err)
     if sp.returncode != 0:
         dump(json_str)
         raise Exception("return code: %s" % sp.returncode)
@@ -99,6 +103,7 @@ def update_json(json_str, params):
 def score1(json_str, expected, typ):
     # mot attendu premier = score > 0 (distance au prochain dans la liste)
     # sinon < 0 : somme des distance de ceux qui sont devant ! (x 10000)
+    json_str = re.sub(r'(\n|\\n).*$', '', json_str)
     js = json.loads(json_str)
 
     score_ref = None
@@ -136,12 +141,12 @@ def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, s
     total, n = 0.0, 0
     for (word, json_in, lang) in tests:
         log1("# %s (%s)" % (word, lang))
-        if not silent: print "%s (%s): " % (word, lang),
+        if not silent: print("%s (%s): " % (word, lang), end = "")
         sys.stdout.flush()
         json_in2 = update_json(json_in, params)
         json_out, err = run1(json_in2, lang)
         score = score1(json_out, word, typ)
-        if not silent: print "%.3f - " % score,
+        if not silent: print("%.3f - " % score, end = "")
         if score < -999999 and fail_on_bad_score:
             dump(json_out, "out")
             dump(err, "err")
@@ -155,14 +160,14 @@ def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, s
                 i += 1
                 wordk = "%s:%d" % (word, i)
             return_dict[wordk] = score
-    if not silent: print "OK"
+    if not silent: print("OK")
     return total / n
 
 def optim(pname, params, tests, typ):
     value = value0 = params[pname]["value"]
     min, max, type = params[pname]["min"], params[pname]["max"], params[pname]["type"]
     score0 = run_all(tests, params, typ)
-    print "Optim: %s (value=%s, score=%s)" % (pname, value0, score0)
+    print("Optim: %s (value=%s, score=%s)" % (pname, value0, score0))
 
     scores = [ (value, score0) ]
     if type == int: step0 = 1
@@ -184,7 +189,7 @@ def optim(pname, params, tests, typ):
             if bad_count > 4: break
 
             scores.append( (new_value, score) )
-            print "Try[%s] %s->%s score=%f" % (pname, value, new_value, score)
+            print("Try[%s] %s->%s score=%f" % (pname, value, new_value, score))
 
             last_score = score
             if step < (max - min) / 10: step *= 2
@@ -194,10 +199,10 @@ def optim(pname, params, tests, typ):
     value, score = sorted(scores, key = lambda x: x[1])[-1]
     if score > score0:
         params[pname]["value"] = value
-        print "===> Update[%s] %s->%s (score: %.3f -> %.3f)" % (pname, value0, value, score0, score)
+        print("===> Update[%s] %s->%s (score: %.3f -> %.3f)" % (pname, value0, value, score0, score))
         return score
     else:
-        print "===> No change [%s]" % pname
+        print("===> No change [%s]" % pname)
         params[pname]["value"] = value0
         return score0
 
@@ -208,7 +213,7 @@ def load_tests():
     l = os.listdir(TEST_DIR)
     for fname in [ x for x in l if x[-5:] == '.json']:
         lang = "en"
-        letters = unicode(fname[:-5])
+        letters = fname[:-5]  # unicode()
 
         mo = re.match('^([a-z][a-z])\-(.*)', letters)
         if mo: lang, letters = mo.group(1), mo.group(2)
@@ -216,7 +221,7 @@ def load_tests():
         letters = ''.join(c for c in unicodedata.normalize('NFD', letters) if unicodedata.category(c) != 'Mn')
         letters = re.sub(r'[^a-z]', '', letters.lower())
         letters = re.sub(r'(.)\1+', lambda m: m.group(1), letters)
-        tests.append((letters, file(os.path.join(TEST_DIR, fname)).read(), lang))
+        tests.append((letters, open(os.path.join(TEST_DIR, fname)).read(), lang))
 
     tests.sort(key = lambda x: x[0])
     return tests
@@ -229,26 +234,26 @@ if __name__ == "__main__":
         if o == "-l":
             LOG = a
         else:
-            print "Bad option: %s", o
+            print("Bad option: %s", o)
             exit(1)
 
     if len(args) < 1:
-        print "usage:", os.path.basename(sys.argv[0]), " <score type>"
+        print("usage:", os.path.basename(sys.argv[0]), " <score type>")
 
     typ = args[0]
 
     os.chdir(os.path.dirname(sys.argv[0]))
-    print 'Parameters: ' + params2str(params)
+    print('Parameters: ' + params2str(params))
     params0 = copy.deepcopy(params)
 
     # load test suite
     tests = load_tests()
 
-    print "===== Reference run ====="
+    print("===== Reference run =====")
     detail0 = dict()
     max_score = score = score0 = run_all(tests, params, typ, fail_on_bad_score = True, return_dict = detail0)
     max_params = None
-    print
+    print()
 
     changed = True
     it = 0
@@ -256,17 +261,17 @@ if __name__ == "__main__":
         it += 1
         changed = False
         for p in params:
-            if "type" in params[p]:
-                print "===== Optimizing parameter '%s' =====" % p
+            if "min" in params[p]:
+                print("===== Optimizing parameter '%s' =====" % p)
                 score = optim(p, params, tests, typ)
                 if score > max_score:
                     max_score = score
                     max_params = copy.deepcopy(params)
                     changed = True
 
-                print "Start  (%.3f): %s" % (score0, params2str(params0))
-                print "Current(%.3f): %s" % (score, params2str(params))
-                print "Best   (%.3f): %s" % (max_score, params2str(max_params))
+                print("Start  (%.3f): %s" % (score0, params2str(params0)))
+                print("Current(%.3f): %s" % (score, params2str(params)))
+                print("Best   (%.3f): %s" % (max_score, params2str(max_params)))
 
     with open(OUT, "a") as f:
         detail_max = dict()
