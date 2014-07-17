@@ -33,7 +33,7 @@ print("Import CSV corpus data ...")
 words = dict()
 words['#TOTAL'] = -2
 words['#NA'] = -1
-words['#START'] = 0
+words['#START'] = -3
 cur_id = 1
 
 def w2id(word):
