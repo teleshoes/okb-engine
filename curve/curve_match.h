@@ -56,6 +56,7 @@ class Key {
 /* settings */
 class Params {
  public:
+  /* BEGIN PARAMS */
   float dist_max_start;
   float dist_max_next;
   int match_wait;
@@ -74,7 +75,6 @@ class Params {
   float weight_turn;
   float length_penalty;
   int turn_threshold;
-  int turn_threshold2;
   int max_turn_index_gap;
   int curve_dist_threshold;
   float small_segment_min_score;
@@ -85,6 +85,7 @@ class Params {
   int curv_turnmax;
   int max_active_scenarios;
   int max_candidates;
+  /* END PARAMS */
 
   void toJson(QJsonObject &json) const;
   static Params fromJson(const QJsonObject &json);

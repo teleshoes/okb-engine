@@ -12,7 +12,7 @@ DEPENDPATH += .
 INCLUDEPATH += .
 
 SOURCES += curve_plugin.cpp curve_match.cpp tree.cpp
-HEADERS += curve_plugin.h curve_match.h tree.h
+HEADERS += curve_plugin.h curve_match.h tree.h default_params.h
 
 DESTDIR = build
 OBJECTS_DIR = $$DESTDIR

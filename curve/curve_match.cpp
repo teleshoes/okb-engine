@@ -7,40 +7,9 @@
 #include <iostream>
 #include <math.h>
 
-using namespace std;
+#include "default_params.h"
 
-/* --- parameters --- */
-static Params default_params = {
-  70, // dist_max_start
-  100, // dist_max_next
-  7, // match_wait
-  45, // max_angle
-  20, // max_turn_error1
-  150, // max_turn_error2
-  80, // max_turn_error3
-  80, // length_score_scale
-  50, // curve_score_min_dist
-  2.0, // score_pow
-  0.35, // weight_distance;
-  2.0, // weight_cos;
-  0.2, // weight_length;
-  2.0, // weight_curve;
-  0.1, // weight_curve2;
-  1.0, // weight_turn;
-  0.001, // length_penalty
-  15, // turn_threshold;
-  80, // turn_threshold2;
-  5, // max_turn_index_gap;
-  120, // curve_dist_threshold
-  0.35, // small_segment_min_score
-  1.25, // anisotropy_ratio
-  0.4, // sharp_turn_penalty
-  5, // curv_amin
-  75, // curv_amax
-  70, // curv_turnmax
-  50, // max_active_scenarios
-  30, // max_candidates
-};
+using namespace std;
 
 void Params::toJson(QJsonObject &json) const {
   json["dist_max_start"] = dist_max_start;
@@ -61,7 +30,6 @@ void Params::toJson(QJsonObject &json) const {
   json["weight_turn"] = weight_turn;
   json["length_penalty"] = length_penalty;
   json["turn_threshold"] = turn_threshold;     
-  json["turn_threshold2"] = turn_threshold2;	 
   json["max_turn_index_gap"] = max_turn_index_gap;
   json["curve_dist_threshold"] = curve_dist_threshold;
   json["small_segment_min_score"] = small_segment_min_score;
@@ -94,7 +62,6 @@ Params Params::fromJson(const QJsonObject &json) {
   p.weight_turn = json["weight_turn"].toDouble();
   p.length_penalty = json["length_penalty"].toDouble();
   p.turn_threshold = json["turn_threshold"].toDouble();
-  p.turn_threshold2 = json["turn_threshold2"].toDouble();
   p.max_turn_index_gap = json["max_turn_index_gap"].toDouble();
   p.curve_dist_threshold = json["curve_dist_threshold"].toDouble();
   p.small_segment_min_score = json["small_segment_min_score"].toDouble();
@@ -185,7 +152,14 @@ static float cos_angle(float x1, float y1, float x2, float y2) {
 
 static float angle(float x1, float y1, float x2, float y2) {
   float cosa = cos_angle(x1, y1, x2, y2);
-  float value = (cosa > 1)?0:acos(cosa); // for rounding errors
+  float value;
+  if (cosa > 1) {
+    value = 0;
+  } else if (cosa < -1) {
+    value = M_PI;
+  } else {
+    value = acos(cosa); // for rounding errors
+  }
   if (x1*y2 - x2*y1 < 0) { value = -value; }
   return value;
 }
@@ -252,6 +226,11 @@ float Scenario::calc_turn_score(unsigned char letter, int index) {
   int i2 = index_history[count - 1].second;
   int i3 = index;
 
+  if ((i1 == i2) || (i2 == i3)) {
+    // two letters matched at the same point -> we can't compute this score
+    return 0;
+  }
+
   // curve points
   Point p1 = (*curve)[i1];
   Point p2 = (*curve)[i2];
@@ -287,6 +266,10 @@ float Scenario::calc_turn_score(unsigned char letter, int index) {
   if (expected * actual < 0 && abs(actual) > 5 && abs(expected) > 5) { diff *= 2; } // penalty for inverted angle
 
   float score = 1 - pow(diff / scale, 2);
+
+  DBG("  [turn score] %s:%c i=%d:%d:%d angle exp/act=%.2f/%.2f -> score=%.2f", 
+      name.toLocal8Bit().constData(), letter, i1, i2, i3, expected, actual, score)
+
   return score;
 }
 
@@ -297,7 +280,7 @@ Point Scenario::expected_tangent(int index) {
   if (index > 0) {
     int i0 = index_history[index - 1].second;  
     d1 = (*curve)[i1] - (*curve)[i0];
-    d1 = d1 * (1000 / distancep(origin, d1)); // using integers was clearing a mistake
+    d1 = d1 * (1000 / distancep(origin, d1)); // using integers was clearly a mistake
   }
   if (index < index_history.size() - 1) {
     int i2 = index_history[index + 1].second;
@@ -316,9 +299,14 @@ float Scenario::begin_end_angle_score(bool end) {
   if (end) {
     int l = index_history.size();
     int nc = curve -> size();
+
+    if (index_history[l - 2].second > nc - 2) { return 0; } // QQQ
+
     expected = expected_tangent(l - 1);
     actual = (*curve)[nc - 1] - (*curve)[nc - 3];
   } else {
+    if (index_history[1].second < 2) { return 0; } // QQQ
+
     expected = expected_tangent(0);
     actual = (*curve)[2] - (*curve)[0];
   }
@@ -331,6 +319,8 @@ float Scenario::begin_end_angle_score(bool end) {
     if (sc < 0) { sc = 0; }
   }
   
+  DBG("  [begin_end_angle_score] %s end=%d -> score=%.2f", name.toLocal8Bit().constData(), end, sc);
+
   return sc;
 }
 
@@ -340,9 +330,16 @@ float Scenario::calc_curviness_score(int index) {
   int i1 = index_history[index].second;
   int i2 = index_history[index + 1].second;
 
+  if ((index > 0 && index_history[index - 1].second == i1) ||
+      (index < index_history.size() - 1 && index_history[index + 1].second == i2)) {
+    // could not compute tangents, so just skip this
+    return 0;
+  }
+
   Point p = (*curve)[i2] - (*curve)[i1];
   Point v1 = expected_tangent(index);
   Point v2 = expected_tangent(index + 1);
+
   float a1 = anglep(v1, p) * 180.0 / M_PI;
   float a2 = anglep(p, v2) * 180.0 / M_PI;
   
@@ -512,7 +509,7 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &
     float new_score = calc_distance_score(letter, index, this -> count);
 
     // @todo add a "more verbose" debug option
-    // DBG("    get_next_key_match(%c, %d) index=%d score=%.3f)", letter, start_index, index, new_score); // QQQ
+    // DBG("    get_next_key_match(%c, %d) index=%d score=%.3f)", letter, start_index, index, new_score);
 
     if (new_score > max_score) {
       max_score = new_score;
@@ -731,16 +728,25 @@ void Scenario::postProcess() {
   float score_bak = final_score;
 
   // bonus for "curviness"
+  float total = 0;
+  int count = 0;
   int l = index_history.size();
   for(int i = 0; i < l - 1; i ++) {
-    float sc = calc_curviness_score(i);
+    float sc = (l>2)?calc_curviness_score(i):0;
     if (i == 0) { sc += begin_end_angle_score(false); }
     if (i == l - 2) { sc += begin_end_angle_score(true); }
 
     scores[i + 1].curve_score2 = sc; // just for logging
-    final_score += sc * params->weight_curve2;
-    if (final_score < 0) { final_score = 0; /* this one is really bad */ }
+    if (sc != 0) {
+      // only count non-zero scores, because zero means "i could not compute the score, so i've got no opinion"
+      total += sc;
+      count += 1;
+    }
   }
+
+  if (count) { final_score += params->weight_curve2 * total / count; }
+
+  if (final_score < 0) { final_score = 0; /* this one is really bad */ }
 
   DBG("  [postProcess] -> Final score [%s] = %.3f -> %.3f", name.toLocal8Bit().constData(), score_bak, final_score);
 }
@@ -843,9 +849,10 @@ void CurveMatch::curvePreprocess() {
   curve[0].turn_smooth = curve[1].turn_smooth;
   curve[l-1].turn_smooth = curve[l-2].turn_smooth;
 
-  int index0 = -1;
   int index1 = 2;
   int index2 = 6;
+  int sharp_turn_index = -1;
+  int last_total_turn = -1;
   for(int i = 0; i < l; i ++) {
     /* speed */
     if (i > (index1 + index2) / 2 && index2 < l - 1) {
@@ -863,34 +870,37 @@ void CurveMatch::curvePreprocess() {
     }
 
     /* rotation / turning points */
-    if (abs(curve[i].turn_angle) > params.turn_threshold) {
-      if (index0 == -1) { index0 = i; }
-    } else if (index0 != -1) {
+    if (i >= 2 && i < l - 2) {
       float total = 0;
       float t_index = 0;
-      for (int j = index0 ; j < i ; j ++) {
+      for(int j = i - 1; j < i + 1; j ++) {
 	total += curve[j].turn_angle;
 	t_index += curve[j].turn_angle * j;
       }
-      if (abs(total) > params.turn_threshold2) {
-	int middle_index = int(0.5 + abs(t_index / total));
-	if (middle_index >= 2 && middle_index < l - 2) {
-	  curve[middle_index].sharp_turn = true;
 
+      if (abs(total) < last_total_turn && last_total_turn > params.turn_threshold) {
+	if (sharp_turn_index >= 2 && sharp_turn_index < l - 2) {
+	  curve[sharp_turn_index].sharp_turn = true;
+	  
 	  // compute "normal" vector (really lame algorithm)
-	  int i1 = middle_index - 1;
-	  int i2 = middle_index + 1;
+	  int i1 = sharp_turn_index - 1;
+	  int i2 = sharp_turn_index + 1;
 	  float x1 = curve[i1].x - curve[i1 - 1].x;
 	  float y1 = curve[i1].y - curve[i1 - 1].y;
 	  float x2 = curve[i2 + 1].x - curve[i2].x;
 	  float y2 = curve[i2 + 1].y - curve[i2].y;
 	  float l1 = sqrt(x1 * x1 + y1 * y1);
 	  float l2 = sqrt(x2 * x2 + y2 * y2);	  
-	  curve[middle_index].normalx = x1 / l1 - x2 / l2;
-	  curve[middle_index].normaly = y1 / l1 - y2 / l2;
+	  curve[sharp_turn_index].normalx = x1 / l1 - x2 / l2;
+	  curve[sharp_turn_index].normaly = y1 / l1 - y2 / l2;
 	}
       }
-      index0 = -1;
+      
+      if (abs(total) > params.turn_threshold) {
+	sharp_turn_index = int(0.5 + abs(t_index / total));
+      }
+
+      last_total_turn = abs(total);
     }
   }
 
@@ -1050,7 +1060,7 @@ bool CurveMatch::match() {
     n += 1;
     scenarios = new_scenarios; // remember QT collections have intelligent copy-on-write (hope it works)
     if (n >= 3) {
-      scenarioFilter(scenarios, 0.9 - 0.6 * (1.0 / (1.0 + (float) n)), 15, params.max_active_scenarios); // @todo add to parameter list
+      scenarioFilter(scenarios, 0.9 - 0.6 * (1.0 / (1.0 + (float) n)), 15, params.max_active_scenarios /* * (n > 3?1:2) */); // @todo add to parameter list
       DBG("Depth: %d - Scenarios: %d - Candidates: %d", n, scenarios.size(), candidates.size());      
     }
   }
