@@ -1,4 +1,4 @@
-#! /usr/bin/python2
+#! /usr/bin/python3
 # -*- coding: utf-8 -*-
 
 import optim
@@ -12,6 +12,6 @@ if __name__ == "__main__":
 
     for typ in ["max", "max2", "stddev" ]:
         detail = dict()
-        score = optim.run_all(tests, params, typ, fail_on_bad_score = False, return_dict = detail, silent = True)
+        score = optim.run_all(tests, params, typ, fail_on_bad_score = (len(sys.argv) > 1), return_dict = detail, silent = True)
 
-        print "score", typ, score, ' '.join(sorted([ "%s[%.3f]" % (w, s) for (w, s) in detail.items() ]))
+        print("score", typ, score, ' '.join(sorted([ "%s[%.3f]" % (w, s) for (w, s) in detail.items() ])))
