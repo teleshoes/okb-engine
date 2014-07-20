@@ -15,7 +15,8 @@ fi
 export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$dir/curve/build"
 tmp=`mktemp /tmp/XXXXXX.json`
 html=`mktemp /tmp/curvekb.XXXXXX.html`
-$dir/cli/build/cli -d "$dir/db/$lang.tre" "$test" 2>&1 | tee $tmp | grep -i "^Result:" | tail -n 1 | sed 's/^Result:\ *//' | $dir/tools/jsonresult2html.py > $html && xdg-open "$html"
+$dir/cli/build/cli -d "$dir/db/$lang.tre" "$test" 2>&1 | tee $tmp | grep -i "^Result:" | tail -n 1 | sed 's/^Result:\ *//' | $dir/tools/jsonresult2html.py > $html || exit 1
+xdg-open "$html"
 cat "$tmp"
 echo "Log file: file://$tmp"
 if [ -n "$edit" ] ; then
