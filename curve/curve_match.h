@@ -85,6 +85,8 @@ class Params {
   int curv_turnmax;
   int max_active_scenarios;
   int max_candidates;
+  float score_coef_speed;
+  int angle_dist_range;
   /* END PARAMS */
 
   void toJson(QJsonObject &json) const;
@@ -122,6 +124,8 @@ class Scenario {
   int last_fork;
 
   bool debug;
+
+  float average_speed;
 
  private:
   void childScenario(LetterNode &child, bool endScenario, QList<Scenario> &result, int &st_fork);

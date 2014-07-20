@@ -10,7 +10,7 @@ import re
 import math
 
 class SqliteBackend:
-    """ this class implement read/write access to prediction database 
+    """ this class implement read/write access to prediction database
         as no python/dbm is working on Sailfish (or i missed it), sqlite is used """
 
     def __init__(self, dbfile):
@@ -18,9 +18,9 @@ class SqliteBackend:
         self.clear_stats()
         self.cache = dict()
 
-        self.cache['#TOTAL'] = -2
-        self.cache['#NA'] = -1
-        self.cache['#START'] = 0
+        # self.cache['#TOTAL'] = -2
+        # self.cache['#NA'] = -1
+        # self.cache['#START'] = -3
 
     def clear_stats(self):
         self.timer =  self.count = 0
@@ -119,11 +119,14 @@ class Predict:
     def cf(self, key, default_value, cast = None):
         """ "mockable" configuration """
         if self.tools:
-            return self.tools.cf(key, default_value, cast)
+            ret = self.tools.cf(key, default_value, cast)
         elif self.cf:
             ret = self.cfvalues.get(key, default_value)
-            if cast: ret = cast(ret)
-            return ret
+        else:
+            ret = default_value
+
+        if cast: ret = cast(ret)
+        return ret
 
     def log(self, *args):
         """ log with default simple implementation """
@@ -145,6 +148,11 @@ class Predict:
             if os.path.isfile(self.dbfile):
                 self.db = SqliteBackend(self.dbfile)
                 print("DB open OK:", self.dbfile)
+
+                # dummy loading to "wake-up" db indexes
+                self.db.get_words(['#TOTAL', '#NA', '#START'])
+                self.db.get_grams(["-2:-1:-1", "-2:0:0" ])
+
             else:
                 print("DB not found:", self.dbfile)
 
@@ -156,6 +164,17 @@ class Predict:
         """ update own copy of surrounding text and cursor position """
         self.surrounding_text = text
         self.cursor_pos = pos
+
+        # QQQ ici générer des événements "nouveau mot" (pour les mots tapés autrements qu'avec le swipe)
+        # QQQ détecter automatiquement les rempalcements récents (renvoi vers replace_word -> ...)
+        # print("QQQ", text, pos)
+
+    def replace_word(self, old, new):
+        """ inform prediction engine that a guessed word has been replaced by the user """
+        # note: this can not be reliably detected with surrounding text only
+
+        # QQQ générer les evt "mot remplacé" (les "nouveaux mots" sont généré d'office lors du "guess", et doivent être annulés ici
+        #print("QQQ replace", old, new)
 
     def get_predict_words(self):
         """ return prediction list, in a format suitable for QML ListModel """
@@ -169,12 +188,12 @@ class Predict:
     def _update_last_words(self):
         """ internal method : compute list of last words for n-gram scoring """
         self.last_words = []
-        if self.cursor_pos == -1: return []
+        if self.cursor_pos == -1: return  # no context available -> handle this as isolated words instead of the beginning of a new sentence (so no #START)
         text_before = self.surrounding_text[0:self.cursor_pos] + self.preedit
         pos = text_before.find('.')
         if pos > -1: text_before = text_before[pos + 1:]
 
-        words = reversed(re.split(r'[^a-zA-Z\-\']+', text_before))
+        words = reversed(re.split(r'[^\w\'\-]+', text_before))
         words = [ x for x in words if len(x) > 0 ]
 
         words = (words + [ '#START', '#START' ])[0:2]
@@ -187,6 +206,7 @@ class Predict:
         # get previous words (surrounding text) for lookup
         words_set = set(words)
         for word in self.last_words: words_set.add(word)
+        words_set.add('#START')
 
         # lookup all words from DB or cache (surrounding & candidates)
         word2id = self.db.get_words(words_set)
@@ -196,6 +216,7 @@ class Predict:
         for word in self.last_words:
             if word not in word2id: break  # unknown word -> only use smaller n-grams
             last_wids.append(word2id[word])
+            if word == '#START': break  # no need to get a larger n-gram
 
         # prepare scores request
         def add(word, todo, ids_list, score_id, lst):
@@ -238,7 +259,7 @@ class Predict:
                 scores[score_id] = 1.0 * num / den
 
             # select score for the N-gram with the largest "N" (cf. Jurasky & Martin §4.6 : simple backoff)
-            result[word] = scores.get("s3", None) or scores.get("s2", None) or scores.get("s1", None) or 0
+            result[word] = (scores.get("s3", None) or scores.get("s2", None) or scores.get("s1", None) or 0, scores)
 
         return result
 
@@ -250,8 +271,6 @@ class Predict:
             for y in x[2].split(','):
                 word = x[0] if y == '=' else y
                 words[word] = x[1]
-
-        print("Matches:", ','.join(words.keys()))
 
         if not self.db:
             # in case we have no prediction DB (this case is probably useless)
@@ -266,16 +285,17 @@ class Predict:
         self._update_last_words()
         if not len(matches): return
 
+        print("Context:", self.last_words, "- Matches:", ','.join(words.keys()))
 
         scores = self._get_all_predict_scores(words.keys())  # requests all scores using bulk requests
 
-        coef_score_predict = self.cf('score_predict', 0.3, float)
-        coef_score_upper = self.cf('score_upper', 0.1, float)
-        coef_score_sign = self.cf('score_sign', 0.05, float)
+        coef_score_predict = self.cf('score_predict', 0.6, float)
+        coef_score_upper = self.cf('score_upper', 0.2, float)
+        coef_score_sign = self.cf('score_sign', 0.1, float)
 
         lst = []
         for word in scores:
-            score_predict = scores.get(word, None)
+            score_predict, detail_score = scores.get(word, (None, dict()))
 
             # overall score
             score = words[word]
@@ -283,7 +303,7 @@ class Predict:
             score += coef_score_predict * score_predict
             if word[0].isupper(): score -= coef_score_upper
             if word.find("'") > -1 or word.find("-") >  1: score -= coef_score_sign
-            message = "score[%s]: %.3f %.3f --> %.3f" % (word, words[word], score_predict, score)
+            message = "score[%s]: %.3f + %.3f[%s] --> %.3f" % (word, words[word], score_predict, detail_score, score)
             lst.append((word, score, message))
 
         lst.sort(key = lambda x: x[1], reverse = True)
@@ -301,15 +321,14 @@ class Predict:
         self.log()
         return word
 
-    def cleanup(self):
+    def cleanup(self, force_flush = False):
         """ periodic tasks: cache purge, DB flush to disc ... """
         # @todo
-        pass 
+        pass
 
     def close(self):
         """ Close all resources & flush data """
-        # @todo force flush DB
+        self.cleanup(force_flush = True)
         if self.db:
             self.db.close()
             self.db = None
-

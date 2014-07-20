@@ -1,4 +1,5 @@
 #include "curve_match.h"
+#include "score.h"
 
 #include <QDateTime>
 #include <QElapsedTimer>
@@ -40,6 +41,8 @@ void Params::toJson(QJsonObject &json) const {
   json["curv_turnmax"] = curv_turnmax;
   json["max_active_scenarios"] = max_active_scenarios;
   json["max_candidates"] = max_candidates;
+  json["score_coef_speed"] = score_coef_speed;
+  json["angle_dist_range"] = angle_dist_range;
 }
 
 Params Params::fromJson(const QJsonObject &json) {
@@ -72,6 +75,9 @@ Params Params::fromJson(const QJsonObject &json) {
   p.curv_turnmax = json["curv_turnmax"].toDouble();
   p.max_active_scenarios = json["max_active_scenarios"].toDouble();
   p.max_candidates = json["max_candidates"].toDouble();
+  p.score_coef_speed = json["score_coef_speed"].toDouble();
+  p.angle_dist_range = json["angle_dist_range"].toDouble();
+
   return p;
 }
 
@@ -150,6 +156,10 @@ static float cos_angle(float x1, float y1, float x2, float y2) {
   return (x1 * x2 + y1 * y2) / (sqrt(pow(x1, 2) + pow(y1, 2)) * sqrt(pow(x2, 2) + pow(y2, 2)));
 }
 
+static float sin_angle(float x1, float y1, float x2, float y2) {
+  return (x1 * y2 - x2 * y1) / (sqrt(pow(x1, 2) + pow(y1, 2)) * sqrt(pow(x2, 2) + pow(y2, 2)));
+}
+
 static float angle(float x1, float y1, float x2, float y2) {
   float cosa = cos_angle(x1, y1, x2, y2);
   float value;
@@ -205,6 +215,10 @@ Scenario::Scenario(LetterTree *tree, QHash<unsigned char, Key> *keys, QList<Curv
   temp_score = 0;
   final_score = -1;
   last_fork = -1;
+
+  float sum = 0;
+  for(int i = 0; i < curve -> size(); i++) { sum += (*curve)[i].speed; }
+  average_speed = sum / curve -> size();
 }
 
 float Scenario::calc_cos_score(unsigned char prev_letter, unsigned char letter, int index, int new_index) {
@@ -212,8 +226,19 @@ float Scenario::calc_cos_score(unsigned char prev_letter, unsigned char letter, 
   Key k2 = (*keys)[letter];
   Point p1 = (*curve)[index];
   Point p2 = (*curve)[new_index];
-  float cos = cos_angle(k2.x - k1.x, k2.y - k1.y, p2.x - p1.x, p2.y - p1.y);
-  return 1 - acos(cos) / (params->max_angle * M_PI / 180);
+  float a_sin = abs(sin_angle(k2.x - k1.x, k2.y - k1.y, p2.x - p1.x, p2.y - p1.y));
+
+  float len = distancep(p1, p2);
+  float len_coef = len / params -> angle_dist_range; // reusing another parameter, but fine adjusting can be done with max_angle
+  if (len_coef < 1) { len_coef = 1; }
+  float max_sin = sin(params -> max_angle * M_PI / 180) / len_coef;
+  
+  float score = 1 - a_sin / max_sin;
+
+  DBG("  [cos score] %s:%c i=%d:%d len_coef=%.2f angle=%.2f/%.2f -> score=%.2f", 
+      name.toLocal8Bit().constData(), letter, index, new_index, len_coef, a_sin, max_sin, score);
+  
+  return score;
 }
 
 float Scenario::calc_turn_score(unsigned char letter, int index) {
@@ -300,12 +325,12 @@ float Scenario::begin_end_angle_score(bool end) {
     int l = index_history.size();
     int nc = curve -> size();
 
-    if (index_history[l - 2].second > nc - 2) { return 0; } // QQQ
+    if (index_history[l - 2].second > nc - 2) { return 0; }
 
     expected = expected_tangent(l - 1);
     actual = (*curve)[nc - 1] - (*curve)[nc - 3];
   } else {
-    if (index_history[1].second < 2) { return 0; } // QQQ
+    if (index_history[1].second < 2) { return 0; }
 
     expected = expected_tangent(0);
     actual = (*curve)[2] - (*curve)[0];
@@ -586,7 +611,7 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &
 }
 
 float Scenario::speedCoef(int index) {
-  return sqrt(1000.0 / (*curve)[index].speed);
+  return 1 + params -> score_coef_speed * ((*curve)[index].speed - average_speed) / average_speed;
 }
 
 void Scenario::childScenario(LetterNode &childNode, bool endScenario, QList<Scenario> &result, int &st_fork) {
@@ -625,7 +650,7 @@ void Scenario::childScenario(LetterNode &childNode, bool endScenario, QList<Scen
   bool first = true;
   foreach(int new_index, new_index_list) {
     
-    score_t score = {0, 0, 0, 0, 0, 0}; // all scores are : <0 reject, 1 = best value
+    score_t score = {NO_SCORE, NO_SCORE, NO_SCORE, NO_SCORE, NO_SCORE, NO_SCORE}; // all scores are : <0 reject, 1 = best value, ]0,1] OK, NO_SCORE = not computed
     score.distance_score = distance_score;
 
     if (count > 0) {
@@ -721,75 +746,65 @@ bool Scenario::forkLast() {
 }
 
 void Scenario::postProcess() {
-  
-  // evaluate final score
-  evalScore();
-
-  float score_bak = final_score;
-
   // bonus for "curviness"
-  float total = 0;
-  int count = 0;
   int l = index_history.size();
   for(int i = 0; i < l - 1; i ++) {
     float sc = (l>2)?calc_curviness_score(i):0;
     if (i == 0) { sc += begin_end_angle_score(false); }
     if (i == l - 2) { sc += begin_end_angle_score(true); }
 
-    scores[i + 1].curve_score2 = sc; // just for logging
-    if (sc != 0) {
-      // only count non-zero scores, because zero means "i could not compute the score, so i've got no opinion"
-      total += sc;
-      count += 1;
-    }
+    scores[i + 1].curve_score2 = sc;
   }
 
-  if (count) { final_score += params->weight_curve2 * total / count; }
-
-  if (final_score < 0) { final_score = 0; /* this one is really bad */ }
-
-  DBG("  [postProcess] -> Final score [%s] = %.3f -> %.3f", name.toLocal8Bit().constData(), score_bak, final_score);
+  evalScore();
 }
 
 float Scenario::evalScore() {
+  DBG("==== Evaluating final score: %s", name.toLocal8Bit().constData());
+  this -> final_score = 0;
   if (scores.size() < 2) { return 0; }
   int l = scores.size();
-  float score = 0;
 
-  // key scores
-  float total = 0;
-  float total_coef = 0;
-  for (int i = 0; i < l; i++) {
-    int idx = index_history[i].second;
-    float coef = speedCoef(idx);
-    total_coef += coef;
-    total += pow(scores[i].distance_score, params->score_pow) * params->weight_distance;
+  ScoreCounter sc;
+  char* cols[] = { (char*) "angle", (char*) "curve", (char*) "curve2", (char*) "distance", (char*) "length", (char*) "turn", 0 };
+  sc.set_cols(cols);
+  sc.set_pow(params -> score_pow);
+  sc.set_debug(debug); // will draw nice tables :-)
+
+  for(int i = 0; i < l; i++) {
+    // key scores
+    sc.start_line();
+    sc.set_line_coef(speedCoef(index_history[i].second));
+    if (debug) { sc.line_label << "Key " << i << ":" << index_history[i].second << ":" << QString(index_history[i].first.getChar()); }
+    sc.add_score(scores[i].distance_score, params -> weight_distance, (char*) "distance");
+    if (i > 0 && i < l - 1) {
+      sc.add_score(scores[i + 1].turn_score, params -> weight_turn, (char*) "turn");
+    }
+    sc.end_line();
+
+    // segment scores
+    if (i < l - 1) {
+      sc.start_line();
+      sc.set_line_coef((speedCoef(index_history[i].second) + 
+			speedCoef(index_history[i + 1].second)) / 2);
+      if (debug) { sc.line_label << "Segment " << i + 1 << " [" << index_history[i].second << ":" << index_history[i + 1].second << "]"; }
+      sc.add_score(scores[i + 1].cos_score, params -> weight_cos, (char*) "angle"); 
+      sc.add_score(scores[i + 1].curve_score, params -> weight_curve, (char*) "curve");
+      sc.add_score(scores[i + 1].length_score, params -> weight_length, (char*) "length");
+      sc.add_bonus(scores[i + 1].curve_score2, params -> weight_curve2, (char*) "curve2");
+      sc.end_line();
+    }
   }
-  score += total / total_coef;
 
-  // segment scores
-  total = 0;
-  total_coef = 0;
-  for (int i = 1; i < l; i++) {
-    int idx = (index_history[i - 1].second + index_history[i].second) / 2;
-    float coef = speedCoef(idx);
-    total_coef += coef;
-    total += coef * (pow(scores[i].cos_score, params->score_pow) * params->weight_cos +
-		     pow(scores[i].turn_score, params->score_pow) * params->weight_turn +
-		     pow(scores[i].curve_score, params->score_pow) * params->weight_curve +
-		     pow(scores[i].length_score, params->score_pow) * params->weight_length)
-      / (params->weight_distance + params->weight_length + params->weight_cos + params-> weight_curve + 
-	 (i >= 2?params->weight_turn:0)); // normalize [0,1];
-
-  }
-  score += total / total_coef;
-
-  score *= (1.0 +  params->length_penalty * scores.size());
+  float score1 = sc.get_score();
+  float score = score1 * (1.0 + params->length_penalty * scores.size()); // my scores have a bias towards number of letters
+  
+  DBG("==== %s --> Score: %.3f --> Final Score: %.3f", name.toLocal8Bit().constData(), score1, score);
   
   this -> final_score = score;
   return score;
 }
-
+       
 void Scenario::toJson(QJsonObject &json) {
   json["name"] = name;
   json["finished"] = finished;
@@ -853,6 +868,11 @@ void CurveMatch::curvePreprocess() {
   int index2 = 6;
   int sharp_turn_index = -1;
   int last_total_turn = -1;
+  float total_dist = 0;
+
+  float speed[l];
+  float total_speed;
+
   for(int i = 0; i < l; i ++) {
     /* speed */
     if (i > (index1 + index2) / 2 && index2 < l - 1) {
@@ -862,18 +882,20 @@ void CurveMatch::curvePreprocess() {
     for (int j = index1; j < index2; j ++) {
       dist += distancep(curve[j], curve[j+1]);
     }
+    total_dist += dist;
     if (curve[index2].t > curve[index1].t) {
-      curve[i].speed = 1000 * dist / (curve[index2].t - curve[index1].t);
+      speed[i] = dist / (curve[index2].t - curve[index1].t);
     } else {
       // compatibility with old test cases, should not happen often :-)
-      if (i > 0) { curve[i].speed = curve[i - 1].speed; } else { curve[i].speed = 1000; }
+      if (i > 0) { speed[i] = speed[i - 1]; } else { speed[i] = 1.0; }
     }
+    total_speed += speed[i];
 
     /* rotation / turning points */
     if (i >= 2 && i < l - 2) {
       float total = 0;
       float t_index = 0;
-      for(int j = i - 1; j < i + 1; j ++) {
+      for(int j = i - 1; j <= i + 1; j ++) {
 	total += curve[j].turn_angle;
 	t_index += curve[j].turn_angle * j;
       }
@@ -903,7 +925,11 @@ void CurveMatch::curvePreprocess() {
       last_total_turn = abs(total);
     }
   }
-
+  
+  // normalize speed
+  for(int i = 0; i < l; i ++) {
+    curve[i].speed = 1000 * (speed[i] / (total_speed / l));
+  }
 }
 
 void CurveMatch::setDebug(bool debug) {
@@ -1060,7 +1086,7 @@ bool CurveMatch::match() {
     n += 1;
     scenarios = new_scenarios; // remember QT collections have intelligent copy-on-write (hope it works)
     if (n >= 3) {
-      scenarioFilter(scenarios, 0.9 - 0.6 * (1.0 / (1.0 + (float) n)), 15, params.max_active_scenarios /* * (n > 3?1:2) */); // @todo add to parameter list
+      scenarioFilter(scenarios, 0 /* QQQ 0.9 - 0.6 * (1.0 / (1.0 + (float) n)) */, 15, params.max_active_scenarios /* * (n > 3?1:2) */); // @todo add to parameter list
       DBG("Depth: %d - Scenarios: %d - Candidates: %d", n, scenarios.size(), candidates.size());      
     }
   }

@@ -172,9 +172,9 @@ for scenario in candidates:
             for k in sorted(letter_info.keys()): hr.td(bgcolor="#C0FFC0", align = "center").font(k, size="-2")
         tr = t.tr
         for k in sorted(letter_info.keys()):
-            tr.td(clean_value(letter_info[k]), align = "center")
+            tr.td(clean_value('-' if letter_info[k] in [ '-999' ] else letter_info[k]), align = "center")
             if k.startswith("score_"):
-                if str(letter_info[k]) != '0':
+                if str(letter_info[k]) not in [ '-999' ]:
                     if k not in total: total[k] = (0, 0)
                     total[k] = tuple(map(sum, zip(total[k], (1.0 * letter_info[k], 1))))
         first = False

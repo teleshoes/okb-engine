@@ -17,7 +17,7 @@ static Params default_params = {
   0.6, // weight_curve2
   6.0, // weight_turn
   0.001, // length_penalty
-  80, // turn_threshold
+  75, // turn_threshold
   5, // max_turn_index_gap
   120, // curve_dist_threshold
   0.35, // small_segment_min_score
@@ -26,6 +26,8 @@ static Params default_params = {
   5, // curv_amin
   75, // curv_amax
   70, // curv_turnmax
-  200, // max_active_scenarios
-  30, // max_candidates
+  500, // max_active_scenarios
+  60, // max_candidates
+  0.1, // score_coef_speed
+  92, // angle_dist_range
 };

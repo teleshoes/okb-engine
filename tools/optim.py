@@ -43,7 +43,6 @@ defparams = [
     [ "weight_turn", float, 0.1, 10 ],
     [ "length_penalty", float, -0.1, 0.1 ],
     [ "turn_threshold", int, 10, 45 ],
-    [ "turn_threshold2", int, 45, 120 ],
     [ "max_turn_index_gap", int, 2, 10],
     [ "curve_dist_threshold", int, 30, 200 ],
     [ "small_segment_min_score", float, 0.01, 0.9 ],
@@ -54,19 +53,26 @@ defparams = [
     [ "curv_turnmax", int, 40, 89 ],
     [ "max_active_scenarios", int ],  # no optimization, larger is always better
     [ "max_candidates", int ],  # idem
+    [ "score_coef_speed", float, -10, 10],
+    [ "angle_dist_range", int, 10, 300],
 ]
 
 params = dict()
 for p in defparams:
     if len(p) > 2:
         (name, type, min_value, max_value) = tuple(p)
-        params[name] = dict(value = None, type = type, min = min_value, max = max_value)
+        params[name] = dict(type = type, min = min_value, max = max_value)
     else:
-        params[p[0]] = dict(value = None, type = p[1])
+        params[p[0]] = dict(type = p[1])
 
 cfparams = get_params(os.path.join(os.path.dirname(__file__), '..', "okboard.cf"))
 for name, value in cfparams.items():
+    if name not in params: raise Exception("Unknown parameter in cf file: %s" % name)
     params[name]["value"] = params[name]["type"](value)
+
+for p in params:
+    if "value" not in params[p]:
+        raise Exception("Parameter not in cf file: %s" % p)
 
 def dump(txt, id = ""):
     sep = '--8<----[' + id + ']' + '-' * (65 - len(id))
@@ -229,16 +235,23 @@ def load_tests():
 if __name__ == "__main__":
     start = time.time()
 
-    opts, args =  getopt.getopt(sys.argv[1:], 'l:')
+    opts, args =  getopt.getopt(sys.argv[1:], 'l:p:')
+    listpara = None
     for o, a in opts:
         if o == "-l":
             LOG = a
+        if o == "-p":
+            listpara = a.split(',')
         else:
             print("Bad option: %s", o)
             exit(1)
 
     if len(args) < 1:
-        print("usage:", os.path.basename(sys.argv[0]), " <score type>")
+        print("usage:", os.path.basename(sys.argv[0]), " [<options>] <score type>")
+        print("options:")
+        print(" -p <list> : only optimize this parameters (comma separated)")
+        print(" -l <file> : verbose log file")
+        exit(1)
 
     typ = args[0]
 
@@ -261,17 +274,21 @@ if __name__ == "__main__":
         it += 1
         changed = False
         for p in params:
-            if "min" in params[p]:
-                print("===== Optimizing parameter '%s' =====" % p)
-                score = optim(p, params, tests, typ)
-                if score > max_score:
-                    max_score = score
-                    max_params = copy.deepcopy(params)
-                    changed = True
+            if "min" not in params[p]: continue
+            if listpara and p not in listpara: continue
 
-                print("Start  (%.3f): %s" % (score0, params2str(params0)))
-                print("Current(%.3f): %s" % (score, params2str(params)))
-                print("Best   (%.3f): %s" % (max_score, params2str(max_params)))
+            print("===== Optimizing parameter '%s' =====" % p)
+            score = optim(p, params, tests, typ)
+            if score > max_score:
+                max_score = score
+                max_params = copy.deepcopy(params)
+                changed = True
+
+            print("Start  (%.3f): %s" % (score0, params2str(params0)))
+            print("Current(%.3f): %s" % (score, params2str(params)))
+            print("Best   (%.3f): %s" % (max_score, params2str(max_params)))
+
+        # if listpara and len(listpara) == 1: changed = False  # won't need another iteration
 
     with open(OUT, "a") as f:
         detail_max = dict()
