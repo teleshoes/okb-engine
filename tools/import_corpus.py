@@ -10,22 +10,34 @@ import sys, os
 import time
 import gzip
 import re
+import getopt
 
-if len(sys.argv) < 2:
-    print("Usage: ", os.path.basename(__file__), " <dictionary file>")
+debug = False
+opts, args =  getopt.getopt(sys.argv[1:], 'd')
+for o, a in opts:
+    if o == "-d":
+        debug = True
+    else:
+        print("Bad option: %s", o)
+        exit(1)
+
+if len(args) < 1:
+    print("Usage: [-d] ", os.path.basename(__file__), " <dictionary file>")
     print(" corpus data is read from stdin (normal text file)")
     print(" words not included in dictionary file are ignored (text file, one word per line)")
     print(" result is written as semicolon separated CSV to stdout")
+    print(" option -d only outputs cleaned sentences (for debug)")
     exit(255)
 
-dictfile = sys.argv[1]
+dictfile = args[0]
 
 class CorpusImporter:
-    def __init__(self):
+    def __init__(self, debug = False):
         self.grams = dict()
         self.sentence = []
         self.word_used = set()
         self.size = 0
+        self.debug = debug
 
     def load_words(self, words):
         id = 2
@@ -36,6 +48,7 @@ class CorpusImporter:
             self.words.add(word)
 
     def parse_line(self, line):
+        if self.debug: print(line)
         self.size += len(line)
         line = line.strip()
         if re.match(r'^\s+$', line):
@@ -86,6 +99,7 @@ class CorpusImporter:
     def next_sentence(self):
         if not self.sentence: return
         sentence = self.sentence
+        if self.debug: print("WORDS:", sentence)
         self.sentence = [ ]
 
         roll = [ '#START' ] * 3
@@ -93,9 +107,8 @@ class CorpusImporter:
             sentence.pop(0)
             roll = [ '#ERR' ] * 3
 
-        if len(sentence) < 2: return  # one-word sentences are suspicious :-)
+        # if len(sentence) < 2: return  # one-word sentences are suspicious :-) -> not at all!
 
-        # print(" >>>", sentence)  # QQQ
         for word in sentence:
             self.word_used.add(word)
             roll.pop(0)
@@ -140,7 +153,7 @@ class CorpusImporter:
             print("%d;%s" % (count, key))
 
 # 1) load dictionary
-ci = CorpusImporter()
+ci = CorpusImporter(debug = debug)
 if dictfile[-3:] == '.gz': f = gzip.open(dictfile)
 else: f = open(dictfile)
 ci.load_words(f.readlines())
@@ -153,10 +166,9 @@ while line:
     line = sys.stdin.readline()
 
     now = time.time()
-    if now >= last + 5:
+    if now >= last + 5 and not debug:
         sys.stderr.write("[%d] %s\n" % (int(now - start), ci.get_stats()))
         last = now
 
 # 3) result to stdout CSV
-ci.print_grams()
-
+if not debug: ci.print_grams()
