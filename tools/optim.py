@@ -203,7 +203,7 @@ def optim(pname, params, tests, typ):
             else: step *= 1.2
 
     value, score = sorted(scores, key = lambda x: x[1])[-1]
-    if score > score0:
+    if score > score0 * 1.0001:
         params[pname]["value"] = value
         print("===> Update[%s] %s->%s (score: %.3f -> %.3f)" % (pname, value0, value, score0, score))
         return score
