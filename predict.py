@@ -113,8 +113,12 @@ class Predict:
         self.db = None
         self.preedit = ""
         self.surrounding_text = ""
+        self.last_surrounding_text = ""
         self.cursor_pos = -1
         self.last_words = []
+        self.last_guess = None
+        self.recent_contexts = []
+        self.learn_history = dict()
 
     def cf(self, key, default_value, cast = None):
         """ "mockable" configuration """
@@ -160,21 +164,74 @@ class Predict:
         """ update own copy of preedit (from maliit) """
         self.preedit = preedit
 
+    def _learn(self, add, word, context, replaces = None, silent = False):
+        now = time.time()
+        if not silent:
+            print("Learn:", "add" if add else "remove", word, "context:", context, "{replaces %s}" % replaces if replaces else "")
+
+        key = ' '.join(([ word ] + context)[0:3])
+        if add:
+            self.learn_history[key] = (True, word, context, now)  # add occurence
+            if replaces:
+                key2 = ' '.join(([ replaces ] + context)[0:3])
+                self.learn_history[key2] = (False, word, context, now)  # add replacement occurence (failed prediction)
+        else:
+            if key in self.learn_history and self.learn_history[key] == False:
+                pass  # don't remove word replacements
+            else:
+                self.learn_history.pop(key, None)
+
+
     def update_surrounding(self, text, pos):
         """ update own copy of surrounding text and cursor position """
         self.surrounding_text = text
         self.cursor_pos = pos
 
-        # QQQ ici générer des événements "nouveau mot" (pour les mots tapés autrements qu'avec le swipe)
-        # QQQ détecter automatiquement les rempalcements récents (renvoi vers replace_word -> ...)
-        # print("QQQ", text, pos)
+        if pos == -1: return  # disable recording if not in a real text box
+
+        list_before = [ x for x in re.split(r'[^\w\'\-]+', self.last_surrounding_text) if x ]
+        list_after = [ x for x in re.split(r'[^\w\'\-]+', self.surrounding_text) if x ]
+
+        if list_after == list_before: return
+        
+        begin = []
+        end = []
+        while list_before and list_after and list_before[0] == list_after[0]:
+            list_before.pop(0)
+            begin.append(list_after.pop(0))
+
+        while list_before and list_after and list_before[-1] == list_after[-1]:
+            list_before.pop(-1)
+            end.insert(0, list_after.pop(-1))
+        
+        context = list(reversed(begin)) + ['#START']
+        if not list_before and len(list_after) == 1:
+            # new word
+            word = list_after[0]
+            self._learn(True, word, context)
+        elif len(list_before) == 1 and not list_after and (begin or end):
+            # word removed
+            word = list_before[0]
+            self._learn(False, word, context)
+        elif len(list_before) == 1 and len(list_after) == 1:
+            word1 = list_before[0]
+            word2 = list_after[0]
+            if len(word2) < len(word1) and word2 == word1[0:len(word2)]:
+                return # backspace into a word (don't update self.last_surrounding_text)
+            else:
+                self._learn(False, word2, context, replaces = word1)
+        else:
+            # other case too complicated - just ignoring
+            pass
+
+        self.last_surrounding_text = text
 
     def replace_word(self, old, new):
         """ inform prediction engine that a guessed word has been replaced by the user """
-        # note: this can not be reliably detected with surrounding text only
+        # note: this can not be reliably detected with surrounding text only 
+        # -> case i've got a one word sentence and replace it --> and can't make the difference with moving to another location in the text
 
-        # QQQ générer les evt "mot remplacé" (les "nouveaux mots" sont généré d'office lors du "guess", et doivent être annulés ici
-        #print("QQQ replace", old, new)
+        self._learn(True, new, self.last_words, replaces = old)
 
     def get_predict_words(self):
         """ return prediction list, in a format suitable for QML ListModel """
@@ -186,22 +243,26 @@ class Predict:
         return 1
 
     def _update_last_words(self):
+        self.last_words = self._get_last_words(2)
+
+    def _get_last_words(self, count, include_preedit = True):
         """ internal method : compute list of last words for n-gram scoring """
         self.last_words = []
         if self.cursor_pos == -1: return  # no context available -> handle this as isolated words instead of the beginning of a new sentence (so no #START)
-        text_before = self.surrounding_text[0:self.cursor_pos] + self.preedit
+        text_before = self.surrounding_text[0:self.cursor_pos] + (" " + self.preedit) if include_preedit else ""
         pos = text_before.find('.')
         if pos > -1: text_before = text_before[pos + 1:]
 
         words = reversed(re.split(r'[^\w\'\-]+', text_before))
         words = [ x for x in words if len(x) > 0 ]
 
-        words = (words + [ '#START', '#START' ])[0:2]
-        self.last_words = words
+        words = (words + [ '#START' ] + [ '#NA' ] * (count - 2))[0:count]
+        return words
 
 
     def _get_all_predict_scores(self, words):
         """ get n-gram DB information (use 2 SQL batch requests instead of a ton of smaller ones, for huge performance boost) """
+        result = dict()
 
         # get previous words (surrounding text) for lookup
         words_set = set(words)
@@ -232,7 +293,9 @@ class Predict:
         todo = dict()
         ids_list = set()
         for word in words:
-            if word not in word2id: continue  # unknown word -> no scoring
+            if word not in word2id: # unknown word -> dummy scoring
+                result[word] = (0, {});
+                continue
             wid = word2id[word]
 
             add(word, todo, ids_list, "s1", [wid])
@@ -245,7 +308,6 @@ class Predict:
         sqlresult = self.db.get_grams(ids_list)
 
         # process request result & compute scores
-        result = dict()
         for word in todo:
             scores = dict()
             for score_id in todo[word]:
@@ -260,6 +322,8 @@ class Predict:
 
             # select score for the N-gram with the largest "N" (cf. Jurasky & Martin §4.6 : simple backoff)
             result[word] = (scores.get("s3", None) or scores.get("s2", None) or scores.get("s1", None) or 0, scores)
+
+        self.recent_contexts = self.recent_contexts[1:10] + [ (word, list(self.last_words)) ]
 
         return result
 
@@ -310,6 +374,7 @@ class Predict:
         for word in lst: self.log(word[2])
 
         self.predict_list = [ x[0] for x in lst ]
+        self.predict_list = self.predict_list[0:self.cf('max_predict', 30, int)]
 
         if self.predict_list:
             word = self.predict_list.pop(0)
@@ -319,6 +384,7 @@ class Predict:
         t = int((time.time() - t0) * 1000)
         self.log("Selected word:", word, "elapse:", t, "db_time:", int(1000 * self.db.timer), "db_count:", self.db.count, "cache:", len(self.db.cache))
         self.log()
+        self.last_guess = word
         return word
 
     def cleanup(self, force_flush = False):
