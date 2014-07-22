@@ -278,6 +278,16 @@ float Scenario::calc_turn_score(unsigned char letter, int index) {
   float diff = abs(actual - expected);
   if (diff > 180) { diff = abs(diff - 360); }
 
+  /* @todo adjust for distance
+  float dist1 = distancep(k1, k2);
+  float dist2 = distancep(k2, k3);
+  float dist = (dist1 < dist2)?dist1:dist2;
+  float dist_coef = 1;
+  if (dist > params -> angle_dist_range) {
+    dist_coef = dist / params -> angle_dist_range; // really simplified
+  }
+  */
+
   // thresholds
   int t1 = params->max_turn_error1;
   int t2 = params->max_turn_error2;
@@ -298,7 +308,7 @@ float Scenario::calc_turn_score(unsigned char letter, int index) {
   return score;
 }
 
-Point Scenario::expected_tangent(int index) {
+Point Scenario::curve_tangent(int index) {
   int i1 = index_history[index].second;
   Point d1, d2;
   Point origin(0, 0);
@@ -327,12 +337,12 @@ float Scenario::begin_end_angle_score(bool end) {
 
     if (index_history[l - 2].second > nc - 2) { return 0; }
 
-    expected = expected_tangent(l - 1);
+    expected = (*curve)[nc - 1] - (*curve)[nc - 2];
     actual = (*curve)[nc - 1] - (*curve)[nc - 3];
   } else {
     if (index_history[1].second < 2) { return 0; }
 
-    expected = expected_tangent(0);
+    expected = (*curve)[1] - (*curve)[0];
     actual = (*curve)[2] - (*curve)[0];
   }
 
@@ -362,8 +372,8 @@ float Scenario::calc_curviness_score(int index) {
   }
 
   Point p = (*curve)[i2] - (*curve)[i1];
-  Point v1 = expected_tangent(index);
-  Point v2 = expected_tangent(index + 1);
+  Point v1 = curve_tangent(index);
+  Point v2 = curve_tangent(index + 1);
 
   float a1 = anglep(v1, p) * 180.0 / M_PI;
   float a2 = anglep(p, v2) * 180.0 / M_PI;
