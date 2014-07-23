@@ -337,12 +337,18 @@ float Scenario::begin_end_angle_score(bool end) {
 
     if (index_history[l - 2].second > nc - 2) { return 0; }
 
-    expected = (*curve)[nc - 1] - (*curve)[nc - 2];
+    Key k1 = (*keys)[index_history[l - 2].first.getChar()];
+    Key k2 = (*keys)[index_history[l - 1].first.getChar()];
+    expected = Point(k2.x - k1.x, k2.y - k1.y);
+
     actual = (*curve)[nc - 1] - (*curve)[nc - 3];
+
   } else {
     if (index_history[1].second < 2) { return 0; }
 
-    expected = (*curve)[1] - (*curve)[0];
+    Key k1 = (*keys)[index_history[0].first.getChar()];
+    Key k2 = (*keys)[index_history[1].first.getChar()];
+    expected = Point(k2.x - k1.x, k2.y - k1.y);
     actual = (*curve)[2] - (*curve)[0];
   }
 

@@ -28,7 +28,7 @@ curv_amin = 5
 curv_amax = 75
 curv_turnmax = 70
 max_active_scenarios = 500
-max_candidates = 60
+max_candidates = 30
 score_coef_speed = 0.1
 angle_dist_range = 92
 
