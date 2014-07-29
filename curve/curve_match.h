@@ -125,10 +125,7 @@ class Scenario {
 
   bool debug;
 
-  float average_speed;
-
  private:
-  void childScenario(LetterNode &child, bool endScenario, QList<Scenario> &result, int &st_fork);
   float calc_distance_score(unsigned char letter, int index, int count);
   float calc_cos_score(unsigned char prev_letter, unsigned char letter, int index, int new_index);
   float calc_curve_score(unsigned char prev_letter, unsigned char letter, int index, int new_index);
@@ -145,6 +142,8 @@ class Scenario {
   Scenario(LetterTree *tree, QHash<unsigned char, Key> *keys, QList<CurvePoint> *curve, Params *params);
   void setDebug(bool debug);
   void nextKey(QList<Scenario> &result, int &st_fork);
+  QList<LetterNode> getNextKeys();
+  void childScenario(LetterNode &child, bool endScenario, QList<Scenario> &result, int &st_fork);
   bool operator<(const Scenario &other) const;
   bool isFinished() { return finished; };
   QString getName() { return name; };
@@ -154,13 +153,14 @@ class Scenario {
   float getTempScore() const;
   float getCount();
   bool forkLast();
+  int getCurveIndex();
 
   void toJson(QJsonObject &json);
 };
 
 /* main processing for curve matching */
 class CurveMatch {
- private:   
+ protected:
   QList<Scenario> scenarios;
   QList<Scenario> candidates;
   QList<CurvePoint> curve;
@@ -173,22 +173,24 @@ class CurveMatch {
   QString logFile;
   QTime startTime;
   int id;
-
   bool debug;
+  bool done;
 
-  void curvePreprocess();
-  void scenarioFilter(QList<Scenario> &scenarios, float score_ratio, int min_size, int max_size = -1);
+  void scenarioFilter(QList<Scenario> &scenarios, float score_ratio, int min_size, int max_size = -1, bool finished = false);
+  void curvePreprocess1(int last_curve_index = -1);
+  void curvePreprocess2();
 
  public:
   CurveMatch();
   bool loadTree(QString file);
   void clearKeys();
   void addKey(Key key);
-  void clearCurve();
-  void addPoint(Point point);
-  void endCurve(int id);
+  virtual void clearCurve();
+  virtual void addPoint(Point point);
+  virtual void endCurve(int id);
   bool match();
   QList<Scenario> getCandidates();
+  QList<CurvePoint> getCurve();
 
   void setLogFile(QString fileName);
   void log(QString txt);

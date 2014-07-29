@@ -4,7 +4,7 @@
 #include <cmath> 
 #include <math.h>
 
-#define W_HEAD 37
+#define W_HEAD 39
 #define W_COL 15
 
 ScoreCounter::ScoreCounter() {
@@ -36,10 +36,10 @@ void ScoreCounter::set_debug(bool debug) {
 
 void ScoreCounter::set_cols(char **col) {
   this -> col = col;
-  QString str("=");
-  str.append(QString(" ").repeated(W_HEAD - 1));
-
   if (debug) {
+    QString str("=");
+    str.append(QString(" ").repeated(W_HEAD - 1));
+
     char **ptr = col;
     while (*ptr) {
       str.append("--");
@@ -85,7 +85,7 @@ void ScoreCounter::add_bonus(float value, float weight, char *name) {
   if (debug) {
     int col = get_col(name);
     QString str;
-    str.sprintf("%.3f [%.2f]", value, weight);
+    str.sprintf("%6.3f [%4.2f]", value, weight);
     update_dbg_line(str, W_HEAD + W_COL * col, W_COL);
   }
 }
@@ -102,7 +102,7 @@ void ScoreCounter::end_line() {
   if (debug) {
     QString str;
 
-    str.sprintf("= %.3f [%.2f] %20s", line_score, current_line_coef, line_label_str.toLocal8Bit().constData());
+    str.sprintf("=%6.3f [%6.2f] %20s", line_score, current_line_coef, line_label_str.toLocal8Bit().constData());
     update_dbg_line(str, 0, W_HEAD);
 
     qDebug("%s", dbg_line.toLocal8Bit().constData());

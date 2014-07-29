@@ -8,9 +8,25 @@
 #include <iostream>
 #include <math.h>
 
+#include "functions.h"
 #include "default_params.h"
 
 using namespace std;
+
+
+template <typename T>
+QString qlist2str(QList<T> lst) {
+  QString str;
+  if (lst.size() == 0) {
+    str += "empty";
+  } else { 
+    for(int i = 0; i < lst.size(); i++) {
+      QTextStream(& str) << lst[i];
+      if(i < lst.size()-1) { str +=  ","; }
+    }
+  }
+  return str;
+}
 
 void Params::toJson(QJsonObject &json) const {
   json["dist_max_start"] = dist_max_start;
@@ -143,65 +159,6 @@ Key Key::fromJson(const QJsonObject &json) {
   return key;
 }
 
-/* --- local functions --- */
-// NIH all over the place
-static float distance(float x1, float y1, float x2, float y2) {
-  return sqrt(pow(x1 - x2, 2) + pow(y1 - y2, 2));
-}
-static float distancep(Point &p1, Point &p2) {
-  return distance(p1.x, p1.y, p2.x, p2.y);
-}
-
-static float cos_angle(float x1, float y1, float x2, float y2) {
-  return (x1 * x2 + y1 * y2) / (sqrt(pow(x1, 2) + pow(y1, 2)) * sqrt(pow(x2, 2) + pow(y2, 2)));
-}
-
-static float sin_angle(float x1, float y1, float x2, float y2) {
-  return (x1 * y2 - x2 * y1) / (sqrt(pow(x1, 2) + pow(y1, 2)) * sqrt(pow(x2, 2) + pow(y2, 2)));
-}
-
-static float angle(float x1, float y1, float x2, float y2) {
-  float cosa = cos_angle(x1, y1, x2, y2);
-  float value;
-  if (cosa > 1) {
-    value = 0;
-  } else if (cosa < -1) {
-    value = M_PI;
-  } else {
-    value = acos(cosa); // for rounding errors
-  }
-  if (x1*y2 - x2*y1 < 0) { value = -value; }
-  return value;
-}
-
-static float anglep(Point p1, Point p2) {
-  return angle(p1.x, p1.y, p2.x, p2.y);
-}
-
-static float dist_line_point(Point p1, Point p2, Point p) {
-  float lp = distancep(p1, p2);
-  
-  float u = 1.0 * ((p.x - p1.x) * (p2.x - p1.x) + (p.y - p1.y) * (p2.y - p1.y)) / lp / lp;
-  Point proj = Point(p1.x + u * (p2.x - p1.x), p1.y + u * (p2.y - p1.y));
-
-  float result = distancep(proj, p);
-  return result;
-}    
-
-template <typename T>
-static QString qlist2str(QList<T> lst) {
-  QString str;
-  if (lst.size() == 0) {
-    str += "empty";
-  } else { 
-    for(int i = 0; i < lst.size(); i++) {
-      QTextStream(& str) << lst[i];
-      if(i < lst.size()-1) { str +=  ","; }
-    }
-  }
-  return str;
-}
-
 /* --- scenario --- */
 Scenario::Scenario(LetterTree *tree, QHash<unsigned char, Key> *keys, QList<CurvePoint> *curve, Params *params) {
   this -> node = tree -> getRoot();
@@ -215,10 +172,6 @@ Scenario::Scenario(LetterTree *tree, QHash<unsigned char, Key> *keys, QList<Curv
   temp_score = 0;
   final_score = -1;
   last_fork = -1;
-
-  float sum = 0;
-  for(int i = 0; i < curve -> size(); i++) { sum += (*curve)[i].speed; }
-  average_speed = sum / curve -> size();
 }
 
 float Scenario::calc_cos_score(unsigned char prev_letter, unsigned char letter, int index, int new_index) {
@@ -626,10 +579,6 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &
 
 }
 
-float Scenario::speedCoef(int index) {
-  return 1 + params -> score_coef_speed * ((*curve)[index].speed - average_speed) / average_speed;
-}
-
 void Scenario::childScenario(LetterNode &childNode, bool endScenario, QList<Scenario> &result, int &st_fork) {
   unsigned char prev_letter = childNode.getParentChar();
   unsigned char letter = childNode.getChar();
@@ -732,6 +681,10 @@ void Scenario::nextKey(QList<Scenario> &result, int &st_fork) {
   }
 }
 
+QList<LetterNode> Scenario::getNextKeys() {
+  return node.getChilds();
+}
+
 bool Scenario::operator<(const Scenario &other) const {
   if (this -> getScore() == -1 || other.getScore() == -1) {
     return this -> getTempScore() < other.getTempScore();
@@ -757,6 +710,11 @@ float Scenario::getCount() {
   return count;
 }
 
+int Scenario::getCurveIndex() {
+  return index;
+}
+       
+
 bool Scenario::forkLast() {
   return last_fork == count;
 }
@@ -775,6 +733,10 @@ void Scenario::postProcess() {
   evalScore();
 }
 
+float Scenario::speedCoef(int i) {
+  return 1.0 + params -> score_coef_speed * ((*curve)[i].speed - 1000) / 1000;
+}
+
 float Scenario::evalScore() {
   DBG("==== Evaluating final score: %s", name.toLocal8Bit().constData());
   this -> final_score = 0;
@@ -783,9 +745,9 @@ float Scenario::evalScore() {
 
   ScoreCounter sc;
   char* cols[] = { (char*) "angle", (char*) "curve", (char*) "curve2", (char*) "distance", (char*) "length", (char*) "turn", 0 };
+  sc.set_debug(debug); // will draw nice tables :-)
   sc.set_cols(cols);
   sc.set_pow(params -> score_pow);
-  sc.set_debug(debug); // will draw nice tables :-)
 
   for(int i = 0; i < l; i++) {
     // key scores
@@ -820,7 +782,7 @@ float Scenario::evalScore() {
   this -> final_score = score;
   return score;
 }
-       
+
 void Scenario::toJson(QJsonObject &json) {
   json["name"] = name;
   json["finished"] = finished;
@@ -854,41 +816,90 @@ CurveMatch::CurveMatch() {
   loaded = false;
   params = default_params;
   debug = false;
+  done = false;
 }
 
-void CurveMatch::curvePreprocess() {
-  /* evaluate speed and find turning points */
+#define start_idx(i0, o) (last_curve_index - (o) > (i0)?(last_curve_index - (o)):(i0))
+
+void CurveMatch::curvePreprocess1(int last_curve_index) {
+  /* curve preprocessing that can be evaluated incrementally :
+     - evaluate turn rate
+     - find sharp turns */
+  
+  int l = curve.size();
+  if (l < 8) {
+    return; // too small, probably a simple 2-letter words
+  }
+  if (last_curve_index < 8) { last_curve_index = 0; }
+  
+  for (int i = start_idx(1, 2); i < l - 1; i ++) {
+    curve[i].turn_angle = (int) int(angle(curve[i].x - curve[i-1].x,
+					  curve[i].y - curve[i-1].y,
+					  curve[i+1].x - curve[i].x,
+					  curve[i+1].y - curve[i].y) * 180 / M_PI + 0.5); // degrees
+  }
+  // avoid some side effects on curve_score (because there is often a delay before the second point)
+  if (last_curve_index == 0) { curve[0].turn_angle = curve[1].turn_angle; }
+  curve[l-1].turn_angle = curve[l-2].turn_angle;
+  
+  for (int i = start_idx(1, 2); i < l - 1 ; i ++) {
+    curve[i].turn_smooth = int(0.5 * curve[i].turn_angle + 0.25 * curve[i-1].turn_angle + 0.25 * curve[i+1].turn_angle);
+  }
+  if (last_curve_index == 0) { curve[0].turn_smooth = curve[1].turn_smooth; }
+  curve[l-1].turn_smooth = curve[l-2].turn_smooth;
+  
+  int sharp_turn_index = -1;
+  int last_total_turn = -1;
+  
+  /* rotation / turning points */
+  for(int i = start_idx(2, 8) ; i < l - 2; i ++) {
+    float total = 0;
+    float t_index = 0;
+    for(int j = i - 1; j <= i + 1; j ++) {
+      total += curve[j].turn_angle;
+      t_index += curve[j].turn_angle * j;
+    }
+    
+    if (abs(total) < last_total_turn && last_total_turn > params.turn_threshold) {
+      if (sharp_turn_index >= 2 && sharp_turn_index < l - 2) {
+	curve[sharp_turn_index].sharp_turn = true;
+	
+	// compute "normal" vector (really lame algorithm)
+	int i1 = sharp_turn_index - 1;
+	int i2 = sharp_turn_index + 1;
+	float x1 = curve[i1].x - curve[i1 - 1].x;
+	float y1 = curve[i1].y - curve[i1 - 1].y;
+	float x2 = curve[i2 + 1].x - curve[i2].x;
+	float y2 = curve[i2 + 1].y - curve[i2].y;
+	float l1 = sqrt(x1 * x1 + y1 * y1);
+	float l2 = sqrt(x2 * x2 + y2 * y2);	  
+	curve[sharp_turn_index].normalx = x1 / l1 - x2 / l2;
+	curve[sharp_turn_index].normaly = y1 / l1 - y2 / l2;
+      }
+    }
+    
+    if (abs(total) > params.turn_threshold) {
+      sharp_turn_index = int(0.5 + abs(t_index / total));
+    }
+    
+    last_total_turn = abs(total);
+  }
+}
+
+void CurveMatch::curvePreprocess2() {  
+  /* curve preprocessing that can be deferred until final score calculation: 
+     - normalize speed */
 
   int l = curve.size();
   if (l < 8) {
     return; // too small, probably a simple 2-letter words
   }
 
-  for (int i = 1; i < l - 1; i ++) {
-    curve[i].turn_angle = (int) int(angle(curve[i].x - curve[i-1].x,
-					  curve[i].y - curve[i-1].y,
-					  curve[i+1].x - curve[i].x,
-					  curve[i+1].y - curve[i].y) * 180 / M_PI + 0.5); // degrees
-  }
-  // avoid some side effects on curve_score (because there is often a delay before second point)
-  curve[0].turn_angle = curve[1].turn_angle;
-  curve[l-1].turn_angle = curve[l-2].turn_angle;
-  
-  for (int i = 1; i < l - 1 ; i ++) {
-    curve[i].turn_smooth = int(0.5 * curve[i].turn_angle + 0.25 * curve[i-1].turn_angle + 0.25 * curve[i+1].turn_angle);
-  }
-  curve[0].turn_smooth = curve[1].turn_smooth;
-  curve[l-1].turn_smooth = curve[l-2].turn_smooth;
+  float speed[l];
+  float total_speed = 0;
 
   int index1 = 2;
   int index2 = 6;
-  int sharp_turn_index = -1;
-  int last_total_turn = -1;
-  float total_dist = 0;
-
-  float speed[l];
-  float total_speed;
-
   for(int i = 0; i < l; i ++) {
     /* speed */
     if (i > (index1 + index2) / 2 && index2 < l - 1) {
@@ -898,7 +909,6 @@ void CurveMatch::curvePreprocess() {
     for (int j = index1; j < index2; j ++) {
       dist += distancep(curve[j], curve[j+1]);
     }
-    total_dist += dist;
     if (curve[index2].t > curve[index1].t) {
       speed[i] = dist / (curve[index2].t - curve[index1].t);
     } else {
@@ -906,46 +916,12 @@ void CurveMatch::curvePreprocess() {
       if (i > 0) { speed[i] = speed[i - 1]; } else { speed[i] = 1.0; }
     }
     total_speed += speed[i];
-
-    /* rotation / turning points */
-    if (i >= 2 && i < l - 2) {
-      float total = 0;
-      float t_index = 0;
-      for(int j = i - 1; j <= i + 1; j ++) {
-	total += curve[j].turn_angle;
-	t_index += curve[j].turn_angle * j;
-      }
-
-      if (abs(total) < last_total_turn && last_total_turn > params.turn_threshold) {
-	if (sharp_turn_index >= 2 && sharp_turn_index < l - 2) {
-	  curve[sharp_turn_index].sharp_turn = true;
-	  
-	  // compute "normal" vector (really lame algorithm)
-	  int i1 = sharp_turn_index - 1;
-	  int i2 = sharp_turn_index + 1;
-	  float x1 = curve[i1].x - curve[i1 - 1].x;
-	  float y1 = curve[i1].y - curve[i1 - 1].y;
-	  float x2 = curve[i2 + 1].x - curve[i2].x;
-	  float y2 = curve[i2 + 1].y - curve[i2].y;
-	  float l1 = sqrt(x1 * x1 + y1 * y1);
-	  float l2 = sqrt(x2 * x2 + y2 * y2);	  
-	  curve[sharp_turn_index].normalx = x1 / l1 - x2 / l2;
-	  curve[sharp_turn_index].normaly = y1 / l1 - y2 / l2;
-	}
-      }
-      
-      if (abs(total) > params.turn_threshold) {
-	sharp_turn_index = int(0.5 + abs(t_index / total));
-      }
-
-      last_total_turn = abs(total);
-    }
   }
-  
-  // normalize speed
+
   for(int i = 0; i < l; i ++) {
     curve[i].speed = 1000 * (speed[i] / (total_speed / l));
   }
+
 }
 
 void CurveMatch::setDebug(bool debug) {
@@ -964,6 +940,7 @@ void CurveMatch::addKey(Key key) {
 
 void CurveMatch::clearCurve() {
   curve.clear();
+  done = false;
 }
 
 void CurveMatch::addPoint(Point point) {
@@ -975,6 +952,7 @@ void CurveMatch::addPoint(Point point) {
 }
 
 bool CurveMatch::loadTree(QString fileName) {
+  /* load a .tre (word tree) file */
   bool status = wordtree.loadFromFile(fileName);
   loaded = status;
   this -> treeFile = fileName;
@@ -1000,7 +978,8 @@ QList<Scenario> CurveMatch::getCandidates() {
   return candidates;
 }
 
-void CurveMatch::scenarioFilter(QList<Scenario> &scenarios, float score_ratio, int min_size, int max_size) {
+void CurveMatch::scenarioFilter(QList<Scenario> &scenarios, float score_ratio, int min_size, int max_size, bool finished) {
+  /* "skim" any scenario list based on number and/or score */
   float max_score = 0;
 
   qSort(scenarios.begin(), scenarios.end());
@@ -1017,7 +996,7 @@ void CurveMatch::scenarioFilter(QList<Scenario> &scenarios, float score_ratio, i
     float sc = scenarios[i].getTempScore();
 
     // remove scenarios with duplicate words (but not just after a scenario fork)
-    if (! scenarios[i].forkLast()) {
+    if (finished || ! scenarios[i].forkLast()) {
       QString name = scenarios[i].getName();
       if (dejavu.contains(name)) {
 	int i0 = dejavu[name];
@@ -1053,6 +1032,7 @@ void CurveMatch::scenarioFilter(QList<Scenario> &scenarios, float score_ratio, i
   // enforce max scenarios count
   if (max_size > 1) {
     while (scenarios.size() > max_size) {
+      st_skim ++;
       Scenario s = scenarios.takeAt(0);
       DBG("filtering(size): %s (%.3f/%.3f)", s.getName().toLocal8Bit().constData(), s.getScore(), max_score);
     }
@@ -1060,14 +1040,15 @@ void CurveMatch::scenarioFilter(QList<Scenario> &scenarios, float score_ratio, i
 }
 
 bool CurveMatch::match() {
-  // @TODO make an incremental version (with persistent scenario list)
+  /* run the full "one-shot algorithm */
   scenarios.clear();
   candidates.clear();
  
   if (! loaded || ! keys.size() || ! curve.size()) { return false; }
   if (curve.size() < 3) { return false; }
  
-  curvePreprocess();
+  curvePreprocess1();
+  curvePreprocess2();
 
   Scenario root = Scenario(&wordtree, &keys, &curve, &params);
   root.setDebug(debug);
@@ -1102,24 +1083,26 @@ bool CurveMatch::match() {
     n += 1;
     scenarios = new_scenarios; // remember QT collections have intelligent copy-on-write (hope it works)
     if (n >= 3) {
-      scenarioFilter(scenarios, 0 /* QQQ 0.9 - 0.6 * (1.0 / (1.0 + (float) n)) */, 15, params.max_active_scenarios /* * (n > 3?1:2) */); // @todo add to parameter list
+      scenarioFilter(scenarios, 0, 15, params.max_active_scenarios, false); // @todo add to parameter list
       DBG("Depth: %d - Scenarios: %d - Candidates: %d", n, scenarios.size(), candidates.size());      
     }
   }
     
   st_time = (int) timer.elapsed();
   st_count = count;
-  scenarioFilter(candidates, 0.7, 10, params.max_candidates); // @todo add to parameter list
+  scenarioFilter(candidates, 0.7, 10, params.max_candidates, true); // @todo add to parameter list
   
   qDebug("Candidate: %d (time=%d, nodes=%d, forks=%d, skim=%d)", candidates.size(), st_time, st_count, st_fork, st_skim);
 
+  done = true;
+  
   return candidates.size() > 0;
 }
 
 void CurveMatch::endCurve(int id) {
   this -> id = id;
   log(QString("IN: ") + toString());
-  match();
+  if (! done) { match(); }
   log(QString("OUT: ") + resultToString());
 }
 
@@ -1130,6 +1113,10 @@ void CurveMatch::setParameters(QString jsonStr) {
 
 void CurveMatch::useDefaultParameters() {
   params = default_params;
+}
+
+QList<CurvePoint> CurveMatch::getCurve() {
+  return curve;
 }
 
 void CurveMatch::toJson(QJsonObject &json) {

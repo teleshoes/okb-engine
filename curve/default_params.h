@@ -27,7 +27,7 @@ static Params default_params = {
   75, // curv_amax
   70, // curv_turnmax
   500, // max_active_scenarios
-  60, // max_candidates
+  30, // max_candidates
   0.1, // score_coef_speed
   92, // angle_dist_range
 };
