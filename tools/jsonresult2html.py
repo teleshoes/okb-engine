@@ -10,6 +10,7 @@ from html import HTML  # https://pypi.python.org/pypi/html (it's great!)
 import Image, ImageDraw
 import base64
 import StringIO
+import math
 
 txt = sys.stdin.read()
 if txt[0] == '{':
@@ -140,6 +141,16 @@ body.p
 
 # curve
 c = 0
+
+last_pt = curve[0]
+length = 0
+def add_length(pt):
+    global length, last_pt
+    length += int(math.sqrt((pt['x'] - last_pt['x']) ** 2 + (pt['y'] - last_pt['y']) ** 2))
+    pt['length'] = length
+    last_pt = pt
+    return pt
+curve = map(add_length, curve)
 curve_ = curve
 while curve_:
     curve1 = curve_[0:30]
@@ -149,7 +160,7 @@ while curve_:
     for i in range(0, len(curve1)):
         li.td(str(c), bgcolor="#E0E0E0")
         c += 1
-    for lbl in ['x', 'y', 't', 'speed', 'turn_angle', 'turn_smooth', 'sharp_turn']:
+    for lbl in ['x', 'y', 't', 'speed', 'turn_angle', 'sharp_turn', 'length']:
         li = t.tr(align = "center").td(lbl, bgcolor="#C0FFC0")
         for pt in curve1:
             li.td(clean_value(pt[lbl]))
