@@ -14,4 +14,4 @@ if __name__ == "__main__":
         detail = dict()
         score = optim.run_all(tests, params, typ, fail_on_bad_score = (len(sys.argv) > 1), return_dict = detail, silent = True)
 
-        print("score", typ, score, ' '.join(sorted([ "%s[%.3f]" % (w, s) for (w, s) in detail.items() ])))
+        print("score", typ, "%.3f" % score, ' '.join(sorted([ "%s[%.3f]" % (w, s) for (w, s) in detail.items() ])))
