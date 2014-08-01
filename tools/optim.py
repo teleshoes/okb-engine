@@ -17,6 +17,8 @@ import time
 import fcntl
 import getopt
 from get_params import get_params
+from multiprocessing.pool import ThreadPool
+import multiprocessing
 
 CLI = "../cli/build/cli"
 TRE_DIR = "../db"
@@ -55,6 +57,7 @@ defparams = [
     [ "max_candidates", int ],  # idem
     [ "score_coef_speed", float, -10, 10],
     [ "angle_dist_range", int, 10, 300],
+    [ "incremental_length_lag", int ],  # no optimization
 ]
 
 params = dict()
@@ -74,6 +77,21 @@ for p in params:
     if "value" not in params[p]:
         raise Exception("Parameter not in cf file: %s" % p)
 
+
+cpus = multiprocessing.cpu_count()
+pool = ThreadPool(processes = cpus)
+
+def parallel(lst):
+    global pool
+    handle = dict()
+    for key, func, args in lst:
+        handle[key] = pool.apply_async(func, args = tuple(args))
+    result = dict()
+    for key, func, args in lst:
+        result[key] = handle[key].get(timeout = 5)
+    return result
+
+
 def dump(txt, id = ""):
     sep = '--8<----[' + id + ']' + '-' * (65 - len(id))
     print(sep)
@@ -88,18 +106,10 @@ def log1(txt):
         f.write("\n")
 
 def run1(json_str, lang):
-    log1(">>>> " + json_str)
     sp = subprocess.Popen([ CLI, os.path.join(TRE_DIR, "%s.tre" % lang) ], stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
     (json_out, err) = sp.communicate(bytes(json_str, "UTF-8"))
     json_out, err = str(json_out), str(err)
-    if sp.returncode != 0:
-        dump(json_str)
-        raise Exception("return code: %s" % sp.returncode)
-    i = json_out.find('Result: {')
-    if i > -1: json_out = json_out[i + 8:]
-    log1("<<<< " + json_out)
-    log1("")
-    return json_out, err
+    return json_out, err, sp.returncode
 
 def update_json(json_str, params):
     js = json.loads(json_str)
@@ -145,14 +155,34 @@ def score1(json_str, expected, typ):
 
 def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, silent = False):
     total, n = 0.0, 0
+    runall = []
+    inj = dict()
     for (word, json_in, lang) in tests:
+        inj[word] = json_in
         log1("# %s (%s)" % (word, lang))
-        if not silent: print("%s (%s): " % (word, lang), end = "")
         sys.stdout.flush()
         json_in2 = update_json(json_in, params)
-        json_out, err = run1(json_in2, lang)
+        log1(">>>> " + json_in2)
+        runall.append((word, run1, [json_in2, lang ]))
+        # json_out, err = run1(json_in2, lang)
+
+    results = parallel(runall)
+
+    for word, result in results.items():
+        (json_out, err, code) = result
+
+        if code != 0:
+            dump(inj[word])
+            raise Exception("return code: %s" % sp.returncode)
+        log1("<<<< " + json_out)
+        log1("")
+
+        i = json_out.find('Result: {')
+        if i > -1: json_out = json_out[i + 8:]
         score = score1(json_out, word, typ)
-        if not silent: print("%.3f - " % score, end = "")
+
+        if not silent:
+            print("%s (%s): " % (word, lang), "%.3f - " % score, end = "")
         if score < -999999 and fail_on_bad_score:
             dump(json_out, "out")
             dump(err, "err")
@@ -203,7 +233,7 @@ def optim(pname, params, tests, typ):
             else: step *= 1.2
 
     value, score = sorted(scores, key = lambda x: x[1])[-1]
-    if score > score0 * 1.0001:
+    if score > score0 + 0.01 * abs(score0):
         params[pname]["value"] = value
         print("===> Update[%s] %s->%s (score: %.3f -> %.3f)" % (pname, value0, value, score0, score))
         return score
@@ -212,7 +242,9 @@ def optim(pname, params, tests, typ):
         params[pname]["value"] = value0
         return score0
 
-def params2str(p): return ' '.join([ "%s=%s" % (x, y["value"]) for x, y in sorted(p.items()) ])
+def params2str(p):
+    if not p: return "*none*"
+    return ' '.join([ "%s=%s" % (x, y["value"]) for x, y in sorted(p.items()) ])
 
 def load_tests():
     tests = []
