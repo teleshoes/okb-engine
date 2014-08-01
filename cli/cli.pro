@@ -13,7 +13,7 @@ INCLUDEPATH += . ../curve
 LIBPATH += . ../curve/build
 
 SOURCES += cli.cpp
-HEADERS += ../curve/curve_match.h ../curve/tree.h
+HEADERS += ../curve/curve_match.h ../curve/tree.h ../curve/thread.h ../curve/incr_match.h
 
 DESTDIR = build
 OBJECTS_DIR = $$DESTDIR

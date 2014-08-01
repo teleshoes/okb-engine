@@ -1,3 +1,7 @@
+/* this file implement the curve matching algorithm
+   for keyboard définition and curve (list of points) it produces a list of candidate ranked with score 
+   the incremental / asynchronous algorithm is implemented in incr_match.{h,cpp} */
+
 #ifndef CURVE_MATCH_H
 #define CURVE_MATCH_H
 
@@ -87,6 +91,7 @@ class Params {
   int max_candidates;
   float score_coef_speed;
   int angle_dist_range;
+  int incremental_length_lag;
   /* END PARAMS */
 
   void toJson(QJsonObject &json) const;
@@ -134,7 +139,7 @@ class Scenario {
   float calc_curviness_score(int index);
   float begin_end_angle_score(bool end);
   Point curve_tangent(int index);
-  float get_next_key_match(unsigned char letter, int index, QList<int> &new_index);
+  float get_next_key_match(unsigned char letter, int index, QList<int> &new_index, bool &overflow);
   float speedCoef(int index);
   float evalScore();
 
@@ -143,7 +148,7 @@ class Scenario {
   void setDebug(bool debug);
   void nextKey(QList<Scenario> &result, int &st_fork);
   QList<LetterNode> getNextKeys();
-  void childScenario(LetterNode &child, bool endScenario, QList<Scenario> &result, int &st_fork);
+  bool childScenario(LetterNode &child, bool endScenario, QList<Scenario> &result, int &st_fork, bool incremental = false);
   bool operator<(const Scenario &other) const;
   bool isFinished() { return finished; };
   QString getName() { return name; };
@@ -186,7 +191,7 @@ class CurveMatch {
   void clearKeys();
   void addKey(Key key);
   virtual void clearCurve();
-  virtual void addPoint(Point point);
+  virtual void addPoint(Point point, int timestamp = -1);
   virtual void endCurve(int id);
   bool match();
   QList<Scenario> getCandidates();

@@ -59,6 +59,7 @@ void Params::toJson(QJsonObject &json) const {
   json["max_candidates"] = max_candidates;
   json["score_coef_speed"] = score_coef_speed;
   json["angle_dist_range"] = angle_dist_range;
+  json["incremental_length_lag"] = incremental_length_lag;
 }
 
 Params Params::fromJson(const QJsonObject &json) {
@@ -93,6 +94,7 @@ Params Params::fromJson(const QJsonObject &json) {
   p.max_candidates = json["max_candidates"].toDouble();
   p.score_coef_speed = json["score_coef_speed"].toDouble();
   p.angle_dist_range = json["angle_dist_range"].toDouble();
+  p.incremental_length_lag = json["incremental_length_lag"].toDouble();
 
   return p;
 }
@@ -382,20 +384,35 @@ float Scenario::calc_curviness_score(int index) {
   return result;
 }
 
-float Scenario::calc_curve_score(unsigned char, unsigned char, int index, int new_index) {
+float Scenario::calc_curve_score(unsigned char, unsigned char letter, int index, int new_index) {
   /* score based on curve "smoothness" and maximum distance from straight path */
 
   float max_dist = 0;
+  float max_distp = 0;
   int sharp_turn = 0;
+
+  Point middle(((*curve)[index].x + (*curve)[new_index].x) / 2,
+	       ((*curve)[index].y + (*curve)[new_index].y) / 2);
+
+  int length = max(distancep((*curve)[index], (*curve)[new_index]), params->dist_max_next);
+  
   for (int i = index + 1; i < new_index - 1; i++) {
     float dist = dist_line_point((*curve)[index], (*curve)[new_index], (*curve)[i]);
     if (dist > max_dist) { max_dist = dist; }
 
+    float distp = distancep(middle, (*curve)[i]);
+    if (distp > max_distp) { max_distp = distp; }
 
     if (i > index + 2 && i < new_index - 2 && (*curve)[i].sharp_turn && i >= 2 && i < curve->size() - 2) { sharp_turn ++; }
   }
 
-  float score = 1 - (max_dist / params->curve_dist_threshold) - params->sharp_turn_penalty * sharp_turn;
+  float s1 = max_dist / params->curve_dist_threshold;
+  float s2 = params->sharp_turn_penalty * sharp_turn;
+  float s3 = max(0.0, 1.0 * (max_distp - length) / length);
+
+  float score = 1 - s1 - s2 - s3;
+  DBG("  [curve score] %s:%c[%d->%d] sc=[%.3f:%.3f:%.3f] max_dist=%d max_distp=%d length=%d score=%.3f",
+      name.toLocal8Bit().constData(), letter, index, new_index, s1, s2, s3, (int) max_dist, (int) max_distp, length, score);
 
   return score;
 }
@@ -470,7 +487,7 @@ float Scenario::calc_distance_score(unsigned char letter, int index, int count) 
   return score;
 }
 
-float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &new_index_list) {
+float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &new_index_list, bool &overflow) {
   /* given an index on the curve, and a possible next letter key, evaluate the following:
      - if the next letter is a good candidate (i.e. the curve pass by the key)
      - compute a score based on curve to point distance
@@ -497,12 +514,14 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &
 
   new_index_list.clear();
 
+  overflow = false;
+
   while(1) {
-    if (index >= (*curve).size()) { break; }
+    if (index >= curve->size() - 1) { overflow = true; break; }
     
     float new_score = calc_distance_score(letter, index, this -> count);
 
-    // @todo add a "more verbose" debug option
+    // @todo add a "even more verbose" debug option
     // DBG("    get_next_key_match(%c, %d) index=%d score=%.3f)", letter, start_index, index, new_score);
 
     if (new_score > max_score) {
@@ -552,6 +571,7 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &
       // look for a near sharp turn (and add it as a candidate)
       bool found = false;
       for (int i = index ; i < curve->size() && i < index + max_turn_distance; i++) {
+	if (i >= curve->size() - 1) { overflow = true; }
 	if ((*curve)[i].sharp_turn) {
 	  new_index_list << i;
 	  float score_turn = calc_distance_score(letter, i, this -> count);
@@ -579,7 +599,18 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &
 
 }
 
-void Scenario::childScenario(LetterNode &childNode, bool endScenario, QList<Scenario> &result, int &st_fork) {
+bool Scenario::childScenario(LetterNode &childNode, bool endScenario, QList<Scenario> &result, int &st_fork, bool incremental) {
+  /* this function create childs scenarios from the current one (they represent a word with one more letter)
+     based on a child letter nodes (i.e. next possible letter in word)
+     it can return:
+     - no scenario (the letter is not a valid candidat because it does not match the curve)
+     - one scenario
+     - multiple scenarios in case there are different points matching the key (shortest point, near sharp turn ...)
+     it can fail only in the following case : 
+     we are running in incremental mode (incremental == true) and we are too close from the end of the curve 
+     (which means caller must call this function again later when there are more points, or when the curve is 
+     really finished)
+  */
   unsigned char prev_letter = childNode.getParentChar();
   unsigned char letter = childNode.getChar();
   int index = this -> index;
@@ -600,11 +631,15 @@ void Scenario::childScenario(LetterNode &childNode, bool endScenario, QList<Scen
       distance_score = calc_distance_score(letter, new_index, -1);
 
     } else {
-
-      distance_score = get_next_key_match(letter, index, new_index_list);
+      
+      bool overflow = false;
+      distance_score = get_next_key_match(letter, index, new_index_list, overflow);
+      if (incremental && overflow) {
+	return false; // ask me again later
+      }
       if (new_index_list.isEmpty()) {
 	DBG("debug [%s:%c] %s =FAIL= {distance / turning point}", name.toLocal8Bit().constData(), letter,endScenario?"*":" ");
-	return; 
+	return true;
       }
 
     }
@@ -614,8 +649,8 @@ void Scenario::childScenario(LetterNode &childNode, bool endScenario, QList<Scen
 
   bool first = true;
   foreach(int new_index, new_index_list) {
-    
-    score_t score = {NO_SCORE, NO_SCORE, NO_SCORE, NO_SCORE, NO_SCORE, NO_SCORE}; // all scores are : <0 reject, 1 = best value, ]0,1] OK, NO_SCORE = not computed
+
+    score_t score = {NO_SCORE, NO_SCORE, NO_SCORE, NO_SCORE, NO_SCORE, NO_SCORE}; // all scores are : <0 reject, 1 = best value, ]0,1] OK, NO_SCORE = 0 = not computed
     score.distance_score = distance_score;
 
     if (count > 0) {
@@ -657,11 +692,14 @@ void Scenario::childScenario(LetterNode &childNode, bool endScenario, QList<Scen
       if (count == 0) {
 	new_scenario.temp_score = temp_score + score.distance_score;
       } else {
-	new_scenario.temp_score = temp_score + (score.distance_score * params->weight_distance 
-						+ score.curve_score * params->weight_curve
-						+ score.cos_score * params->weight_cos 
-						+ score.turn_score * params->weight_turn
-						+ score.length_score * params->weight_length);
+	new_scenario.temp_score = temp_score + ((score.distance_score * params->weight_distance 
+						 + score.curve_score * params->weight_curve
+						 + score.cos_score * params->weight_cos 
+						 + score.turn_score * params->weight_turn
+						 + score.length_score * params->weight_length) 
+						/
+						(params->weight_distance + params->weight_curve + params->weight_cos
+						 + params->weight_turn + params->weight_length));
       }
 
       result.append(new_scenario);
@@ -670,6 +708,8 @@ void Scenario::childScenario(LetterNode &childNode, bool endScenario, QList<Scen
     first = false;
 
   } // for (new_index)
+
+  return true;
 }
 
 void Scenario::nextKey(QList<Scenario> &result, int &st_fork) {
@@ -943,12 +983,12 @@ void CurveMatch::clearCurve() {
   done = false;
 }
 
-void CurveMatch::addPoint(Point point) {
-  if (curve.isEmpty()) {
-    startTime = QTime::currentTime();
-  }
+void CurveMatch::addPoint(Point point, int timestamp) {
   QTime now = QTime::currentTime();
-  curve << CurvePoint(point, startTime.msecsTo(now));
+  if (curve.isEmpty()) {
+    startTime = now;
+  }
+  curve << CurvePoint(point, (timestamp >= 0)?timestamp:startTime.msecsTo(now));
 }
 
 bool CurveMatch::loadTree(QString fileName) {

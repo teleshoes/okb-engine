@@ -37,7 +37,8 @@ void IncrementalMatch::incrementalMatchBegin() {
   cumulative_length = 0;
   next_iteration_length = 0;
   last_curve_index = 0;
-  next_iteration_index = 0;
+
+  st_retry = 0;
 
   st_fork = 0;
   st_skim = 0;
@@ -60,15 +61,19 @@ void IncrementalMatch::incrementalMatchUpdate(bool finished) {
   if (delayed_scenarios.size() == 0) { return; }
   if (cumulative_length < next_iteration_length && ! finished) { return; }  
   if (curve.size() < 5 && ! finished ) { return; }
-  if (curve.size() < next_iteration_index && ! finished) { return; }
 
-  DBG("[- incrementalMatchUpdate: finished=%d, curveIndex=%d, length=%d", finished, curve.size(), cumulative_length);
+  DBG("=== incrementalMatchUpdate: finished=%d, curveIndex=%d, length=%d", finished, curve.size(), cumulative_length);
 
   next_iteration_length = -1;
  
   curvePreprocess1(last_curve_index);
 
   QList<DelayedScenario> new_delayed_scenarios;
+
+  /* note: the incremental algorithm works in a single thread at the moment, but if less
+     latency is needed, it can be made fully parallel by distributing the following loop
+     over multiple cores.
+     Not tried yet, as on the Jolla, this may slow down the GUI thread */
 
   int min_n = 0;
   foreach(DelayedScenario ds, delayed_scenarios) {
@@ -83,8 +88,12 @@ void IncrementalMatch::incrementalMatchUpdate(bool finished) {
       if (cumulative_length >= min_length || finished) {
 	// now we can evaluate this scenario (and get next possible keys)
 	LetterNode childNode = ds.next[letter].first;
-	evalChildScenario(ds.scenario, childNode, new_delayed_scenarios, finished);
-	ds.next.remove(letter);
+	if (evalChildScenario(ds.scenario, childNode, new_delayed_scenarios, finished)) {
+	  ds.next.remove(letter);
+	} else {
+	  // retry later
+	  ds.next[letter].second += 50;
+	}
       } else {
 	update_next_iteration_length(min_length);
       }
@@ -115,16 +124,16 @@ void IncrementalMatch::incrementalMatchUpdate(bool finished) {
     }
     candidates = new_candidates;
   }
-  DBG("-] incrementalMatchUpdate: curveIndex=%d, finished=%d, scenarios=%d, length=%d (next=%d), skim=%d, fork=%d, nodes=%d",
-      curve.size(), finished, delayed_scenarios.size(), cumulative_length, next_iteration_length, st_skim, st_fork, st_count);
+  qDebug("=== incrementalMatchUpdate: curveIndex=%d, finished=%d, scenarios=%d, length=%d (next=%d), skim=%d, fork=%d, nodes=%d, retry=%d",
+	 curve.size(), finished, delayed_scenarios.size(), cumulative_length, next_iteration_length, st_skim, st_fork, st_count, st_retry);
 
 
-  next_iteration_index = curve.size() + 8;
+  next_iteration_index = curve.size() + 10;
 }
 
 void IncrementalMatch::delayedScenariosFilter() {
   /* makes sure thats delayed scenario list stays at a reasoneable size & remove duplicate
-   This is an adaptation from scenarioFilter() in curve_match.cpp */
+     This is an adaptation from scenarioFilter() in curve_match.cpp */
 
   DBG("Scenarios filter ...");
 
@@ -156,7 +165,9 @@ void IncrementalMatch::delayedScenariosFilter() {
 	}
 	continue; // retry iteration
       } else {
-	dejavu.insert(name, i);
+	if (! delayed_scenarios[i].scenario.forkLast()) {
+	  dejavu.insert(name, i);
+	}
       }
     }
 
@@ -199,12 +210,21 @@ void IncrementalMatch::incrementalNextKeys(Scenario &scenario, QList<DelayedScen
        -> add a new "call me again later" return value to get_next_key_match()
     */
     Point keyPoint(k.x, k.y);
-    int min_length = finished?-1:(index2distance[index] + 2 * params.dist_max_next + distancep(curve[index], keyPoint));
+    int dist = distancep(curve[index], keyPoint);
+    int min_length = finished?-1:(index2distance[index] + (1.0 + (float)dist / params.dist_max_next / 20) * (params.incremental_length_lag + dist));
+
+    bool keep_for_later = true;
 
     if (cumulative_length >= min_length || finished) {
       // if we can evaluate child scenario, imediately do it (and recurse into ourselves)
-      evalChildScenario(scenario, childNode, result, finished);
-    } else {
+      if (evalChildScenario(scenario, childNode, result, finished)) {
+	keep_for_later = false;
+      } else {
+	min_length = cumulative_length + 50;
+      }
+    }
+
+    if (keep_for_later) {
       // keep it for a later iteration
       delayed_childs[letter] = QPair<LetterNode, int>(childNode, min_length);
       update_next_iteration_length(min_length);
@@ -218,7 +238,7 @@ void IncrementalMatch::incrementalNextKeys(Scenario &scenario, QList<DelayedScen
   }
 }
 
-void IncrementalMatch::evalChildScenario(Scenario &scenario, LetterNode &childNode, QList<DelayedScenario> &result, bool finished) {
+bool IncrementalMatch::evalChildScenario(Scenario &scenario, LetterNode &childNode, QList<DelayedScenario> &result, bool finished) {
   /* evaluate a scenario (temporary score + create child scenario) using the standard (non-incremental) code */
 
   st_count += 1;
@@ -227,9 +247,15 @@ void IncrementalMatch::evalChildScenario(Scenario &scenario, LetterNode &childNo
     scenario.childScenario(childNode, true, candidates, st_fork); // finished scenarios are directly added to candidates list
   }
   QList<Scenario> tmpList;
-  scenario.childScenario(childNode, false, tmpList, st_fork);
-  foreach (Scenario scenario, tmpList) {
-    incrementalNextKeys(scenario, result, finished);
+  if (scenario.childScenario(childNode, false, tmpList, st_fork, ! finished)) {
+    foreach (Scenario scenario, tmpList) {
+      incrementalNextKeys(scenario, result, finished);
+    }
+    return true;
+  } else {
+    // we are too close to the end of the curve, we'll have to retry later (only occurs when not finished)
+    st_retry += 1;
+    return false;
   }
 }
 
@@ -238,18 +264,25 @@ void IncrementalMatch::clearCurve() {
   CurveMatch::clearCurve(); // parent
 }
 
-void IncrementalMatch::addPoint(Point point) {
+void IncrementalMatch::addPoint(Point point, int timestamp) {
   if (curve.size() > 0) {
-      cumulative_length += distancep(point, curve.last());
+    cumulative_length += distancep(point, curve.last());
+  } else {
+    delayed_scenarios.clear();
+    index2distance.clear();
+    next_iteration_index = 0;
+    cumulative_length = 0;
+    timer.start();
   }
   DBG(" --- Add point #%d: (%d, %d)  length=%d", curve.size(), point.x, point.y, cumulative_length);
-  CurveMatch::addPoint(point); // parent
+  CurveMatch::addPoint(point, timestamp); // parent
   index2distance.append(cumulative_length);
   if (curve.size() == 1) {
     incrementalMatchBegin();
-  } else {
+  } else if (curve.size() >= next_iteration_index) {
     incrementalMatchUpdate(false);
   }
+  st_time = (int) timer.elapsed();
 }
 
 void IncrementalMatch::endCurve(int id) {
