@@ -27,6 +27,7 @@ static void usage(char *progname) {
   cout << " -a <nr> : implementation (0:simple, 1:incremental, 2:thread)" << endl;
   cout << " -s : online display scores (instead of full json)" << endl;
   cout << " -m <ms> : delay between curve point feeding (thread mode only)" << endl;
+  cout << " -r <count> : repeat (for profiling)" << endl;
   exit(1);
 }
 
@@ -40,12 +41,13 @@ int main(int argc, char* argv[]) {
   bool showscore = false;
   bool debug = true;
   int delay = 0;
+  int repeat = 1;
   
   extern char *optarg;
   extern int optind;
 
   int c;
-  while ((c = getopt(argc, argv, "dl:a:sDm:")) != -1) {
+  while ((c = getopt(argc, argv, "dl:a:sDm:r:")) != -1) {
     switch (c) {
     case 'a': implem = atoi(optarg); break;
     case 'd': defparam = true; break;
@@ -53,6 +55,7 @@ int main(int argc, char* argv[]) {
     case 's': showscore = true; break;
     case 'D': debug = false; break;
     case 'm': delay = 1000 * atoi(optarg); break;
+    case 'r': repeat = atoi(optarg); break;
     default: usage(argv[0]); break;
     }
   }
@@ -92,49 +95,53 @@ int main(int argc, char* argv[]) {
     cm->setLogFile(logfile);
   }
   cm->loadTree(QString(argv[optind]));
-  cm->fromString(input);
-  if (defparam) { cm->useDefaultParameters(); }
 
-  QList<CurvePoint> points = cm->getCurve();
   CurveThread t;
-
-  switch (implem) {
-  case 0:
-    cm->endCurve(-1);
-    break;
-  case 1:
-    // in case of incremental algorithm testing we must simulate points feeding
+  for (int i = 0; i < repeat; i ++) {
     cm->clearCurve();
-    foreach(CurvePoint p, points) {
-      cm->addPoint(p, p.t);
+    cm->fromString(input);
+    if (defparam) { cm->useDefaultParameters(); }
+    
+    QList<CurvePoint> points = cm->getCurve();
+    
+    switch (implem) {
+    case 0:
+      cm->endCurve(-1);
+      break;
+    case 1:
+      // in case of incremental algorithm testing we must simulate points feeding
+      cm->clearCurve();
+      foreach(CurvePoint p, points) {
+	cm->addPoint(p, p.t);
+      }
+      cm->endCurve(-1);      
+      break;
+    case 2:
+      t.setMatcher((IncrementalMatch*) cm);
+      t.start();
+      t.clearCurve();
+      foreach(CurvePoint p, points) {
+	if (delay) { usleep(delay); }
+	t.addPoint(p, p.t);
+      }
+      t.endCurve(-1);
+      qDebug("Waiting for thread ...");
+      t.waitForIdle();
+      qDebug("Thread is idle ...");
+      break;
     }
-    cm->endCurve(-1);      
-    break;
-  case 2:
-    t.setMatcher((IncrementalMatch*) cm);
-    t.start();
-    t.clearCurve();
-    foreach(CurvePoint p, points) {
-      if (delay) { usleep(delay); }
-      t.addPoint(p, p.t);
+    
+    cm->log(QString("OUT: ") + cm->resultToString());
+    if (showscore) {
+      QList<Scenario> candidates = cm->getCandidates();
+      foreach(Scenario s, candidates) {
+	cout << s.getName().toLocal8Bit().constData() << " " << s.getScore() << endl;
+      }
+    } else {
+      cerr << "==> Match: " << (cm->getCandidates().size()) << endl;
+      QString result = cm->resultToString();
+      cout << "Result: " << result.toLocal8Bit().constData() << endl;
     }
-    t.endCurve(-1);
-    qDebug("Waiting for thread ...");
-    t.waitForIdle();
-    qDebug("Thread is idle ...");
-    break;
-  }
-
-  cm->log(QString("OUT: ") + cm->resultToString());
-  if (showscore) {
-    QList<Scenario> candidates = cm->getCandidates();
-    foreach(Scenario s, candidates) {
-      cout << s.getName().toLocal8Bit().constData() << " " << s.getScore() << endl;
-    }
-  } else {
-    cerr << "==> Match: " << (cm->getCandidates().size()) << endl;
-    QString result = cm->resultToString();
-    cout << "Result: " << result.toLocal8Bit().constData() << endl;
   }
 
   if (implem == 2) {
