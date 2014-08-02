@@ -1,7 +1,9 @@
 #include "thread.h"
+#include "log.h"
+
 #include <sys/time.h>
 #include <sys/resource.h>
-
+#include <stdio.h>
 
 static float cpu_user(struct rusage &start, struct rusage &stop) {
   return (float) (stop.ru_utime.tv_sec - start.ru_utime.tv_sec) +    
@@ -18,6 +20,8 @@ CurveThread::CurveThread(QObject *parent) :
 {
   waiting = false;
   idle = false;
+  callback = NULL;
+  matcher = NULL;
 }
 
 void CurveThread::clearCurve() {
@@ -26,6 +30,7 @@ void CurveThread::clearCurve() {
 }
 
 void CurveThread::addPoint(Point point, int timestamp) {
+  if (! isRunning()) { start(); }
   QTime now = QTime::currentTime();
   if (first) {
     startTime = now;
@@ -44,13 +49,16 @@ void CurveThread::endCurve(int id) {
 }
 
 void CurveThread::stopThread() {
-  addPoint(Point(CMD_QUIT, 0));
-  this -> wait();
+  if (isRunning()) {
+    addPoint(Point(CMD_QUIT, 0));
+    this -> wait();
+  }
 }
 
 void CurveThread::waitForIdle() {
   /* this is mostly for tests, because in real life a user may start a new word swipe even before the previous one is matched.
      real production application must use callback feature */
+  if (! isRunning()) { return; }
   mutex.lock();
   if (! idle) {
     idleCondition.wait(&mutex);
@@ -62,9 +70,13 @@ void CurveThread::setMatcher(IncrementalMatch *matcher) {
   this -> matcher = matcher;
 }
 
+void CurveThread::setCallBack(ThreadCallBack *cb) {
+  callback = cb;
+}
+
 void CurveThread::run() {
+  logdebug("Thread starting ...");
   matcher->clearCurve();
-  qDebug("thread starting ...");
   QList<CurvePoint> inProgress;
   bool started = false;
 
@@ -78,6 +90,7 @@ void CurveThread::run() {
   forever {
     inProgress.clear();
     
+    /* critical section */
     mutex.lock();
     if (curvePending.size() == 0) {
       waiting = true;
@@ -93,6 +106,8 @@ void CurveThread::run() {
     }
     curvePending.clear();
     mutex.unlock();
+    /* critical section end */
+
 
     /* curve points processing */
     foreach(CurvePoint point, inProgress) {
@@ -112,16 +127,16 @@ void CurveThread::run() {
 	
 	// display statistics
 	QList<CurvePoint> curve = matcher->getCurve();
-	qDebug("+++ CPU time before=%.3f/%.3f after=%.3f/%.3f draw-time=%.3f end-time=%.3f",
-	       cpu_user(ru_started, ru_completed), cpu_sys(ru_started, ru_completed),
-	       cpu_user(ru_completed, ru_matched), cpu_sys(ru_completed, ru_matched),
-	       ((float)(curve[curve.size() - 1].t - curve[0].t)) / 1000,
-	       (float)(t_completed.msecsTo(t_matched)) / 1000);
+	logdebug("+++ CPU time before=%.3f/%.3f after=%.3f/%.3f / draw-time=%.3f end-time=%.3f",
+		 cpu_user(ru_started, ru_completed), cpu_sys(ru_started, ru_completed),
+		 cpu_user(ru_completed, ru_matched), cpu_sys(ru_completed, ru_matched),
+		 ((float)(curve[curve.size() - 1].t - curve[0].t)) / 1000,
+		 (float)(t_completed.msecsTo(t_matched)) / 1000);
 	
 	started = false;
-	// @todo push back result !
+	if (callback) { callback->call(matcher->getCandidates()); }
       } else if (point.x == CMD_QUIT) {
-	qDebug("thread exiting ...");
+	logdebug("thread exiting ...");
 	return;	
       } else {
 	if (! started) {
@@ -138,7 +153,7 @@ void CurveThread::run() {
 
 void CurveThread::setIdle(bool value) {
   if (value and ! idle) {
-    idleCondition.wakeOne(); // wake up any parent thread waiting for idle	
+    idleCondition.wakeAll(); // wake up any parent thread waiting for idle	
   }  
   idle = value;
 }

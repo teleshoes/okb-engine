@@ -1,6 +1,8 @@
 /* simple plumbing to use incremental curve matching while drawing 
    (we use real threads! pH34r !) */
 
+/* @todo redo this with QT-signals & slots (e.g. like in pyotherside) instead of this old-school mutex crap */
+
 #ifndef THREAD_H
 #define THREAD_H
 
@@ -12,6 +14,11 @@
 
 
 #include "incr_match.h"
+
+class ThreadCallBack {
+ public:
+  virtual void call(QList<Scenario>) = 0;
+};
 
 class CurveThread : public QThread
 {
@@ -28,6 +35,7 @@ class CurveThread : public QThread
   void waitForIdle();
 
   void setMatcher(IncrementalMatch *matcher);
+  void setCallBack(ThreadCallBack *cb);
 
 protected:
   /* --- variables shared between "client" and computation thread --- */
@@ -40,6 +48,7 @@ protected:
   /* --- end of shared variables --- */
 
   IncrementalMatch *matcher;
+  ThreadCallBack *callback;
   QTime startTime;
   bool first;
 

@@ -320,6 +320,24 @@ float Scenario::begin_end_angle_score(bool end) {
   return sc;
 }
 
+float Scenario::calc_curviness2_score(int index) {
+  int i1 = index_history[index].second;
+  int i2 = index_history[index + 1].second;
+  
+  if (i2 <= i1 + 1) { return 0; }
+
+  float total = 0;
+  int maxv = 0;
+  for (int i = i1; i <= i2; i ++) {
+    float coef = cos(M_PI / 180 * i / (i2 - i1));
+    float abv = abs((*curve)[i].turn_smooth);
+    total += coef * abv;
+    if (abv > maxv) { maxv = abv; }
+  }
+  return 1.0 * total / (i2 - i1 + 1) / maxv;
+}
+    
+
 float Scenario::calc_curviness_score(int index) {
   /* score based on expected radius of curvature sign and derivative */
   int l = index_history.size();
@@ -767,6 +785,8 @@ void Scenario::postProcess() {
     if (i == 0) { sc += begin_end_angle_score(false); }
     if (i == l - 2) { sc += begin_end_angle_score(true); }
 
+    /* not used at the moment : sc += (l>2)?calc_curviness2_score(i):0; */
+
     scores[i + 1].curve_score2 = sc;
   }
 
@@ -996,7 +1016,7 @@ bool CurveMatch::loadTree(QString fileName) {
   bool status = wordtree.loadFromFile(fileName);
   loaded = status;
   this -> treeFile = fileName;
-  qDebug("loadTree(%s): %d", fileName.toLocal8Bit().constData(), status);
+  logdebug("loadTree(%s): %d", fileName.toLocal8Bit().constData(), status);
   return status;
 }
 
@@ -1132,7 +1152,7 @@ bool CurveMatch::match() {
   st_count = count;
   scenarioFilter(candidates, 0.7, 10, params.max_candidates, true); // @todo add to parameter list
   
-  qDebug("Candidate: %d (time=%d, nodes=%d, forks=%d, skim=%d)", candidates.size(), st_time, st_count, st_fork, st_skim);
+  logdebug("Candidate: %d (time=%d, nodes=%d, forks=%d, skim=%d)", candidates.size(), st_time, st_count, st_fork, st_skim);
 
   done = true;
   

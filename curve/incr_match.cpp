@@ -124,8 +124,8 @@ void IncrementalMatch::incrementalMatchUpdate(bool finished) {
     }
     candidates = new_candidates;
   }
-  qDebug("=== incrementalMatchUpdate: curveIndex=%d, finished=%d, scenarios=%d, length=%d (next=%d), skim=%d, fork=%d, nodes=%d, retry=%d",
-	 curve.size(), finished, delayed_scenarios.size(), cumulative_length, next_iteration_length, st_skim, st_fork, st_count, st_retry);
+  logdebug("=== incrementalMatchUpdate: curveIndex=%d, finished=%d, scenarios=%d, length=%d (next=%d), skim=%d, fork=%d, nodes=%d, retry=%d",
+	   curve.size(), finished, delayed_scenarios.size(), cumulative_length, next_iteration_length, st_skim, st_fork, st_count, st_retry);
 
 
   next_iteration_index = curve.size() + 10;

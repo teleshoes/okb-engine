@@ -16,11 +16,12 @@
 #include <QTime>
 
 #include "tree.h"
+#include "log.h"
 
-#define DBG(args...) { if(debug) { qDebug(args); } }
+#define DBG(args...) { if(debug) { logdebug(args); } }
 
 /* point 
-   this is probably a bad case of NIH, but i had to learn to code in C++ :-) */
+   this is probably a bad case of NIH :-) */
 class Point {
  public:
   Point();
@@ -137,6 +138,7 @@ class Scenario {
   float calc_length_score(unsigned char prev_letter, unsigned char letter, int index, int new_index);
   float calc_turn_score(unsigned char letter, int index);
   float calc_curviness_score(int index);
+  float calc_curviness2_score(int index);
   float begin_end_angle_score(bool end);
   Point curve_tangent(int index);
   float get_next_key_match(unsigned char letter, int index, QList<int> &new_index, bool &overflow);
