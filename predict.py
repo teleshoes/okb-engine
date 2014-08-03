@@ -151,14 +151,14 @@ class Predict:
         if not self.db:
             if os.path.isfile(self.dbfile):
                 self.db = SqliteBackend(self.dbfile)
-                print("DB open OK:", self.dbfile)
+                self.log("DB open OK:", self.dbfile)
 
                 # dummy loading to "wake-up" db indexes
                 self.db.get_words(['#TOTAL', '#NA', '#START'])
                 self.db.get_grams(["-2:-1:-1", "-2:0:0" ])
 
             else:
-                print("DB not found:", self.dbfile)
+                self.log("DB not found:", self.dbfile)
 
     def update_preedit(self, preedit):
         """ update own copy of preedit (from maliit) """
@@ -167,7 +167,7 @@ class Predict:
     def _learn(self, add, word, context, replaces = None, silent = False):
         now = time.time()
         if not silent:
-            print("Learn:", "add" if add else "remove", word, "context:", context, "{replaces %s}" % replaces if replaces else "")
+            self.log("Learn:", "add" if add else "remove", word, "context:", context, "{replaces %s}" % replaces if replaces else "")
 
         key = ' '.join(([ word ] + context)[0:3])
         if add:
@@ -193,7 +193,7 @@ class Predict:
         list_after = [ x for x in re.split(r'[^\w\'\-]+', self.surrounding_text) if x ]
 
         if list_after == list_before: return
-        
+
         begin = []
         end = []
         while list_before and list_after and list_before[0] == list_after[0]:
@@ -203,7 +203,7 @@ class Predict:
         while list_before and list_after and list_before[-1] == list_after[-1]:
             list_before.pop(-1)
             end.insert(0, list_after.pop(-1))
-        
+
         context = list(reversed(begin)) + ['#START']
         if not list_before and len(list_after) == 1:
             # new word
@@ -217,7 +217,7 @@ class Predict:
             word1 = list_before[0]
             word2 = list_after[0]
             if len(word2) < len(word1) and word2 == word1[0:len(word2)]:
-                return # backspace into a word (don't update self.last_surrounding_text)
+                return  # backspace into a word (don't update self.last_surrounding_text)
             else:
                 self._learn(False, word2, context, replaces = word1)
         else:
@@ -228,7 +228,7 @@ class Predict:
 
     def replace_word(self, old, new):
         """ inform prediction engine that a guessed word has been replaced by the user """
-        # note: this can not be reliably detected with surrounding text only 
+        # note: this can not be reliably detected with surrounding text only
         # -> case i've got a one word sentence and replace it --> and can't make the difference with moving to another location in the text
 
         self._learn(True, new, self.last_words, replaces = old)
@@ -239,7 +239,7 @@ class Predict:
 
     def ping(self):
         """ hello """
-        print("ping\n")
+        self.log("ping\n")
         return 1
 
     def _update_last_words(self):
@@ -293,8 +293,8 @@ class Predict:
         todo = dict()
         ids_list = set()
         for word in words:
-            if word not in word2id: # unknown word -> dummy scoring
-                result[word] = (0, {});
+            if word not in word2id:  # unknown word -> dummy scoring
+                result[word] = (0, {})
                 continue
             wid = word2id[word]
 
@@ -349,7 +349,7 @@ class Predict:
         self._update_last_words()
         if not len(matches): return
 
-        print("Context:", self.last_words, "- Matches:", ','.join(words.keys()))
+        self.log("Context:", self.last_words, "- Matches:", ','.join(words.keys()))
 
         scores = self._get_all_predict_scores(words.keys())  # requests all scores using bulk requests
 
