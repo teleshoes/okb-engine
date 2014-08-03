@@ -58,6 +58,7 @@ defparams = [
     [ "score_coef_speed", float, -10, 10],
     [ "angle_dist_range", int, 10, 300],
     [ "incremental_length_lag", int ],  # no optimization
+    [ "incremental_index_gap", int ],
 ]
 
 params = dict()

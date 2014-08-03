@@ -140,6 +140,7 @@ class Params {
   float score_coef_speed;
   int angle_dist_range;
   int incremental_length_lag;
+  int incremental_index_gap;
   /* END PARAMS */
 
   void toJson(QJsonObject &json) const;

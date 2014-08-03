@@ -60,6 +60,7 @@ void Params::toJson(QJsonObject &json) const {
   json["score_coef_speed"] = score_coef_speed;
   json["angle_dist_range"] = angle_dist_range;
   json["incremental_length_lag"] = incremental_length_lag;
+  json["incremental_index_gap"] = incremental_index_gap;
 }
 
 Params Params::fromJson(const QJsonObject &json) {
@@ -95,6 +96,7 @@ Params Params::fromJson(const QJsonObject &json) {
   p.score_coef_speed = json["score_coef_speed"].toDouble();
   p.angle_dist_range = json["angle_dist_range"].toDouble();
   p.incremental_length_lag = json["incremental_length_lag"].toDouble();
+  p.incremental_index_gap = json["incremental_index_gap"].toDouble();
 
   return p;
 }

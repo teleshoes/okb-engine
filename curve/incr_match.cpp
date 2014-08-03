@@ -156,7 +156,7 @@ void IncrementalMatch::incrementalMatchUpdate(bool finished, bool aggressive) {
 	   st_skim, st_fork, st_count, st_retry, (float)(t_start.msecsTo(QTime::currentTime())) / 1000);
 
 
-  next_iteration_index = curve.size() + 10;
+  next_iteration_index = curve.size() + params.incremental_index_gap;
 }
 
 static int compareFloat (const void * a, const void * b)
@@ -174,20 +174,19 @@ void IncrementalMatch::delayedScenariosFilter() {
   DBG("Scenarios filter ...");
 
   int nb = delayed_scenarios.size();
-  float* scores = new float[nb];
-
-  int i = 0;
-  foreach(DelayedScenario ds, delayed_scenarios) {
-    scores[i ++] = ds.scenario.getTempScore();
-  }
-  std::qsort(scores, nb, sizeof(float), compareFloat);
-  
   float min_score = 0;
   if (nb > params.max_active_scenarios) {
+    float* scores = new float[nb];
+    
+    int i = 0;
+    foreach(DelayedScenario ds, delayed_scenarios) {
+      scores[i ++] = ds.scenario.getTempScore();
+    }
+    std::qsort(scores, nb, sizeof(float), compareFloat);
     min_score = scores[nb - 1 - params.max_active_scenarios];
-  }
 
-  delete[] scores;
+    delete[] scores;
+  }
   
   QHash<QString, int> dejavu;
 

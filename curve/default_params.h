@@ -30,5 +30,6 @@ static Params default_params = {
   30, // max_candidates
   0.1, // score_coef_speed
   92, // angle_dist_range
-  200, // incremental_length_lag
+  100, // incremental_length_lag
+  5, // incremental_index_gap
 };

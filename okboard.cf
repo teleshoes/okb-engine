@@ -31,7 +31,8 @@ max_active_scenarios = 500
 max_candidates = 30
 score_coef_speed = 0.1
 angle_dist_range = 92
-incremental_length_lag = 200
+incremental_length_lag = 100
+incremental_index_gap = 5
 
 [portrait]
 
