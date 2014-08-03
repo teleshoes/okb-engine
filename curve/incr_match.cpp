@@ -1,7 +1,7 @@
 #include "incr_match.h"
 #include "functions.h"
-
-#include <QDebug>
+#include <iostream>
+#include <cstdlib>
 
 bool DelayedScenario::operator<(const DelayedScenario &other) const {
   return (this -> scenario < other.scenario);
@@ -22,7 +22,7 @@ NextLetter::NextLetter() {} // it makes QHash happy
 void IncrementalMatch::displayDelayedScenario(DelayedScenario &ds) {
   QString txt;
   QTextStream ts(& txt);
-  ts << "DelayedScenario[" << ds.scenario.getName() << "]:";
+  ts << "DelayedScenario[" << ds.scenario.getName() << "]: score=" << ds.scenario.getScore();
   foreach(unsigned char letter, ds.next.keys()) {
     ts << " " << QString(letter) << ":" << ds.next[letter].next_length_min << ":" << ds.next[letter].next_length_max;
   }
@@ -133,9 +133,9 @@ void IncrementalMatch::incrementalMatchUpdate(bool finished, bool aggressive) {
   delayed_scenarios = new_delayed_scenarios;
   last_curve_index = curve.size();
 
-  if (min_n >= 2) {
-    delayedScenariosFilter();
-  }
+  // if (min_n >= 2) {
+  delayedScenariosFilter();
+  // }
 
   if (debug) {
     foreach(DelayedScenario ds, delayed_scenarios) { displayDelayedScenario(ds); }
@@ -159,37 +159,59 @@ void IncrementalMatch::incrementalMatchUpdate(bool finished, bool aggressive) {
   next_iteration_index = curve.size() + 10;
 }
 
+static int compareFloat (const void * a, const void * b)
+{
+  float a1 = *(float*)a;
+  float b1 = *(float*)b;
+
+  return (a1 > b1) - (a1 < b1);
+}
+
 void IncrementalMatch::delayedScenariosFilter() {
   /* makes sure thats delayed scenario list stays at a reasoneable size & remove duplicate
      This is an adaptation from scenarioFilter() in curve_match.cpp */
 
   DBG("Scenarios filter ...");
 
-  qSort(delayed_scenarios.begin(), delayed_scenarios.end());
-
-  QHash<QString, int> dejavu;
+  int nb = delayed_scenarios.size();
+  float* scores = new float[nb];
 
   int i = 0;
-  while (i < delayed_scenarios.size()) {
-    float sc = delayed_scenarios[i].scenario.getTempScore();
+  foreach(DelayedScenario ds, delayed_scenarios) {
+    scores[i ++] = ds.scenario.getTempScore();
+  }
+  std::qsort(scores, nb, sizeof(float), compareFloat);
+  
+  float min_score = 0;
+  if (nb > params.max_active_scenarios) {
+    min_score = scores[nb - 1 - params.max_active_scenarios];
+  }
 
-    // remove scenarios with duplicate words (but not just after a scenario fork)
-    if (! delayed_scenarios[i].scenario.forkLast()) {
+  delete[] scores;
+  
+  QHash<QString, int> dejavu;
+
+  for(int i = 0; i < delayed_scenarios.size(); i ++) {
+    float sc = delayed_scenarios[i].scenario.getTempScore();    
+
+    if (sc < min_score) {
+
+      st_skim ++;
+      delayed_scenarios[i].die();
+      DBG("filtering(size): %s (%.3f)", delayed_scenarios[i].scenario.getNameCharPtr(), delayed_scenarios[i].scenario.getScore());
+
+    } else if (! delayed_scenarios[i].scenario.forkLast()) {
+
+      // remove scenarios with duplicate words (but not just after a scenario fork)
       QString name = delayed_scenarios[i].scenario.getName();
       if (dejavu.contains(name)) {
 	int i0 = dejavu[name];
 	float s0 = delayed_scenarios[i0].scenario.getTempScore();
 	if (sc > s0) {
-	  delayed_scenarios.takeAt(i0);
-	  foreach(QString n, dejavu.keys()) {
-	    if (dejavu[n] > i0 && dejavu[n] < i) {
-	      dejavu[n] --;
-	    }
-	  }
-	  i --;
-	  dejavu.remove(name); // will be added again on next iteration
+	  delayed_scenarios[i0].die();
+	  dejavu.insert(name,i);
 	} else {
-	  delayed_scenarios.takeAt(i);	  
+	  delayed_scenarios[i].die();
 	}
 	continue; // retry iteration
       } else {
@@ -197,17 +219,11 @@ void IncrementalMatch::delayedScenariosFilter() {
 	  dejavu.insert(name, i);
 	}
       }
+
     }
 
-    i++;
   }
 
-  // enforce max scenarios count
-  while (delayed_scenarios.size() > params.max_active_scenarios) {
-    st_skim ++;
-    Scenario s = delayed_scenarios.takeAt(0).scenario;
-    DBG("filtering(size): %s (%.3f)", s.getName().toLocal8Bit().constData(), s.getScore());
-  }
 }
 
 void IncrementalMatch::update_next_iteration_length(int length) {
