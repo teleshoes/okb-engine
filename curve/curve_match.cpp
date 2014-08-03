@@ -99,6 +99,102 @@ Params Params::fromJson(const QJsonObject &json) {
   return p;
 }
 
+/* --- optimized curve --- */
+QuickCurve::QuickCurve() {
+  count = -1;
+}
+
+QuickCurve::QuickCurve(QList<CurvePoint> &curve) {
+  count = -1;
+  setCurve(curve);
+}
+
+void QuickCurve::clearCurve() {
+  if (count > 0) {
+    delete[] x;
+    delete[] y;
+    delete[] turn;
+    delete[] sharpturn;
+    delete[] turnsmooth;
+    delete[] normalx;
+    delete[] normaly;
+    delete[] speed;
+    delete[] points;
+  }
+  count = -1;
+}
+
+void QuickCurve::setCurve(QList<CurvePoint> &curve) {
+  clearCurve();  
+  count = curve.size();
+  if (! count) { return; }
+
+  x = new int[count];
+  y = new int[count];
+  turn = new int[count];
+  turnsmooth = new int[count];
+  sharpturn = new int[count];
+  normalx = new int[count];
+  normaly = new int[count];
+  speed = new int[count];
+  points = new Point[count];
+  for (int i = 0; i < count; i++) {
+    CurvePoint p = curve[i];
+    x[i] = p.x;
+    y[i] = p.y;
+    turn[i] = p.turn_angle;
+    turnsmooth[i] = p.turn_smooth;
+    sharpturn[i] = p.sharp_turn;
+    normalx[i] = p.normalx;
+    normaly[i] = p.normaly;
+    speed[i] = p.speed;
+    points[i].x = p.x;
+    points[i].y = p.y;
+  }
+}
+
+QuickCurve::~QuickCurve() {
+  clearCurve();
+}
+
+Point const& QuickCurve::point(int index) const { return points[index]; /* Point(x[index], y[index]);*/ }
+int QuickCurve::getX(int index) { return x[index]; }
+int QuickCurve::getY(int index) { return y[index]; }
+int QuickCurve::getTurn(int index) { return turn[index]; }
+int QuickCurve::getTurnSmooth(int index) { return turnsmooth[index]; }
+int QuickCurve::getSharpTurn(int index) { return sharpturn[index]; }
+Point QuickCurve::getNormal(int index) { return Point(normalx[index], normaly[index]); }
+int QuickCurve::size() { return count; }
+int QuickCurve::getNormalX(int index) { return normalx[index]; }
+int QuickCurve::getNormalY(int index) { return normaly[index]; }
+int QuickCurve::getSpeed(int index) { return speed[index]; }
+
+/* optimized keys information */
+QuickKeys::QuickKeys() {
+  points = new Point[256];  // unsigned char won't overflow
+}
+
+QuickKeys::QuickKeys(QHash<unsigned char, Key> &keys) {
+  points = new Point[256]; 
+  setKeys(keys);
+}
+
+void QuickKeys::setKeys(QHash<unsigned char, Key> &keys) {
+  foreach(unsigned char letter, keys.keys()) {
+    points[letter].x = keys[letter].x;
+    points[letter].y = keys[letter].y;
+  }
+}
+
+QuickKeys::~QuickKeys() {
+  delete[] points;
+}
+
+Point const& QuickKeys::get(unsigned char letter) const {
+  return points[letter];
+}
+
+
 /* --- point --- */
 Point::Point() {
   this -> x = this -> y = 0;
@@ -109,15 +205,15 @@ Point::Point(int x, int y) {
   this -> y = y;
 }
 
-Point Point::operator-(const Point &other) {
+Point const Point::operator-(const Point &other) const {
   return Point(x - other.x, y - other.y);
 }
 
-Point Point::operator+(const Point &other) {
+Point const Point::operator+(const Point &other) const {
   return Point(x + other.x, y + other.y);
 }
 
-Point Point::operator*(const float &other) {
+Point const Point::operator*(const float &other) const {
   return Point(x * other, y * other);
 }
 
@@ -162,11 +258,10 @@ Key Key::fromJson(const QJsonObject &json) {
 }
 
 /* --- scenario --- */
-Scenario::Scenario(LetterTree *tree, QHash<unsigned char, Key> *keys, QList<CurvePoint> *curve, Params *params) {
+Scenario::Scenario(LetterTree *tree, QuickKeys *keys, QuickCurve *curve, Params *params) {
   this -> node = tree -> getRoot();
   this -> keys = keys;
   this -> curve = curve;
-  name = "";
   finished = false;
   count = 0;
   index = 0;
@@ -174,13 +269,65 @@ Scenario::Scenario(LetterTree *tree, QHash<unsigned char, Key> *keys, QList<Curv
   temp_score = 0;
   final_score = -1;
   last_fork = -1;
+
+  index_history = new unsigned char[1];
+  letter_history = new unsigned char[1];
+  scores = new score_t[1];
+
+  letter_history[0] = 0;
+}
+
+Scenario::Scenario(const Scenario &from) {
+  // overriden copy to take care of dynamically allocated stuff
+  copy_from(from);
+}
+
+Scenario& Scenario::operator=( const Scenario &from) {
+  // overriden copy to take care of dynamically allocated stuff
+  delete[] index_history;
+  delete[] letter_history;
+  delete[] scores;
+  copy_from(from);
+  return *this;
+}
+
+void Scenario::copy_from(const Scenario &from) {
+  node = from.node;
+  finished = from.finished;
+  count = from.count;
+  index = from.index;
+  temp_score = from.temp_score;
+  final_score = from.final_score;
+  last_fork = from.last_fork;
+  debug = from.debug;
+  
+  keys = from.keys;
+  curve = from.curve;
+  params = from.params;
+
+  index_history = new unsigned char[count + 1];
+  letter_history = new unsigned char[count + 2]; // one more char to allow to keep a '\0' at the end (for use for display as a char*)
+  scores = new score_t[count + 1];
+  for (int i = 0; i < count; i ++) {
+    index_history[i] = from.index_history[i];
+    letter_history[i] = from.letter_history[i];
+    scores[i] = from.scores[i];
+  }
+  letter_history[count] = 0;
+}
+
+
+Scenario::~Scenario() {
+  delete[] index_history;
+  delete[] letter_history;
+  delete[] scores;
 }
 
 float Scenario::calc_cos_score(unsigned char prev_letter, unsigned char letter, int index, int new_index) {
-  Key k1 = (*keys)[prev_letter];
-  Key k2 = (*keys)[letter];
-  Point p1 = (*curve)[index];
-  Point p2 = (*curve)[new_index];
+  Point k1 = keys->get(prev_letter);
+  Point k2 = keys->get(letter);
+  Point p1 = curve->point(index);
+  Point p2 = curve->point(new_index);
   float a_sin = abs(sin_angle(k2.x - k1.x, k2.y - k1.y, p2.x - p1.x, p2.y - p1.y));
 
   float len = distancep(p1, p2);
@@ -191,7 +338,7 @@ float Scenario::calc_cos_score(unsigned char prev_letter, unsigned char letter, 
   float score = 1 - a_sin / max_sin;
 
   DBG("  [cos score] %s:%c i=%d:%d len_coef=%.2f angle=%.2f/%.2f -> score=%.2f", 
-      name.toLocal8Bit().constData(), letter, index, new_index, len_coef, a_sin, max_sin, score);
+      getNameCharPtr(), letter, index, new_index, len_coef, a_sin, max_sin, score);
   
   return score;
 }
@@ -202,8 +349,8 @@ float Scenario::calc_turn_score(unsigned char letter, int index) {
   if (count < 2) { return 0; }
 
   // curve index
-  int i1 = index_history[count - 2].second;
-  int i2 = index_history[count - 1].second;
+  int i1 = index_history[count - 2];
+  int i2 = index_history[count - 1];
   int i3 = index;
 
   if ((i1 == i2) || (i2 == i3)) {
@@ -212,19 +359,19 @@ float Scenario::calc_turn_score(unsigned char letter, int index) {
   }
 
   // curve points
-  Point p1 = (*curve)[i1];
-  Point p2 = (*curve)[i2];
-  Point p3 = (*curve)[i3];
+  Point p1 = curve->point(i1);
+  Point p2 = curve->point(i2);
+  Point p3 = curve->point(i3);
 
   // letters
-  unsigned char l1 = index_history[count - 2].first.getChar();
-  unsigned char l2 = index_history[count - 1].first.getChar();
+  unsigned char l1 = letter_history[count - 2];
+  unsigned char l2 = letter_history[count - 1];
   unsigned char l3 = letter;  
 
   // key coordinates
-  Point k1 = Point((*keys)[l1].x, (*keys)[l1].y);
-  Point k2 = Point((*keys)[l2].x, (*keys)[l2].y);
-  Point k3 = Point((*keys)[l3].x, (*keys)[l3].y);
+  Point k1 = keys->get(l1);
+  Point k2 = keys->get(l2);
+  Point k3 = keys->get(l3);
 
   // compare angles
   float expected = anglep(k2 - k1, k3 - k2) * 180 / M_PI;
@@ -258,23 +405,23 @@ float Scenario::calc_turn_score(unsigned char letter, int index) {
   float score = 1 - pow(diff / scale, 2);
 
   DBG("  [turn score] %s:%c i=%d:%d:%d angle exp/act=%.2f/%.2f -> score=%.2f", 
-      name.toLocal8Bit().constData(), letter, i1, i2, i3, expected, actual, score)
+      getNameCharPtr(), letter, i1, i2, i3, expected, actual, score)
 
   return score;
 }
 
 Point Scenario::curve_tangent(int index) {
-  int i1 = index_history[index].second;
+  int i1 = index_history[index];
   Point d1, d2;
   Point origin(0, 0);
   if (index > 0) {
-    int i0 = index_history[index - 1].second;  
-    d1 = (*curve)[i1] - (*curve)[i0];
+    int i0 = index_history[index - 1];
+    d1 = curve->point(i1) - curve->point(i0);
     d1 = d1 * (1000 / distancep(origin, d1)); // using integers was clearly a mistake
   }
-  if (index < index_history.size() - 1) {
-    int i2 = index_history[index + 1].second;
-    d2 = (*curve)[i2] - (*curve)[i1];
+  if (index < count - 1) {
+    int i2 = index_history[index + 1];
+    d2 = curve->point(i2) - curve->point(i1);
     d2 = d2 * (1000 / distancep(origin, d2));
   }
   return d1 + d2;
@@ -287,24 +434,24 @@ float Scenario::begin_end_angle_score(bool end) {
   Point origin(0, 0);
 
   if (end) {
-    int l = index_history.size();
-    int nc = curve -> size();
+    int nc = curve->size();
 
-    if (index_history[l - 2].second > nc - 2) { return 0; }
+    if (index_history[count - 2] > nc - 2) { return 0; }
 
-    Key k1 = (*keys)[index_history[l - 2].first.getChar()];
-    Key k2 = (*keys)[index_history[l - 1].first.getChar()];
-    expected = Point(k2.x - k1.x, k2.y - k1.y);
+    Point k1 = keys->get(letter_history[count - 2]);
+    Point k2 = keys->get(letter_history[count - 1]);
+    expected = k2 - k1;
 
-    actual = (*curve)[nc - 1] - (*curve)[nc - 3];
+    actual = curve->point(nc - 1) - curve->point(nc - 3);
 
   } else {
-    if (index_history[1].second < 2) { return 0; }
+    if (index_history[1] < 2) { return 0; }
 
-    Key k1 = (*keys)[index_history[0].first.getChar()];
-    Key k2 = (*keys)[index_history[1].first.getChar()];
-    expected = Point(k2.x - k1.x, k2.y - k1.y);
-    actual = (*curve)[2] - (*curve)[0];
+    Point k1 = keys->get(letter_history[0]);
+    Point k2 = keys->get(letter_history[1]);
+    expected = k2 - k1;
+
+    actual = curve->point(2) - curve->point(0);
   }
 
   float cosa = cos_angle(expected.x, expected.y, actual.x, actual.y);
@@ -315,14 +462,14 @@ float Scenario::begin_end_angle_score(bool end) {
     if (sc < 0) { sc = 0; }
   }
   
-  DBG("  [begin_end_angle_score] %s end=%d -> score=%.2f", name.toLocal8Bit().constData(), end, sc);
+  DBG("  [begin_end_angle_score] %s end=%d -> score=%.2f", getNameCharPtr(), end, sc);
 
   return sc;
 }
 
 float Scenario::calc_curviness2_score(int index) {
-  int i1 = index_history[index].second;
-  int i2 = index_history[index + 1].second;
+  int i1 = index_history[index];
+  int i2 = index_history[index + 1];
   
   if (i2 <= i1 + 1) { return 0; }
 
@@ -330,7 +477,7 @@ float Scenario::calc_curviness2_score(int index) {
   int maxv = 0;
   for (int i = i1; i <= i2; i ++) {
     float coef = cos(M_PI / 180 * i / (i2 - i1));
-    float abv = abs((*curve)[i].turn_smooth);
+    float abv = abs(curve->getTurnSmooth(i));
     total += coef * abv;
     if (abv > maxv) { maxv = abv; }
   }
@@ -340,17 +487,16 @@ float Scenario::calc_curviness2_score(int index) {
 
 float Scenario::calc_curviness_score(int index) {
   /* score based on expected radius of curvature sign and derivative */
-  int l = index_history.size();
-  int i1 = index_history[index].second;
-  int i2 = index_history[index + 1].second;
+  int i1 = index_history[index];
+  int i2 = index_history[index + 1];
 
-  if ((index > 0 && index_history[index - 1].second == i1) ||
-      (index < index_history.size() - 1 && index_history[index + 1].second == i2)) {
+  if ((index > 0 && index_history[index - 1] == i1) ||
+      (index < count - 1 && index_history[index + 1] == i2)) {
     // could not compute tangents, so just skip this
     return 0;
   }
 
-  Point p = (*curve)[i2] - (*curve)[i1];
+  Point p = curve->point(i2) - curve->point(i1);
   Point v1 = curve_tangent(index);
   Point v2 = curve_tangent(index + 1);
 
@@ -365,12 +511,12 @@ float Scenario::calc_curviness_score(int index) {
   int max_inflection_point = 1;
   int expected_sign = 0;
   int sum_bad = -1;
-  if ((*curve)[i1].turn_smooth * s1 < 0 && abs(a1) < params->curv_amax) {
+  if (curve->getTurnSmooth(i1) * s1 < 0 && abs(a1) < params->curv_amax) {
     result = -1;
-  } else if ((*curve)[i2].turn_smooth * s2 < 0 && abs(a2) < params->curv_amax) {
+  } else if (curve->getTurnSmooth(i2) * s2 < 0 && abs(a2) < params->curv_amax) {
     result = -1;
   } else {
-    if ((s1 * s2 == 1) || (s1 && index == l - 2) || (s2 && index == 0)) {
+    if ((s1 * s2 == 1) || (s1 && index == count - 2) || (s2 && index == 0)) {
       max_inflection_point = 0;
       expected_sign = (s1 + s2 > 0?1:-1);
     }
@@ -379,7 +525,7 @@ float Scenario::calc_curviness_score(int index) {
     int sign = 0;
     sum_bad = 0;
     for (int i = i1; i <= i2; i++) {
-      int value = (*curve)[i].turn_smooth;
+      int value = curve->getTurnSmooth(i);
       if (abs(value) > params->curv_amin && value * sign <= 0) {
 	if (sign) { infcount += 1; }
 	sign = (value > 0)?1:-1;
@@ -397,7 +543,8 @@ float Scenario::calc_curviness_score(int index) {
     }
   }
 
-  DBG("  [curviness score] %s[%d] i=%d:%d a=%.3f/%.3f s=%d/%d [maxpt=%d] score=%.3f (sum_bad=%d exp_sign=%d)", name.toLocal8Bit().constData(), index, i1, i2, a1, a2, s1, s2, max_inflection_point, result, sum_bad, expected_sign);
+  DBG("  [curviness score] %s[%d] i=%d:%d a=%.3f/%.3f s=%d/%d [maxpt=%d] score=%.3f (sum_bad=%d exp_sign=%d)", 
+      getNameCharPtr(), index, i1, i2, a1, a2, s1, s2, max_inflection_point, result, sum_bad, expected_sign);
 
   return result;
 }
@@ -409,19 +556,25 @@ float Scenario::calc_curve_score(unsigned char, unsigned char letter, int index,
   float max_distp = 0;
   int sharp_turn = 0;
 
-  Point middle(((*curve)[index].x + (*curve)[new_index].x) / 2,
-	       ((*curve)[index].y + (*curve)[new_index].y) / 2);
+  Point pbegin = curve->point(index);
+  Point pend =  curve->point(new_index);
 
-  int length = max(distancep((*curve)[index], (*curve)[new_index]), params->dist_max_next);
+  int length = max(distancep(pbegin, pend), params->dist_max_next);
   
-  for (int i = index + 1; i < new_index - 1; i++) {
-    float dist = dist_line_point((*curve)[index], (*curve)[new_index], (*curve)[i]);
+
+  Point middle((pbegin.x + pend.x) / 2, (pbegin.y + pend.y) / 2);
+
+  for (int i = index + 2; i < new_index - 1; i += 4) {
+    Point p = curve->point(i);
+    float dist = dist_line_point(pbegin, pend, p);
     if (dist > max_dist) { max_dist = dist; }
 
-    float distp = distancep(middle, (*curve)[i]);
+    float distp = distancep(middle, p);
     if (distp > max_distp) { max_distp = distp; }
+  }
 
-    if (i > index + 2 && i < new_index - 2 && (*curve)[i].sharp_turn && i >= 2 && i < curve->size() - 2) { sharp_turn ++; }
+  for (int i = index + 1; i < new_index; i += 1) {
+    if (i > index + 2 && i < new_index - 2 && curve->getSharpTurn(i) && i >= 2 && i < curve->size() - 2) { sharp_turn ++; }
   }
 
   float s1 = max_dist / params->curve_dist_threshold;
@@ -430,7 +583,7 @@ float Scenario::calc_curve_score(unsigned char, unsigned char letter, int index,
 
   float score = 1 - s1 - s2 - s3;
   DBG("  [curve score] %s:%c[%d->%d] sc=[%.3f:%.3f:%.3f] max_dist=%d max_distp=%d length=%d score=%.3f",
-      name.toLocal8Bit().constData(), letter, index, new_index, s1, s2, s3, (int) max_dist, (int) max_distp, length, score);
+      getNameCharPtr(), letter, index, new_index, s1, s2, s3, (int) max_dist, (int) max_distp, length, score);
 
   return score;
 }
@@ -438,11 +591,11 @@ float Scenario::calc_curve_score(unsigned char, unsigned char letter, int index,
 float Scenario::calc_length_score(unsigned char prev_letter, unsigned char letter, int index, int new_index) {
   /* score based on distance between points for 2 successive keys */
 
-  Key k1 = (*keys)[prev_letter];
-  Key k2 = (*keys)[letter];
+  Point k1 = keys->get(prev_letter);
+  Point k2 = keys->get(letter);
 
-  float expected = distance(k1.x, k1.y, k2.x, k2.y);
-  float actual = distancep((*curve)[index], (*curve)[new_index]);
+  float expected = distancep(k1, k2);
+  float actual = distance(curve->getX(index), curve->getY(index), curve->getX(new_index), curve->getY(new_index));
 
   float scale = (float) params->length_score_scale;
   return 1 - pow((actual - expected) / scale / (1 + 0.2 * expected / scale), 2); // add 20% error margin for each "distance scale"
@@ -452,7 +605,7 @@ float Scenario::calc_distance_score(unsigned char letter, int index, int count) 
   /* score based on distance to from curve to key */
 
   float ratio = (count > 0)?params->dist_max_next:params->dist_max_start;
-  Key k = (*keys)[letter];
+  Point k = keys->get(letter);
   
   float cplus;
   float cminus; 
@@ -462,22 +615,22 @@ float Scenario::calc_distance_score(unsigned char letter, int index, int count) 
 
   /* accept a bit of user laziness in curve beginning, end and sharp turns -> let's add some anisotropy */
   if (count == 0) {
-    dx = (*curve)[1].x - (*curve)[0].x;
-    dy = (*curve)[1].y - (*curve)[0].y;
+    dx = curve->getX(1) - curve->getX(0);
+    dy = curve->getY(1) - curve->getY(0);
   } else if (count == -1) {
-    int idx = curve -> size() - 1;
-    dx = (*curve)[idx].x - (*curve)[idx-1].x;
-    dy = (*curve)[idx].y - (*curve)[idx-1].y;      
-  } else if ((*curve)[index].sharp_turn) {
-    dx = (*curve)[index].normalx * 100;
-    dy = (*curve)[index].normaly * 100; // why did i use integers ?!
+    int idx = curve->size() - 1;
+    dx = curve->getX(idx) - curve->getX(idx-1);
+    dy = curve->getY(idx) - curve->getY(idx-1);
+  } else if (curve->getSharpTurn(index)) {
+    dx = curve->getNormalX(index) * 100;
+    dy = curve->getNormalY(index) * 100; // why did i use integers ?!
     cminus = 1;
   } else { // unremarkable point
     cplus = cminus = 0; // use standard formula
   }
 
-  float px = k.x - (*curve)[index].x;
-  float py = k.y - (*curve)[index].y;
+  float px = k.x - curve->getX(index);
+  float py = k.y - curve->getY(index);
   
   float dist;
   float u = 0;
@@ -534,6 +687,7 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &
 
   overflow = false;
 
+  int step = 1;
   while(1) {
     if (index >= curve->size() - 1) { overflow = true; break; }
     
@@ -550,11 +704,11 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &
     if (new_score > score) {
       retry = 0;
     } else {
-      retry ++;
+      retry += step;
       if (retry > params->match_wait && count > params->match_wait) { break; }
     }
 
-    if ((*curve)[index].sharp_turn && ! last_turn_point && index > start_index) {
+    if (curve->getSharpTurn(index) && ! last_turn_point && index > start_index) {
       // sharp turn
       last_turn_point = index;
       last_turn_point_score = new_score;
@@ -568,8 +722,18 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &
       max_score_index_before_turn = max_score_index;
     }
 
-    count ++;
-    index ++;
+    step = 1;
+    if (new_score < -1) {
+      step = (- 0.5 - new_score) * params->dist_max_next / 20;
+      int i = 1;
+      while (i < step && index + i < curve->size() - 1 && ! curve->getSharpTurn(index + i)) {
+	i++;
+      }
+      step = i;
+    }
+
+    count += step;
+    index += step;
   }
 
   if (max_score > 0) {
@@ -590,7 +754,7 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &
       bool found = false;
       for (int i = index ; i < curve->size() && i < index + max_turn_distance; i++) {
 	if (i >= curve->size() - 1) { overflow = true; }
-	if ((*curve)[i].sharp_turn) {
+	if (curve->getSharpTurn(i)) {
 	  new_index_list << i;
 	  float score_turn = calc_distance_score(letter, i, this -> count);
 
@@ -605,12 +769,12 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &
       if (! found) { new_index_list << max_score_index; }
     }
     DBG("  [get_next_key_match] %s:%c[%d] max_score=%.3f[%d] last_turnpoint=%.3f[%d] last_index=%d -> new_indexes=[%s]", 
-	name.toLocal8Bit().constData(), letter, start_index, max_score, max_score_index, last_turn_point_score, 
+	getNameCharPtr(), letter, start_index, max_score, max_score_index, last_turn_point_score, 
 	last_turn_point, index, qlist2str(new_index_list).toLocal8Bit().constData());
     return max_score;
   } else {
     DBG("  [get_next_key_match] %s:%c[%d] max_score=%.3f[%d] last_turnpoint=%.3f[%d] last_index=%d -> FAIL",
-	name.toLocal8Bit().constData(), letter, start_index, max_score, max_score_index, last_turn_point_score,
+	getNameCharPtr(), letter, start_index, max_score, max_score_index, last_turn_point_score,
 	last_turn_point, index);
     return -1;
   }
@@ -644,7 +808,7 @@ bool Scenario::childScenario(LetterNode &childNode, bool endScenario, QList<Scen
   } else {
     if (endScenario) {
 
-      int new_index = curve -> size() - 1;
+      int new_index = curve->size() - 1;
       new_index_list << new_index;
       distance_score = calc_distance_score(letter, new_index, -1);
 
@@ -656,7 +820,7 @@ bool Scenario::childScenario(LetterNode &childNode, bool endScenario, QList<Scen
 	return false; // ask me again later
       }
       if (new_index_list.isEmpty()) {
-	DBG("debug [%s:%c] %s =FAIL= {distance / turning point}", name.toLocal8Bit().constData(), letter,endScenario?"*":" ");
+	DBG("debug [%s:%c] %s =FAIL= {distance / turning point}", getNameCharPtr(), letter,endScenario?"*":" ");
 	return true;
       }
 
@@ -672,7 +836,7 @@ bool Scenario::childScenario(LetterNode &childNode, bool endScenario, QList<Scen
     score.distance_score = distance_score;
 
     if (count > 0) {
-      float curve_advance = distance((*curve)[index].x, (*curve)[index].y, (*curve)[new_index].x, (*curve)[new_index].y);
+      float curve_advance = distance(curve->getX(index), curve->getY(index), curve->getX(new_index), curve->getY(new_index));
       
       if (new_index > index) {
 	score.cos_score = calc_cos_score(prev_letter, letter, index, new_index);
@@ -691,17 +855,18 @@ bool Scenario::childScenario(LetterNode &childNode, bool endScenario, QList<Scen
     bool ok = (score.distance_score >= 0 && score.curve_score >= 0 && score.cos_score >= 0 && score.length_score >= 0 && score.turn_score >= 0);
   
     DBG("debug [%s:%c] %s%s %d:%d %s [%.2f, %.2f, %.2f, %.2f, %.2f]", 
-	name.toLocal8Bit().constData(), letter, endScenario?"*":" ", first?"":" <FORK>", count, new_index, ok?"=OK=":"*FAIL*", 
+	getNameCharPtr(), letter, endScenario?"*":" ", first?"":" <FORK>", count, new_index, ok?"=OK=":"*FAIL*", 
 	score.distance_score, score.curve_score, score.cos_score, score.length_score, score.turn_score);
 
     if (ok) {
       // create a new scenario for this child node
-      Scenario new_scenario(*this); // use default copy constructor
+      Scenario new_scenario(*this); // use our copy constructor
       new_scenario.node = childNode;
       new_scenario.index = new_index;
-      new_scenario.name.append(letter);
-      new_scenario.scores.append(score);
-      new_scenario.index_history.append(QPair<LetterNode, int>(childNode, new_index));
+      new_scenario.scores[count] = score;
+      new_scenario.index_history[count] = new_index;
+      new_scenario.letter_history[count] = letter;
+      new_scenario.letter_history[count + 1] = 0; // letter_history is also a '\0' terminated string
       new_scenario.count = count + 1;
       new_scenario.finished = endScenario;
       if (new_index_list.size() >= 2) new_scenario.last_fork = count + 1;
@@ -768,6 +933,17 @@ float Scenario::getCount() {
   return count;
 }
 
+QString Scenario::getName() {
+  QString ret;
+  ret.append((char*) getNameCharPtr());
+  return ret;
+}
+
+unsigned char* Scenario::getNameCharPtr() {
+  return letter_history;
+}
+
+
 int Scenario::getCurveIndex() {
   return index;
 }
@@ -779,13 +955,12 @@ bool Scenario::forkLast() {
 
 void Scenario::postProcess() {
   // bonus for "curviness"
-  int l = index_history.size();
-  for(int i = 0; i < l - 1; i ++) {
-    float sc = (l>2)?calc_curviness_score(i):0;
+  for(int i = 0; i < count - 1; i ++) {
+    float sc = (count>2)?calc_curviness_score(i):0;
     if (i == 0) { sc += begin_end_angle_score(false); }
-    if (i == l - 2) { sc += begin_end_angle_score(true); }
+    if (i == count - 2) { sc += begin_end_angle_score(true); }
 
-    /* not used at the moment : sc += (l>2)?calc_curviness2_score(i):0; */
+    /* not yet used at the moment : sc += (l>2)?calc_curviness2_score(i):0; */
 
     scores[i + 1].curve_score2 = sc;
   }
@@ -794,14 +969,13 @@ void Scenario::postProcess() {
 }
 
 float Scenario::speedCoef(int i) {
-  return 1.0 + params -> score_coef_speed * ((*curve)[i].speed - 1000) / 1000;
+  return 1.0 + params -> score_coef_speed * (curve->getSpeed(i) - 1000) / 1000;
 }
 
 float Scenario::evalScore() {
-  DBG("==== Evaluating final score: %s", name.toLocal8Bit().constData());
+  DBG("==== Evaluating final score: %s", getNameCharPtr());
   this -> final_score = 0;
-  if (scores.size() < 2) { return 0; }
-  int l = scores.size();
+  if (count < 2) { return 0; }
 
   ScoreCounter sc;
   char* cols[] = { (char*) "angle", (char*) "curve", (char*) "curve2", (char*) "distance", (char*) "length", (char*) "turn", 0 };
@@ -809,23 +983,23 @@ float Scenario::evalScore() {
   sc.set_cols(cols);
   sc.set_pow(params -> score_pow);
 
-  for(int i = 0; i < l; i++) {
+  for(int i = 0; i < count; i++) {
     // key scores
     sc.start_line();
-    sc.set_line_coef(speedCoef(index_history[i].second));
-    if (debug) { sc.line_label << "Key " << i << ":" << index_history[i].second << ":" << QString(index_history[i].first.getChar()); }
+    sc.set_line_coef(speedCoef(index_history[i]));
+    if (debug) { sc.line_label << "Key " << i << ":" << index_history[i] << ":" << QString(letter_history[i]); }
     sc.add_score(scores[i].distance_score, params -> weight_distance, (char*) "distance");
-    if (i > 0 && i < l - 1) {
+    if (i > 0 && i < count - 1) {
       sc.add_score(scores[i + 1].turn_score, params -> weight_turn, (char*) "turn");
     }
     sc.end_line();
 
     // segment scores
-    if (i < l - 1) {
+    if (i < count - 1) {
       sc.start_line();
-      sc.set_line_coef((speedCoef(index_history[i].second) + 
-			speedCoef(index_history[i + 1].second)) / 2);
-      if (debug) { sc.line_label << "Segment " << i + 1 << " [" << index_history[i].second << ":" << index_history[i + 1].second << "]"; }
+      sc.set_line_coef((speedCoef(index_history[i]) + 
+			speedCoef(index_history[i + 1])) / 2);
+      if (debug) { sc.line_label << "Segment " << i + 1 << " [" << index_history[i] << ":" << index_history[i + 1] << "]"; }
       sc.add_score(scores[i + 1].cos_score, params -> weight_cos, (char*) "angle"); 
       sc.add_score(scores[i + 1].curve_score, params -> weight_curve, (char*) "curve");
       sc.add_score(scores[i + 1].length_score, params -> weight_length, (char*) "length");
@@ -835,16 +1009,16 @@ float Scenario::evalScore() {
   }
 
   float score1 = sc.get_score();
-  float score = score1 * (1.0 + params->length_penalty * scores.size()); // my scores have a bias towards number of letters
+  float score = score1 * (1.0 + params->length_penalty * count); // my scores have a bias towards number of letters
   
-  DBG("==== %s --> Score: %.3f --> Final Score: %.3f", name.toLocal8Bit().constData(), score1, score);
+  DBG("==== %s --> Score: %.3f --> Final Score: %.3f", getNameCharPtr(), score1, score);
   
   this -> final_score = score;
   return score;
 }
 
 void Scenario::toJson(QJsonObject &json) {
-  json["name"] = name;
+  json["name"] = getName();
   json["finished"] = finished;
   json["score"] = getScore();
 
@@ -854,8 +1028,8 @@ void Scenario::toJson(QJsonObject &json) {
 
     score_t* score = &(scores[i]);
 
-    json_score["letter"] = QString(index_history[i].first.getChar());
-    json_score["index"] = index_history[i].second;
+    json_score["letter"] = QString(letter_history[i]);
+    json_score["index"] = index_history[i];
     json_score["score_distance"] = score->distance_score;
     json_score["score_cos"] = score->cos_score;
     json_score["score_turn"] = score->turn_score;
@@ -1039,10 +1213,14 @@ QList<Scenario> CurveMatch::getCandidates() {
 }
 
 void CurveMatch::scenarioFilter(QList<Scenario> &scenarios, float score_ratio, int min_size, int max_size, bool finished) {
-  /* "skim" any scenario list based on number and/or score */
+  /* "skim" any scenario list based on number and/or score 
+
+     This method is awfully inefficient, but as the target is to use only the incremental
+     implementation (class IncrementalMatch), it'll stay as is */
+
   float max_score = 0;
 
-  qSort(scenarios.begin(), scenarios.end());
+  qSort(scenarios.begin(), scenarios.end());  // <- 25% of the whole CPU usage, ouch!
 
   foreach(Scenario s, scenarios) {
     float sc = s.getScore();
@@ -1110,7 +1288,10 @@ bool CurveMatch::match() {
   curvePreprocess1();
   curvePreprocess2();
 
-  Scenario root = Scenario(&wordtree, &keys, &curve, &params);
+  QuickCurve quickCurve(curve);
+  QuickKeys quickKeys(keys);
+
+  Scenario root = Scenario(&wordtree, &quickKeys, &quickCurve, &params);
   root.setDebug(debug);
   scenarios.append(root);
 

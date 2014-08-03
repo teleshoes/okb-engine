@@ -8,3 +8,5 @@ html.py
 *.log
 *.bak
 db
+gmon.out
+

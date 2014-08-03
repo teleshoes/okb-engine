@@ -12,20 +12,34 @@
 /* A delayed scenario is a scenario with a minimal length for each possible child scenario
    it will be triggered when the actual curve lenght is greater than the miniman length
  */
+class NextLetter {
+ public:
+  LetterNode letter_node;
+  int next_length_min;
+  int next_length_max;
+  NextLetter(LetterNode, int, int);
+  NextLetter();
+};
+
 class DelayedScenario {
+ private:
+  bool dead;
+
  public:
   Scenario scenario;
-  QHash<unsigned char, QPair<LetterNode, int> > next;
+  QHash<unsigned char, NextLetter> next;
 
-  DelayedScenario(Scenario &s, QHash<unsigned char, QPair<LetterNode, int> > &h);
+  DelayedScenario(Scenario &s, QHash<unsigned char, NextLetter> &h);
   bool operator<(const DelayedScenario &other) const;
+  bool isDead() { return dead; }
+  void die() { dead = true; }
 };
 
 
 class IncrementalMatch : public CurveMatch {
  protected:
   void incrementalMatchBegin();
-  void incrementalMatchUpdate(bool finished);
+  void incrementalMatchUpdate(bool finished, bool aggressive = false);
 
   void incrementalNextKeys(Scenario &scenario, QList<DelayedScenario> &result, bool finished);
   bool evalChildScenario(Scenario &scenario, LetterNode &childNode, QList<DelayedScenario> &result, bool finished);
@@ -46,10 +60,14 @@ class IncrementalMatch : public CurveMatch {
 
   int st_retry;
 
+  QuickCurve quickCurve;
+  QuickKeys quickKeys;
+
  public:
   virtual void clearCurve();
   virtual void addPoint(Point point, int timestamp = -1);
   virtual void endCurve(int id);
+  void aggressiveMatch();
 };
 
 #endif /* INCR_MATCH_H */

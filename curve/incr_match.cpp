@@ -7,8 +7,16 @@ bool DelayedScenario::operator<(const DelayedScenario &other) const {
   return (this -> scenario < other.scenario);
 }
 
-DelayedScenario::DelayedScenario(Scenario &s, QHash<unsigned char, QPair<LetterNode, int> > &h) : scenario(s), next(h) {}
+DelayedScenario::DelayedScenario(Scenario &s, QHash<unsigned char, NextLetter> &h) : scenario(s), next(h) {
+  dead = false;
+}
 
+NextLetter::NextLetter(LetterNode node, int min, int max) {
+  letter_node = node;
+  next_length_min = min;
+  next_length_max = max;
+}
+NextLetter::NextLetter() {} // it makes QHash happy
 
 
 void IncrementalMatch::displayDelayedScenario(DelayedScenario &ds) {
@@ -16,7 +24,7 @@ void IncrementalMatch::displayDelayedScenario(DelayedScenario &ds) {
   QTextStream ts(& txt);
   ts << "DelayedScenario[" << ds.scenario.getName() << "]:";
   foreach(unsigned char letter, ds.next.keys()) {
-    ts << " " << QString(letter) << ":" << ds.next[letter].second;
+    ts << " " << QString(letter) << ":" << ds.next[letter].next_length_min << ":" << ds.next[letter].next_length_max;
   }
   DBG("%s", txt.toLocal8Bit().constData());
 }
@@ -30,7 +38,10 @@ void IncrementalMatch::incrementalMatchBegin() {
  
   if (! loaded || ! keys.size()) { return; }
 
-  Scenario root = Scenario(&wordtree, &keys, &curve, &params);
+  quickKeys.setKeys(keys);
+  quickCurve.setCurve(curve);
+
+  Scenario root = Scenario(&wordtree, &quickKeys, &quickCurve, &params);
   root.setDebug(debug);
   scenarios.append(root);
 
@@ -45,16 +56,20 @@ void IncrementalMatch::incrementalMatchBegin() {
   st_count = 0;
 
   QList<LetterNode> childNodes = root.getNextKeys();
-  QHash<unsigned char, QPair<LetterNode, int> > childs;
+  QHash<unsigned char, NextLetter> childs;
   foreach (LetterNode childNode, childNodes) {
-    childs[childNode.getChar()] = QPair<LetterNode, int>(childNode, 5);
+    childs[childNode.getChar()] = NextLetter(childNode, 5, 5);
   }
   delayed_scenarios.append(DelayedScenario(root, childs));
 
   DBG("incrementalMatchBegin: delayed_scenarios=%d", delayed_scenarios.size());
 }
 
-void IncrementalMatch::incrementalMatchUpdate(bool finished) {
+void IncrementalMatch::aggressiveMatch() {
+  incrementalMatchUpdate(false, true);
+}
+
+void IncrementalMatch::incrementalMatchUpdate(bool finished, bool aggressive) {
   /* incremental algorithm: subsequent iterations */
   if (! loaded || ! keys.size()) { return; }
 
@@ -62,7 +77,10 @@ void IncrementalMatch::incrementalMatchUpdate(bool finished) {
   if (cumulative_length < next_iteration_length && ! finished) { return; }  
   if (curve.size() < 5 && ! finished ) { return; }
 
-  DBG("=== incrementalMatchUpdate: finished=%d, curveIndex=%d, length=%d", finished, curve.size(), cumulative_length);
+  DBG("=== incrementalMatchUpdate: %sfinished=%d, curveIndex=%d, length=%d", aggressive?"[aggressive] ":"", finished, curve.size(), cumulative_length);
+  QTime t_start = QTime::currentTime();
+
+  quickCurve.setCurve(curve); // curve may have new points since last iteration
 
   next_iteration_length = -1;
  
@@ -77,22 +95,31 @@ void IncrementalMatch::incrementalMatchUpdate(bool finished) {
 
   int min_n = 0;
   foreach(DelayedScenario ds, delayed_scenarios) {
+    if (ds.isDead()) { continue; }
     QList<unsigned char> allLetters = ds.next.keys();
 
     int n = ds.scenario.getCount();
     if (n < min_n || ! min_n) { min_n = n; }
 
     foreach(unsigned char letter, allLetters) {
-      int min_length = ds.next[letter].second;
+      /* in "aggressive matching" try to evaluate child scenarios as soon as possible,
+	 even it causes a lot of retries ... */
 
-      if (cumulative_length >= min_length || finished) {
+      int min_length = aggressive?ds.next[letter].next_length_min:ds.next[letter].next_length_max;
+
+      if (cumulative_length >= min_length || finished) { 
 	// now we can evaluate this scenario (and get next possible keys)
-	LetterNode childNode = ds.next[letter].first;
+
+	LetterNode childNode = ds.next[letter].letter_node;
 	if (evalChildScenario(ds.scenario, childNode, new_delayed_scenarios, finished)) {
 	  ds.next.remove(letter);
 	} else {
 	  // retry later
-	  ds.next[letter].second += 50;
+	  ds.next[letter].next_length_min = cumulative_length + 50; // @todo parameter
+
+	  if (ds.next[letter].next_length_min > ds.next[letter].next_length_max) {
+	    ds.next[letter].next_length_max = ds.next[letter].next_length_min;
+	  }
 	}
       } else {
 	update_next_iteration_length(min_length);
@@ -124,8 +151,9 @@ void IncrementalMatch::incrementalMatchUpdate(bool finished) {
     }
     candidates = new_candidates;
   }
-  logdebug("=== incrementalMatchUpdate: curveIndex=%d, finished=%d, scenarios=%d, length=%d (next=%d), skim=%d, fork=%d, nodes=%d, retry=%d",
-	   curve.size(), finished, delayed_scenarios.size(), cumulative_length, next_iteration_length, st_skim, st_fork, st_count, st_retry);
+  logdebug("=== incrementalMatchUpdate: %scurveIndex=%d, finished=%d, scenarios=%d, length=%d (next=%d), skim=%d, fork=%d, nodes=%d, retry=%d [time=%.3f]",
+	   aggressive?"[aggressive] ":"", curve.size(), finished, delayed_scenarios.size(), cumulative_length, next_iteration_length, 
+	   st_skim, st_fork, st_count, st_retry, (float)(t_start.msecsTo(QTime::currentTime())) / 1000);
 
 
   next_iteration_index = curve.size() + 10;
@@ -193,7 +221,7 @@ void IncrementalMatch::update_next_iteration_length(int length) {
 void IncrementalMatch::incrementalNextKeys(Scenario &scenario, QList<DelayedScenario> &result, bool finished) {
   /* create delayed scenarios, and compute length threshold for next iterations (for each possible key) */
 
-  QHash<unsigned char, QPair<LetterNode, int> > delayed_childs;
+  QHash<unsigned char, NextLetter> delayed_childs;
 
   QList<LetterNode> childNodes = scenario.getNextKeys();
   foreach (LetterNode childNode, childNodes) {
@@ -206,16 +234,17 @@ void IncrementalMatch::incrementalNextKeys(Scenario &scenario, QList<DelayedScen
      compute minimal curve length to evaluate this scenario
      (currently it's value is last key curve length + distance between the two keys + 2 * max distance error
      which means, that matching will always ~200 pixels late (with current settings)
-     @todo use more optimistic formula + retries in case we try too soon
-       -> add a new "call me again later" return value to get_next_key_match()
+     max_length is a pessimistic guess (it prevent retries and uses the less cpu time)
+     min_length is an optimistic guess
     */
     Point keyPoint(k.x, k.y);
     int dist = distancep(curve[index], keyPoint);
-    int min_length = finished?-1:(index2distance[index] + (1.0 + (float)dist / params.dist_max_next / 20) * (params.incremental_length_lag + dist));
+    int max_length = finished?-1:(index2distance[index] + (1.0 + (float)dist / params.dist_max_next / 20) * (params.incremental_length_lag + dist));
+    int min_length = finished?-1:(index2distance[index] + max(0, dist - params.incremental_length_lag / 2));
 
     bool keep_for_later = true;
 
-    if (cumulative_length >= min_length || finished) {
+    if (cumulative_length >= max_length || finished) {
       // if we can evaluate child scenario, imediately do it (and recurse into ourselves)
       if (evalChildScenario(scenario, childNode, result, finished)) {
 	keep_for_later = false;
@@ -226,8 +255,8 @@ void IncrementalMatch::incrementalNextKeys(Scenario &scenario, QList<DelayedScen
 
     if (keep_for_later) {
       // keep it for a later iteration
-      delayed_childs[letter] = QPair<LetterNode, int>(childNode, min_length);
-      update_next_iteration_length(min_length);
+      delayed_childs[letter] = NextLetter(childNode, min_length, max_length);
+      update_next_iteration_length(max_length);
     }
     
   }

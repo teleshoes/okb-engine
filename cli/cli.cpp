@@ -97,6 +97,9 @@ int main(int argc, char* argv[]) {
   cm->loadTree(QString(argv[optind]));
 
   CurveThread t;
+
+  if (implem == 2) { repeat = 1; }
+
   for (int i = 0; i < repeat; i ++) {
     cm->clearCurve();
     cm->fromString(input);

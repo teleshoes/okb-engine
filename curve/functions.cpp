@@ -43,9 +43,12 @@ float dist_line_point(Point p1, Point p2, Point p) {
   float lp = distancep(p1, p2);
   
   float u = 1.0 * ((p.x - p1.x) * (p2.x - p1.x) + (p.y - p1.y) * (p2.y - p1.y)) / lp / lp;
-  Point proj = Point(p1.x + u * (p2.x - p1.x), p1.y + u * (p2.y - p1.y));
 
-  float result = distancep(proj, p);
+  float projx = p1.x + u * (p2.x - p1.x);
+  float projy = p1.y + u * (p2.y - p1.y);
+  
+  float result = distance(projx, projy, p.x, p.y);
+
   return result;
 }    
 

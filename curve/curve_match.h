@@ -28,9 +28,9 @@ class Point {
   Point(int x, int y);
   int x;
   int y;
-  Point operator-(const Point &other);
-  Point operator+(const Point &other);
-  Point operator*(const float &other);
+  Point const operator-(const Point &other) const;
+  Point const operator+(const Point &other) const;
+  Point const operator*(const float &other) const;
 };
 
 class CurvePoint : public Point {
@@ -56,6 +56,53 @@ class Key {
   int width;
   int height;
   char label;
+};
+
+/* quick curve implementation */
+class QuickCurve {
+  // accessing QList<CurvePoint> continually proved to be too slow according to profiler
+  // so this is a naive C-like implementation
+ private:
+  int *x;
+  int *y;
+  int *turn;
+  int *turnsmooth;
+  int *sharpturn;
+  int *normalx;
+  int *normaly;
+  int *speed;
+  Point *points;
+  int count;
+ public:
+  QuickCurve(QList<CurvePoint> &curve);
+  QuickCurve();
+  ~QuickCurve();
+  void setCurve(QList<CurvePoint> &curve);
+  void clearCurve();
+  inline Point const& point(int index) const;
+  inline int getX(int index);
+  inline int getY(int index);
+  inline int getTurn(int index);
+  inline int getTurnSmooth(int index);
+  inline int getSharpTurn(int index);
+  inline int getNormalX(int index);
+  inline int getNormalY(int index);
+  inline int getSpeed(int index);
+  inline Point getNormal(int index);
+  inline int size();
+  /* inline is probably useless nowadays */
+};
+
+/* quick key information implementation */
+class QuickKeys {
+ private:
+  Point* points;
+ public:
+  QuickKeys(QHash<unsigned char, Key> &keys);
+  QuickKeys();
+  ~QuickKeys();
+  void setKeys(QHash<unsigned char, Key> &keys);
+  inline Point const& get(unsigned char letter) const;
 };
 
 /* settings */
@@ -109,27 +156,29 @@ typedef struct {
   float curve_score2;
 } score_t;
 
+
 /* scenario (describe word candidates) */
 class Scenario {
  private:
-  QList<QPair<LetterNode, int> > index_history;
+  unsigned char *index_history; // let's not implement >255 letters words :-)
+  unsigned char *letter_history;
+  score_t *scores;
+
   LetterNode node;
   bool finished;
-  QString name;
   int count;
   int index;
 
-  QList<score_t> scores;
   float temp_score;
   float final_score;
 
-  QHash<unsigned char, Key> *keys;
-  QList<CurvePoint> *curve;
-  Params *params;
-  QString logFile;
   int last_fork;
 
   bool debug;
+
+  QuickKeys *keys;
+  QuickCurve *curve;
+  Params *params;
 
  private:
   float calc_distance_score(unsigned char letter, int index, int count);
@@ -144,16 +193,21 @@ class Scenario {
   float get_next_key_match(unsigned char letter, int index, QList<int> &new_index, bool &overflow);
   float speedCoef(int index);
   float evalScore();
+  void copy_from(const Scenario &from);
 
  public:
-  Scenario(LetterTree *tree, QHash<unsigned char, Key> *keys, QList<CurvePoint> *curve, Params *params);
+  Scenario(LetterTree *tree, QuickKeys *keys, QuickCurve *curve, Params *params);
+  Scenario(const Scenario &from);
+  Scenario& operator=( const Scenario &from );
+  ~Scenario();
   void setDebug(bool debug);
   void nextKey(QList<Scenario> &result, int &st_fork);
   QList<LetterNode> getNextKeys();
   bool childScenario(LetterNode &child, bool endScenario, QList<Scenario> &result, int &st_fork, bool incremental = false);
   bool operator<(const Scenario &other) const;
   bool isFinished() { return finished; };
-  QString getName() { return name; };
+  QString getName();
+  unsigned char* getNameCharPtr();
   QString getWordList();
   float getScore() const;
   void postProcess();
