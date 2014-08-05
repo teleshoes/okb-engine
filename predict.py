@@ -31,7 +31,7 @@ class SqliteBackend:
 
         result = dict()
 
-        sql = 'SELECT id1, id2, id3, stock_count FROM grams WHERE '  # @todo add columns for automatic learning
+        sql = 'SELECT id1, id2, id3, stock_count, user_count, user_replace, last_time FROM grams WHERE '  # @todo add columns for automatic learning
         params = []
         first = True
         for ids in ids_list:
@@ -48,14 +48,45 @@ class SqliteBackend:
             curs.execute(sql, tuple(params))
 
             for row in curs.fetchall():
-                (id1, id2, id3, stock_count) = row
+                (id1, id2, id3, stock_count, user_count, user_replace, last_time) = row
                 ids = ':'.join([str(id1), str(id2), str(id3)])
-                result[ids] = self.cache[ids] = stock_count
+                result[ids] = self.cache[ids] = (stock_count, user_count, user_replace, last_time)
 
             for ids in [ i for i in ids_list if i not in result ]: self.cache[ids] = None  # negative caching
 
         self.timer += time.time() - _start
         return result
+
+    def set_grams(self, grams):
+        if not grams: return
+
+        _start = time.time()
+        curs = self.conn.cursor()
+        for ids, values in grams.items():
+            (stock_count, user_count, user_replace, last_time) = values  # obviously stock_count is ignored
+
+            # we can issue a request by line, because performance is not critical (asynchronous write to DB)
+            # (we can use conn.executemany() if needed)
+            self.count += 1
+            if not ids in self.cache:
+                raise Exception("DB inconsistency?")
+            elif self.cache[ids] is not None:
+                # update line
+                sql = 'UPDATE grams SET user_count = ?, user_replace = ?, last_time = ? WHERE id1 = ? AND id2 = ? AND id3 = ?'
+                stock_count = self.cache[ids][0]
+            else:
+                # create new line
+                sql = 'INSERT INTO grams (stock_count, user_count, user_replace, last_time, id1, id2, id3) VALUES (0, ?, ?, ?, ?, ?, ?)'
+                stock_count = 0
+                
+            self.cache[ids] = tuple([ stock_count, user_count, user_replace, last_time ])
+
+            params = [ user_count, user_replace, last_time ] + ids.split(':')
+            curs.execute(sql, tuple(params))
+                
+        self.conn.commit();
+        self.timer += time.time() - _start
+
 
     def get_words(self, words, try_lower_case = True):
         self.count += 1
@@ -164,17 +195,113 @@ class Predict:
         """ update own copy of preedit (from maliit) """
         self.preedit = preedit
 
-    def _learn(self, add, word, context, replaces = None, silent = False):
-        now = time.time()
-        if not silent:
-            self.log("Learn:", "add" if add else "remove", word, "context:", context, "{replaces %s}" % replaces if replaces else "")
+    def _commit_learn(self, commit_all = False):
+        if not self.learn_history: return
 
-        key = ' '.join(([ word ] + context)[0:3])
+        t0 = time.time()
+        self.db.clear_stats()
+
+        current_day = int(time.time() / 86400)
+        half_life = self.cf('learning_half_life', 180)
+
+        if commit_all:
+            learn = self.learn_history.keys()
+        else:
+            now = int(time.time())
+            delay = self.cf('commit_delay', 15, int)
+            learn = [ key for key, item in self.learn_history.items() if item[2] < now - delay ]
+
+        if not learn: return
+
+        # lookup all words from DB
+        word_set = set(['#TOTAL', '#NA', '#START'])
+        for key in learn:
+            item = self.learn_history[key]
+            for word in item[1]:
+                word_set.add(word)
+        word2id = self.db.get_words(word_set)
+
+        # list all n-grams lines to update
+        na_id = word2id['#NA']
+        total_id = word2id['#START']
+        todo = dict()
+        for key in set(learn):
+            # action == True -> new occurrence / action == False -> error corrected
+            (action, words, ts) = self.learn_history[key]
+            while words:
+                wids = [ word2id.get(x, na_id) for x in words ]
+
+                try:  # manage unknown words
+                    pos = wids.index(na_id)
+                    wids = wids[0:pos]
+                except:
+                    pass
+
+                while len(wids) < 3: wids.append(na_id)
+                wids = [ str(x) for x in wids ]
+
+                todo[':'.join(wids)] = action
+                if action:
+                    # user correction accounted only on n-gram, not on total one
+                    todo[':'.join([ str(total_id) ] + wids[1:])] = action
+
+                words.pop(-1)  # try a smaller-N-gram
+
+            self.learn_history.pop(key, None)
+
+        # get all n-gram lines information to cache
+        grams = self.db.get_grams(todo.keys())
+
+        # apply modifications
+        for wids, action in todo.items():
+            values = grams.get(wids, [ 0, 0, 0, 0 ])  # default value for creating a new line in prediction database
+            (stock_count, user_count, user_replace, last_time) = values
+            if not last_time:
+                user_count = user_replace = last_time = 0
+
+            elif current_day > last_time:
+                # data ageing            
+                coef = math.exp(-0.7 * (current_day - last_time) / float(half_life))
+                user_count *= coef
+                user_replace *= coef
+                last_time = current_day
+            
+            # action
+            if action:
+                user_count += 1
+            else:
+                user_replace += 1
+
+            todo[wids] = (stock_count, user_count, user_replace, last_time)
+            # self.log("learn update: [%s] %.2f:%.2f:%d" % (wids, user_count, user_replace, last_time))
+
+        # store to database
+        self.db.set_grams(todo)
+
+        t = int((time.time() - t0) * 1000)
+        self.log("Commit: Lines updated:", len(todo), "elapsed:", t, "db_time:", int(1000 * self.db.timer), "db_count:", self.db.count, "cache:", len(self.db.cache))        
+
+    def _learn(self, add, word, context, replaces = None, silent = False):
+        now = int(time.time())
+
+        try:
+            pos = context.index('#START')
+            context = context[0:pos+1]
+        except:
+            pass  # #START not found, this is not an error
+
+        wordl = [ word ] + context
+
+        if not silent:
+            self.log("Learn:", "add" if add else "remove", wordl, "{replaces %s}" % replaces if replaces else "")
+
+        wordl = wordl[0:3]
+        key = '_'.join(wordl)
         if add:
-            self.learn_history[key] = (True, word, context, now)  # add occurence
+            self.learn_history[key] = (True, wordl, now)  # add occurence
             if replaces:
-                key2 = ' '.join(([ replaces ] + context)[0:3])
-                self.learn_history[key2] = (False, word, context, now)  # add replacement occurence (failed prediction)
+                key2 = '_'.join(([ replaces ] + context)[0:3])
+                self.learn_history[key2] = (False, wordl, now)  # add replacement occurence (failed prediction)
         else:
             if key in self.learn_history and self.learn_history[key] == False:
                 pass  # don't remove word replacements
@@ -189,8 +316,11 @@ class Predict:
 
         if pos == -1: return  # disable recording if not in a real text box
 
-        list_before = [ x for x in re.split(r'[^\w\'\-]+', self.last_surrounding_text) if x ]
-        list_after = [ x for x in re.split(r'[^\w\'\-]+', self.surrounding_text) if x ]
+        def only_current_sentence(text):
+            return re.sub(r'[\.\!\?]', ' #START ', text);
+
+        list_before = [ x for x in re.split(r'[^\w\'\-\#]+', only_current_sentence(self.last_surrounding_text)) if x ]
+        list_after = [ x for x in re.split(r'[^\w\'\-\#]+', only_current_sentence(self.surrounding_text)) if x ]
 
         if list_after == list_before: return
 
@@ -312,13 +442,19 @@ class Predict:
             scores = dict()
             for score_id in todo[word]:
                 num_id, den_id = todo[word][score_id]
-                num = sqlresult.get(num_id, None)
+                num = sqlresult.get(num_id, [ None ])
                 if not num: continue
-                den = sqlresult.get(den_id, None)
+                den = sqlresult.get(den_id, [ None ])
                 if not den: continue
 
+                # stock stats
                 if word not in result: result[word] = dict()
-                scores[score_id] = 1.0 * num / den
+                stock_num, stock_den = num[0], den[0]
+                if stock_num and stock_den:
+                    scores[score_id] = 1.0 * stock_num / stock_den
+
+                # user stats
+                # @todo
 
             # select score for the N-gram with the largest "N" (cf. Jurasky & Martin §4.6 : simple backoff)
             result[word] = (scores.get("s3", None) or scores.get("s2", None) or scores.get("s1", None) or 0, scores)
@@ -327,7 +463,7 @@ class Predict:
 
         return result
 
-    def guess(self, matches, correlation_id = -1):
+    def guess(self, matches, correlation_id = -1, speed = -1):
         """ main entry point for predictive guess """
 
         words = dict()
@@ -349,7 +485,8 @@ class Predict:
         self._update_last_words()
         if not len(matches): return
 
-        self.log("Context:", self.last_words, "- Matches:", ','.join(words.keys()))
+        self.log("ID: %d - Speed: %d - Context: %s - Matches: %s" %
+                 (correlation_id, speed,  self.last_words, ','.join(words.keys())))
 
         scores = self._get_all_predict_scores(words.keys())  # requests all scores using bulk requests
 
@@ -382,15 +519,17 @@ class Predict:
             word = None
 
         t = int((time.time() - t0) * 1000)
-        self.log("Selected word:", word, "elapse:", t, "db_time:", int(1000 * self.db.timer), "db_count:", self.db.count, "cache:", len(self.db.cache))
+        self.log("Selected word:", word, "elapsed:", t, "db_time:", int(1000 * self.db.timer), "db_count:", self.db.count, "cache:", len(self.db.cache))
         self.log()
         self.last_guess = word
         return word
 
     def cleanup(self, force_flush = False):
         """ periodic tasks: cache purge, DB flush to disc ... """
-        # @todo
-        pass
+
+        self._commit_learn(commit_all = force_flush)
+
+        return len(self.learn_history) > 0
 
     def close(self):
         """ Close all resources & flush data """
