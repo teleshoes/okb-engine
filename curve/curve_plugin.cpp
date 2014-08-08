@@ -112,8 +112,12 @@ void CurveKB::loadKeys(QVariantList list)
 
 bool CurveKB::loadTree(QString fileName)
 {
-  WF_IDLE;
+#ifdef THREAD
+  thread.loadTree(fileName);
+  return true;
+#else
   return curveMatch.loadTree(fileName);
+#endif /* THREAD */
 }
 
 void CurveKB::setLogFile(QString fileName)

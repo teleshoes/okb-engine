@@ -1,6 +1,8 @@
 #include "tree.h"
 #include <iostream>
 
+#include "log.h"
+
 using namespace std;
 
 LetterTree::LetterTree() {
@@ -54,16 +56,16 @@ void LetterTree::dump(QString prefix, LetterNode node) {
   int offset = 0;
   while (1) {
     node_t info = node.getNodeInfo(offset);
-    // cout << "dump - index: " << index << "/" << offset << " -> " << info.payload << " " << info.last_child << " [" << (unsigned char) (info.letter + 96) << "] index=" << info.child_index << endl; // QQQ
+    // cout << "dump - index: " << index << "/" << offset << " -> " << info.payload << " " << info.last_child << " [" << (unsigned char) (info.letter + 96) << "] index=" << info.child_index << endl;
     if (info.payload) {
-      cout << prefix.toLocal8Bit().constData() << " -> payload: " << (char*) node.getPayload().first << endl;
+      cout << QSTRING2PCHAR(prefix) << " -> payload: " << (char*) node.getPayload().first << endl;
     } else {
       LetterNode child;
       child.index = info.child_index;
       child.tree = this;
       child.letter = info.letter + 96;
 
-      cout << prefix.toLocal8Bit().constData() << " :" << prefix.length() << endl;
+      cout << QSTRING2PCHAR(prefix) << " :" << prefix.length() << endl;
 
       dump(prefix + child.letter, child);
     }

@@ -18,7 +18,7 @@
 #include "tree.h"
 #include "log.h"
 
-#define DBG(args...) { if(debug) { logdebug(args); } }
+#define DBG(args...) { if (debug) { logdebug(args); } }
 
 /* point 
    this is probably a bad case of NIH :-) */

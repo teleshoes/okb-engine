@@ -15,6 +15,10 @@ static float cpu_sys(struct rusage &start, struct rusage &stop) {
     (float) (stop.ru_stime.tv_usec - start.ru_stime.tv_usec) / 1000000.0;
 }
 
+// avoid compiler warning: deleting object of polymorphic class type 'XXX' 
+// which has non-virtual destructor might cause undefined behaviour
+ThreadCallBack::~ThreadCallBack() {}
+
 CurveThread::CurveThread(QObject *parent) :
   QThread(parent)
 {
@@ -48,6 +52,14 @@ void CurveThread::endCurve(int id) {
   addPoint(Point(CMD_END, id));
 }
 
+void CurveThread::loadTree(QString fileName) {
+  mutex.lock();
+  treFile = fileName;
+  mutex.unlock();
+  addPoint(Point(CMD_LOAD_TRE, 0));
+}
+
+
 void CurveThread::stopThread() {
   if (isRunning()) {
     addPoint(Point(CMD_QUIT, 0));
@@ -80,6 +92,8 @@ void CurveThread::run() {
   QList<CurvePoint> inProgress;
   bool started = false;
 
+  /* bool try_aggressive_match = false; */
+
   /* statistics & counters */
   struct rusage ru_started;
   struct rusage ru_completed;
@@ -92,7 +106,7 @@ void CurveThread::run() {
     
     /* critical section */
     mutex.lock();
-    if (curvePending.size() == 0) {
+    if ((curvePending.size() == 0) /* && (! try_aggressive_match) */){
       waiting = true;
       setIdle(! started);
       pointsAvailable.wait(&mutex); 
@@ -108,9 +122,17 @@ void CurveThread::run() {
     mutex.unlock();
     /* critical section end */
 
+    /*
+    if (inProgress.size() == 0 && try_aggressive_match) {
+      // we are waiting for user points, so lets burn a few cpu cycle with the aggressive match (less efficient, but may get results sooner)
+      matcher->aggressiveMatch();
+      try_aggressive_match = false;
+    }
+    */
 
     /* curve points processing */
     foreach(CurvePoint point, inProgress) {
+      /* try_aggressive_match = true; */
       if (point.x == CMD_CLEAR) {
 	matcher->clearCurve();
 	started = false;
@@ -138,6 +160,14 @@ void CurveThread::run() {
       } else if (point.x == CMD_QUIT) {
 	logdebug("thread exiting ...");
 	return;	
+      } else if (point.x == CMD_LOAD_TRE) {
+	mutex.lock();
+	QString file = treFile;
+	mutex.unlock();
+
+	logdebug("loading tree: %s ...", QSTRING2PCHAR(file));
+	matcher->loadTree(file); // status ignored for now
+
       } else {
 	if (! started) {
 	  getrusage(RUSAGE_THREAD, &ru_started);

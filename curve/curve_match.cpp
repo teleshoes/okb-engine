@@ -8,8 +8,8 @@
 #include <iostream>
 #include <math.h>
 
-#include "functions.h"
 #include "default_params.h"
+#include "functions.h"
 
 using namespace std;
 
@@ -255,7 +255,7 @@ Key Key::fromJson(const QJsonObject &json) {
   key.y = json["y"].toDouble();
   key.width = json["w"].toDouble();
   key.height = json["h"].toDouble();
-  key.label = json["k"].toString().toLocal8Bit().constData()[0];
+  key.label = QSTRING2PCHAR(json["k"].toString())[0];
   return key;
 }
 
@@ -772,7 +772,7 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &
     }
     DBG("  [get_next_key_match] %s:%c[%d] max_score=%.3f[%d] last_turnpoint=%.3f[%d] last_index=%d -> new_indexes=[%s]", 
 	getNameCharPtr(), letter, start_index, max_score, max_score_index, last_turn_point_score, 
-	last_turn_point, index, qlist2str(new_index_list).toLocal8Bit().constData());
+	last_turn_point, index, QSTRING2PCHAR(qlist2str(new_index_list)));
     return max_score;
   } else {
     DBG("  [get_next_key_match] %s:%c[%d] max_score=%.3f[%d] last_turnpoint=%.3f[%d] last_index=%d -> FAIL",
@@ -1192,7 +1192,7 @@ bool CurveMatch::loadTree(QString fileName) {
   bool status = wordtree.loadFromFile(fileName);
   loaded = status;
   this -> treeFile = fileName;
-  logdebug("loadTree(%s): %d", fileName.toLocal8Bit().constData(), status);
+  logdebug("loadTree(%s): %d", QSTRING2PCHAR(fileName), status);
   return status;
 }
 
@@ -1262,7 +1262,7 @@ void CurveMatch::scenarioFilter(QList<Scenario> &scenarios, float score_ratio, i
     // remove scenarios with lowest scores
     if (sc < max_score * score_ratio && scenarios.size() > min_size) {
       st_skim ++;
-      DBG("filtering(score): %s (%.3f/%.3f)", scenarios[i].getName().toLocal8Bit().constData(), sc, max_score);
+      DBG("filtering(score): %s (%.3f/%.3f)", QSTRING2PCHAR(scenarios[i].getName()), sc, max_score);
       scenarios.takeAt(i);
     } else {
       i ++;
@@ -1274,7 +1274,7 @@ void CurveMatch::scenarioFilter(QList<Scenario> &scenarios, float score_ratio, i
     while (scenarios.size() > max_size) {
       st_skim ++;
       Scenario s = scenarios.takeAt(0);
-      DBG("filtering(size): %s (%.3f/%.3f)", s.getName().toLocal8Bit().constData(), s.getScore(), max_score);
+      DBG("filtering(size): %s (%.3f/%.3f)", QSTRING2PCHAR(s.getName()), s.getScore(), max_score);
     }
   }
 }

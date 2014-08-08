@@ -1,5 +1,6 @@
 #include "score.h"
 #include "log.h"
+#include "functions.h"
 
 #include <cmath> 
 #include <math.h>
@@ -48,7 +49,7 @@ void ScoreCounter::set_cols(char **col) {
       str.append(" ");
       ptr ++;
     }
-    logdebug("%s", str.toLocal8Bit().constData());
+    logdebug_qstring(str);
   }
 }
 
@@ -102,10 +103,10 @@ void ScoreCounter::end_line() {
   if (debug) {
     QString str;
 
-    str.sprintf("=%6.3f [%6.2f] %20s", line_score, current_line_coef, line_label_str.toLocal8Bit().constData());
+    str.sprintf("=%6.3f [%6.2f] %20s", line_score, current_line_coef, QSTRING2PCHAR(line_label_str));
     update_dbg_line(str, 0, W_HEAD);
 
-    logdebug("%s", dbg_line.toLocal8Bit().constData());
+    logdebug_qstring(dbg_line);
   }
 }
 

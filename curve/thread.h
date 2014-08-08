@@ -17,6 +17,7 @@
 
 class ThreadCallBack {
  public:
+  virtual ~ThreadCallBack();
   virtual void call(QList<Scenario>) = 0;
 };
 
@@ -37,6 +38,8 @@ class CurveThread : public QThread
   void setMatcher(IncrementalMatch *matcher);
   void setCallBack(ThreadCallBack *cb);
 
+  void loadTree(QString fileName);
+
 protected:
   /* --- variables shared between "client" and computation thread --- */
   bool waiting;
@@ -45,6 +48,7 @@ protected:
   QWaitCondition idleCondition;
   QMutex mutex;
   bool idle;
+  QString treFile;
   /* --- end of shared variables --- */
 
   IncrementalMatch *matcher;
@@ -57,7 +61,7 @@ protected:
 };
 
 enum thread_cmd_t {
-  CMD_END = -1001, CMD_CLEAR = -1002, CMD_QUIT = -1003
+  CMD_END = -1001, CMD_CLEAR = -1002, CMD_QUIT = -1003, CMD_LOAD_TRE = - 1004,
 };
 
 #endif /* THREAD_H */

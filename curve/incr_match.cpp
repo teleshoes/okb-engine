@@ -26,7 +26,7 @@ void IncrementalMatch::displayDelayedScenario(DelayedScenario &ds) {
   foreach(unsigned char letter, ds.next.keys()) {
     ts << " " << QString(letter) << ":" << ds.next[letter].next_length_min << ":" << ds.next[letter].next_length_max;
   }
-  DBG("%s", txt.toLocal8Bit().constData());
+  DBG("%s", QSTRING2PCHAR(txt));
 }
 
 void IncrementalMatch::incrementalMatchBegin() {
