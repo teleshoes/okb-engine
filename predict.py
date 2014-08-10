@@ -370,7 +370,7 @@ class Predict:
             if len(word2) < len(word1) and word2 == word1[0:len(word2)]:
                 return  # backspace into a word (don't update self.last_surrounding_text)
             else:
-                self._learn(False, word2, context, replaces = word1, silent = not verbose)
+                self._learn(True, word2, context, replaces = word1, silent = not verbose)
 
         else:
             # other case are too complicated: we just ignore them at the moment
