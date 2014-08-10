@@ -112,6 +112,12 @@ void CurveKB::loadKeys(QVariantList list)
 
 bool CurveKB::loadTree(QString fileName)
 {
+  // loading will be done in separate thread, but at list check now il file exists
+  QFile file(fileName);  
+  if (! file.exists()) {
+    return false;
+  }
+
 #ifdef THREAD
   thread.loadTree(fileName);
   return true;

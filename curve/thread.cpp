@@ -91,6 +91,7 @@ void CurveThread::run() {
   matcher->clearCurve();
   QList<CurvePoint> inProgress;
   bool started = false;
+  bool tre_ok = false;
 
   /* bool try_aggressive_match = false; */
 
@@ -133,9 +134,22 @@ void CurveThread::run() {
     /* curve points processing */
     foreach(CurvePoint point, inProgress) {
       /* try_aggressive_match = true; */
-      if (point.x == CMD_CLEAR) {
+      if (point.x == CMD_LOAD_TRE) {
+	mutex.lock();
+	QString file = treFile;
+	mutex.unlock();
+
+	logdebug("loading tree: %s ...", QSTRING2PCHAR(file));
+	tre_ok = matcher->loadTree(file); // status ignored for now
+	matcher->clearCurve();
+
+      } else if (! tre_ok) {
+	// if .tre file is not loaded, none of the following will work, so just skip them
+
+      } else if (point.x == CMD_CLEAR) {
 	matcher->clearCurve();
 	started = false;
+
       } else if (point.x == CMD_END) {
 	int id = point.y;
 
@@ -157,16 +171,10 @@ void CurveThread::run() {
 	
 	started = false;
 	if (callback) { callback->call(matcher->getCandidates()); }
+
       } else if (point.x == CMD_QUIT) {
 	logdebug("thread exiting ...");
 	return;	
-      } else if (point.x == CMD_LOAD_TRE) {
-	mutex.lock();
-	QString file = treFile;
-	mutex.unlock();
-
-	logdebug("loading tree: %s ...", QSTRING2PCHAR(file));
-	matcher->loadTree(file); // status ignored for now
 
       } else {
 	if (! started) {
