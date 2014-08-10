@@ -399,8 +399,7 @@ class Predict:
 
     def _get_last_words(self, count, include_preedit = True):
         """ internal method : compute list of last words for n-gram scoring """
-        self.last_words = []
-        if self.cursor_pos == -1: return  # no context available -> handle this as isolated words instead of the beginning of a new sentence (so no #START)
+        if self.cursor_pos == -1: return [] # no context available -> handle this as isolated words instead of the beginning of a new sentence (so no #START)
         text_before = self.surrounding_text[0:self.cursor_pos] + (" " + self.preedit) if include_preedit else ""
         pos = text_before.find('.')
         if pos > -1: text_before = text_before[pos + 1:]
