@@ -142,9 +142,11 @@ void CurveThread::run() {
 	logdebug("loading tree: %s ...", QSTRING2PCHAR(file));
 	tre_ok = matcher->loadTree(file); // status ignored for now
 	matcher->clearCurve();
+	started = false; // don't block the thread with a non-idle condition :-)
 
       } else if (! tre_ok) {
 	// if .tre file is not loaded, none of the following will work, so just skip them
+	started = false; // don't block the thread with a non-idle condition :-)
 
       } else if (point.x == CMD_CLEAR) {
 	matcher->clearCurve();
