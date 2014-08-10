@@ -1,4 +1,5 @@
 #! /bin/sh -e
+# remove all learning information (i.e. return to stock database)
 
 db="$1"
 [ -z "$db" -o ! -f "$db" ] && echo "usage: "`basename "$0"`" <predict db file>" && exit 1

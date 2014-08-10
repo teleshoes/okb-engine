@@ -150,6 +150,7 @@ class Predict:
         self.last_guess = None
         self.recent_contexts = []
         self.learn_history = dict()
+        self.first_word = None
 
     def cf(self, key, default_value, cast = None):
         """ "mockable" configuration """
@@ -163,10 +164,10 @@ class Predict:
         if cast: ret = cast(ret)
         return ret
 
-    def log(self, *args):
+    def log(self, *args, **kwargs):
         """ log with default simple implementation """
         if self.tools:
-            self.tools.log(*args)
+            self.tools.log(*args, **kwargs)
         else:
             print(' '.join(map(str, args)))
 
@@ -208,7 +209,7 @@ class Predict:
             learn = self.learn_history.keys()
         else:
             now = int(time.time())
-            delay = self.cf('commit_delay', 15, int)
+            delay = self.cf('commit_delay', 20, int)
             learn = [ key for key, item in self.learn_history.items() if item[2] < now - delay ]
 
         if not learn: return
@@ -223,7 +224,7 @@ class Predict:
 
         # list all n-grams lines to update
         na_id = word2id['#NA']
-        total_id = word2id['#START']
+        total_id = word2id['#TOTAL']
         todo = dict()
         for key in set(learn):
             # action == True -> new occurrence / action == False -> error corrected
@@ -272,7 +273,7 @@ class Predict:
             else:
                 user_replace += 1
 
-            todo[wids] = (stock_count, user_count, user_replace, last_time)
+            todo[wids] = (stock_count, user_count, user_replace, current_day)
             # self.log("learn update: [%s] %.2f:%.2f:%d" % (wids, user_count, user_replace, last_time))
 
         # store to database
@@ -299,9 +300,9 @@ class Predict:
         key = '_'.join(wordl)
         if add:
             self.learn_history[key] = (True, wordl, now)  # add occurence
-            if replaces:
+            if replaces and replaces.upper() != word.upper():  # ignore replacement by the same word
                 key2 = '_'.join(([ replaces ] + context)[0:3])
-                self.learn_history[key2] = (False, wordl, now)  # add replacement occurence (failed prediction)
+                self.learn_history[key2] = (False, [ replaces ] + context, now)  # add replacement occurence (failed prediction)
         else:
             if key in self.learn_history and self.learn_history[key] == False:
                 pass  # don't remove word replacements
@@ -313,6 +314,8 @@ class Predict:
         """ update own copy of surrounding text and cursor position """
         self.surrounding_text = text
         self.cursor_pos = pos
+
+        verbose = self.cf("verbose", False, bool)
 
         if pos == -1: return  # disable recording if not in a real text box
 
@@ -338,20 +341,39 @@ class Predict:
         if not list_before and len(list_after) == 1:
             # new word
             word = list_after[0]
-            self._learn(True, word, context)
-        elif len(list_before) == 1 and not list_after and (begin or end):
+            if not begin and not end:
+                # single word sentence
+                self.first_word = word  # keep first word for later
+            else:
+                if self.first_word and len(begin) == 1 and begin[0] == self.first_word:
+                    self._learn(True, word, [ '#START' ], silent = not verbose)  # delayed learning for first word
+                self._learn(True, word, context, silent = not verbose)
+
+            # @todo if there is text following new word "unlearn" it (only n-grams with n >= 2)
+            #       self._learn(False, end[0], context, silent = not verbose)
+
+        elif len(list_before) == 1 and not list_after:
             # word removed
             word = list_before[0]
-            self._learn(False, word, context)
+            if (begin or end) or word == self.preedit:
+                # we "un-learn" words only when sentence is not empty (to distinguish a removal from a jump to another location) 
+                # or if the word removed has been made into a preedit 
+                #  (^^^ this last tests depends on the preedit change notification is sent before surrounding text one)
+                self._learn(False, word, context, silent = not verbose)
+
+                # @todo if there is text following removed word, learn [ context + following word ] (only n-grams with n >= 2)
+            
         elif len(list_before) == 1 and len(list_after) == 1:
+            # word replaced
             word1 = list_before[0]
             word2 = list_after[0]
             if len(word2) < len(word1) and word2 == word1[0:len(word2)]:
                 return  # backspace into a word (don't update self.last_surrounding_text)
             else:
-                self._learn(False, word2, context, replaces = word1)
+                self._learn(False, word2, context, replaces = word1, silent = not verbose)
+
         else:
-            # other case too complicated - just ignoring
+            # other case are too complicated: we just ignore them at the moment
             pass
 
         self.last_surrounding_text = text

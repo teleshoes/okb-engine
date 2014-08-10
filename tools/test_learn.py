@@ -25,7 +25,7 @@ words = [ x for x in words if len(x) > 0 ]
 
 print("Words:", words)
 
-p = predict.Predict()
+p = predict.Predict(cfvalues = dict(verbose = True))
 p.set_dbfile(os.path.join(libdir, "db/predict-%s.db" % lang))
 p.load_db()
 
