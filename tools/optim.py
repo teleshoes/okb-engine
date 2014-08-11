@@ -174,7 +174,7 @@ def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, s
 
         if code != 0:
             dump(inj[word])
-            raise Exception("return code: %s" % sp.returncode)
+            raise Exception("return code: %s [word=%s, lang=%s]" % (code, word, lang))
         log1("<<<< " + json_out)
         log1("")
 
