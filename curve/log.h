@@ -10,6 +10,6 @@ using namespace std;
 
 #define logdebug( ... ) { char tmp[255]; snprintf(tmp, sizeof(tmp) - 1, __VA_ARGS__); cerr << tmp << endl; }
 
-#define logdebug_qstring(str) (QSTRING2PCHAR(str))
+#define logdebug_qstring(str) { cerr << QSTRING2PCHAR(str) << endl; }
 
 #endif /* LOG_H */
