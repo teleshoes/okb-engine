@@ -5,7 +5,7 @@ edit="$2"
 if [ ! -f "$test" ] ; then echo "usage: $0 <json test file> [<editor for log file>]" ; exit 1; fi
 dir=`dirname "$0"`"/.."
 dir=`realpath "$dir"`
-name=`basename "$test"`
+name=`basename "$test" .json`
 
 lang="en"
 if echo "$name" | egrep '^[a-z][a-z]\-' >/dev/null ; then
@@ -13,8 +13,8 @@ if echo "$name" | egrep '^[a-z][a-z]\-' >/dev/null ; then
 fi
 
 export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$dir/curve/build"
-tmp=`mktemp /tmp/XXXXXX.json`
-html=`mktemp /tmp/curvekb.XXXXXX.html`
+tmp=`mktemp /tmp/$name.XXXXXX.json`
+html=`mktemp /tmp/curvekb.$name.XXXXXX.html`
 $dir/cli/build/cli -d "$dir/db/$lang.tre" "$test" 2>&1 | tee $tmp | grep -i "^Result:" | tail -n 1 | sed 's/^Result:\ *//' | $dir/tools/jsonresult2html.py > $html || exit 1
 xdg-open "$html"
 cat "$tmp"
