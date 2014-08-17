@@ -93,6 +93,9 @@ def parallel(lst):
     return result
 
 
+def cleanupdetails(details):
+    return " ".join([ "%s=%.2f" % (k, v) for (k, v) in details.items() ])
+
 def dump(txt, id = ""):
     sep = '--8<----[' + id + ']' + '-' * (65 - len(id))
     print(sep)
@@ -268,13 +271,19 @@ def load_tests():
 if __name__ == "__main__":
     start = time.time()
 
-    opts, args =  getopt.getopt(sys.argv[1:], 'l:p:')
+    p_include = p_exclude = None
+
+    opts, args =  getopt.getopt(sys.argv[1:], 'l:p:i:x:')
     listpara = None
     for o, a in opts:
         if o == "-l":
             LOG = a
-        if o == "-p":
+        elif o == "-p":
             listpara = a.split(',')
+        elif o == "-i":
+            p_include = a
+        elif o == "-x":
+            p_exclude = a
         else:
             print("Bad option: %s", o)
             exit(1)
@@ -284,6 +293,8 @@ if __name__ == "__main__":
         print("options:")
         print(" -p <list> : only optimize this parameters (comma separated)")
         print(" -l <file> : verbose log file")
+        print(" -i <regexp> : only update parameters with matching names")
+        print(" -x <regexp> : don't update parameters with matching names")
         exit(1)
 
     typ = args[0]
@@ -310,6 +321,9 @@ if __name__ == "__main__":
             if "min" not in params[p]: continue
             if listpara and p not in listpara: continue
 
+            if p_include and not re.match(p_include, p): continue
+            if p_exclude and re.match(p_exclude, p): continue
+
             print("===== Optimizing parameter '%s' =====" % p)
             score = optim(p, params, tests, typ)
             if score > max_score:
@@ -330,6 +344,6 @@ if __name__ == "__main__":
         f.write('=' * 70 + '\n')
         f.write("Score type: %s - Time: [%s] - Duration: %d - Iterations: %d\n\n" % (typ, time.ctime(), int(time.time() - start), it))
         f.write("Start  (%.3f): %s\n" % (score0, params2str(params0)))
-        f.write(" -> %s\n\n" % str(detail0))
+        f.write(" -> %s\n\n" % cleanup_detail(detail0))
         f.write("Best   (%.3f): %s\n" % (max_score, params2str(max_params)))
-        f.write(" -> %s\n\n" % str(detail_max))
+        f.write(" -> %s\n\n" % cleanup_detail(detail_max))
