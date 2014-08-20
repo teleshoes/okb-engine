@@ -89,11 +89,11 @@ def parallel(lst):
         handle[key] = pool.apply_async(func, args = tuple(args))
     result = dict()
     for key, func, args in lst:
-        result[key] = handle[key].get(timeout = 5)
+        result[key] = handle[key].get(timeout = 10)
     return result
 
 
-def cleanupdetails(details):
+def cleanup_detail(details):
     return " ".join([ "%s=%.2f" % (k, v) for (k, v) in details.items() ])
 
 def dump(txt, id = ""):
@@ -161,19 +161,26 @@ def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, s
     total, n = 0.0, 0
     runall = []
     inj = dict()
+    wordk = dict()
     for (word, json_in, lang) in tests:
+        key, i = word, 0
+        while key in wordk:
+            i += 1
+            key = "%s.%d" % (word, i)
+        wordk[key] = word
         inj[word] = json_in
         log1("# %s (%s)" % (word, lang))
         sys.stdout.flush()
         json_in2 = update_json(json_in, params)
         log1(">>>> " + json_in2)
-        runall.append((word, run1, [json_in2, lang ]))
+        runall.append((key, run1, [json_in2, lang ]))
         # json_out, err = run1(json_in2, lang)
 
     results = parallel(runall)
 
-    for word, result in results.items():
+    for key, result in results.items():
         (json_out, err, code) = result
+        word = wordk[key]
 
         if code != 0:
             dump(inj[word])
@@ -195,11 +202,7 @@ def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, s
         total += score
         n += 1
         if return_dict is not None:
-            wordk, i = word, 0
-            while wordk in return_dict:
-                i += 1
-                wordk = "%s:%d" % (word, i)
-            return_dict[wordk] = score
+            return_dict[key] = score
     if not silent: print("OK")
     return total / n
 
