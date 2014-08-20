@@ -3,6 +3,45 @@
 
 import optim
 import os, sys
+import pickle
+
+ERR = 0.1  # ouch!
+
+def err(x):
+    return max(ERR, abs(x) * ERR)
+
+class Color:
+    def __init__(self, fname = None, color_ok = False):
+        self.db = dict()
+        self.fname = fname
+        self.reg = []
+        self.color_ok = color_ok
+        if fname:
+            try: self.db = pickle.load(open(fname, 'rb'))
+            except: pass
+
+    def var(self, text, value, key, noreg = False):
+        if not self.fname: return text
+        if key not in self.db:
+            self.db[key] = value
+            return text
+
+        old_value = self.db[key]
+        self.db[key] = value
+
+        if value > old_value + err(old_value):
+            if self.color_ok: return "\x1b[1;32m%s\x1b[0m" % text
+            else: return "[+]" + text
+
+        if value < old_value - err(old_value):
+            if noreg: self.reg.append("%s: %.2f -> %.2f" % (key, old_value, value))
+            if self.color_ok: return "\x1b[1;31m%s\x1b[0m" % text
+            else: return "[-]" + text
+
+        return text
+
+    def save(self):
+        if self.fname: pickle.dump(self.db, open(self.fname, 'wb'))
 
 if __name__ == "__main__":
     os.chdir(os.path.dirname(sys.argv[0]))
@@ -10,8 +49,23 @@ if __name__ == "__main__":
     params = optim.params
     tests = optim.load_tests()
 
+    color = False
+    if sys.stdout.isatty():
+        import curses
+        curses.setupterm()
+        color = curses.tigetnum("colors") > 2
+
+    c = Color(fname = sys.argv[1] if len(sys.argv) >= 2 else None, color_ok = color)
+
     for typ in ["max", "max2", "stddev" ]:
         detail = dict()
-        score = optim.run_all(tests, params, typ, fail_on_bad_score = (len(sys.argv) > 1), return_dict = detail, silent = True)
+        score = optim.run_all(tests, params, typ, fail_on_bad_score = False, return_dict = detail, silent = True)
 
-        print("score", typ, "%.3f" % score, ' '.join(sorted([ "%s[%.3f]" % (w, s) for (w, s) in detail.items() ])))
+        print("score", c.var("%s: %.3f" % (typ, score), score, "score.%s" % typ, noreg = True),
+              ' '.join([ c.var("%s[%.3f]" % (w, s), s, "word.%s.%s" % (typ, w))
+                         for (w, s) in sorted(detail.items()) ]))
+
+    c.save()
+
+    if c.reg: print("Regression detected:", ' '.join(c.reg))
+    # exit(1 if c.reg else 0)
