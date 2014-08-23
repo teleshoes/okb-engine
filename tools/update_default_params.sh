@@ -18,7 +18,7 @@ cat $head_decl | sed -n  '/BEGIN PARAMS/,/END PARAMS/ p' | grep -v '/\*' | tr -d
 	echo "  $value, // $name"
     done
     echo "};"
-) | tee "$head_def.tmp"
+) > "$head_def.tmp"
 
 if cmp "$head_def.tmp" "$head_def" >/dev/null ; then
     rm -f "$head_def.tmp"

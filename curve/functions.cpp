@@ -9,7 +9,7 @@
 float distance(float x1, float y1, float x2, float y2) {
   return sqrt(pow(x1 - x2, 2) + pow(y1 - y2, 2));
 }
-float distancep(Point &p1, Point &p2) {
+float distancep(const Point &p1, const Point &p2) {
   return distance(p1.x, p1.y, p2.x, p2.y);
 }
 
@@ -35,11 +35,11 @@ float angle(float x1, float y1, float x2, float y2) {
   return value;
 }
 
-float anglep(Point p1, Point p2) {
+float anglep(const Point &p1, const Point &p2) {
   return angle(p1.x, p1.y, p2.x, p2.y);
 }
 
-float dist_line_point(Point p1, Point p2, Point p) {
+float dist_line_point(const Point &p1, const Point &p2, const Point &p) {
   float lp = distancep(p1, p2);
   
   float u = 1.0 * ((p.x - p1.x) * (p2.x - p1.x) + (p.y - p1.y) * (p2.y - p1.y)) / lp / lp;
@@ -52,3 +52,16 @@ float dist_line_point(Point p1, Point p2, Point p) {
   return result;
 }    
 
+
+static float _surf0(const Point &p1, const Point &p2) {
+  return (p1.y + p2.y) * (p1.x - p2.x) / 2.0;
+}
+
+float surface4(const Point &p1, const Point &p2, const Point &p3, const Point &p4) {
+  float surf = abs(_surf0(p1, p2) +
+		   _surf0(p2, p3) +
+		   _surf0(p3, p4) +
+		   _surf0(p4, p1));
+  
+  return surf;
+}

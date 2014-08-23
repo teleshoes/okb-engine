@@ -76,7 +76,7 @@ def mkimg(scale = 1, scenario = None):
         if lastx is not None:
             if pt['sharp_turn'] and not scenario:
                 s = int(50 * scale)
-                draw.line((x, y, x + int(50.0 * pt['normalx'] * scale), y + int(50.0 * pt['normaly'] * scale)), fill="#008000", width = int(2 * scale))
+                draw.line((x, y, x + int(0.5 * pt['normalx'] * scale), y + int(0.5 * pt['normaly'] * scale)), fill="#008000", width = int(2 * scale))
                 draw.line((x - s, y, x + s, y), fill="#C00000", width = int(2 * scale))
                 draw.line((x, y - s, x, y + s), fill="#C00000", width = int(2 * scale))
 
@@ -126,16 +126,18 @@ body.p(font_size="-2").i("Word tree file: %s" % input["treefile"]).br. \
       (js["stats"]["time"], len(candidates), js["stats"]["count"], len(curve), curve[-1]["t"] - curve[0]["t"], js["ts"]))
 
 # params
-params = input["params"]
-t = body.table(border = "1")
-hr = t.hr
-tr = t.tr
-for p, v in sorted(params.items()):
-    td = hr.td(align = "center", bgcolor="#C0FFC0").font(size="-2")
-    for part in p.split('_'):
-        td += part
-        td.br
-    tr.td(clean_value(v), align = "center")
+params = sorted(input["params"].items())
+while params:
+    t = body.table(border = "1")
+    hr = t.tr
+    tr = t.tr
+    for p, v in params[0:30]:
+        td = hr.td(align = "center", bgcolor="#C0FFC0").font(size="-2")
+        for part in p.split('_'):
+            td += part
+            td.br
+        tr.td(clean_value(v), align = "center")
+    params = params[30:]
 
 body.p
 

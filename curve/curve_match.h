@@ -109,6 +109,7 @@ class QuickKeys {
 class Params {
  public:
   /* BEGIN PARAMS */
+  float dummy;
   float dist_max_start;
   float dist_max_next;
   int match_wait;
@@ -141,6 +142,19 @@ class Params {
   int angle_dist_range;
   int incremental_length_lag;
   int incremental_index_gap;
+  float crv2_weight;
+  float crv_st_bonus;
+  int crv_concavity_amin;
+  int crv_concavity_amax;
+  int crv_concavity_max_turn;
+  float same_point_score;
+  float curve_surface_coef;
+  float coef_length;
+  int tip_amin;
+  int tip_amax;
+  int crv_st_amin;
+  int inflection_min_angle;
+  float inflection_coef;
   /* END PARAMS */
 
   void toJson(QJsonObject &json) const;
@@ -190,7 +204,8 @@ class Scenario {
   float calc_curviness_score(int index);
   float calc_curviness2_score(int index);
   float begin_end_angle_score(bool end);
-  Point curve_tangent(int index);
+  float score_inflection(int index, bool st1, bool st2);
+  Point computed_curve_tangent(int index);
   float get_next_key_match(unsigned char letter, int index, QList<int> &new_index, bool &overflow);
   float speedCoef(int index);
   float evalScore();

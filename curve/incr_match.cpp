@@ -133,9 +133,7 @@ void IncrementalMatch::incrementalMatchUpdate(bool finished, bool aggressive) {
   delayed_scenarios = new_delayed_scenarios;
   last_curve_index = curve.size();
 
-  // if (min_n >= 2) {
   delayedScenariosFilter();
-  // }
 
   if (debug) {
     foreach(DelayedScenario ds, delayed_scenarios) { displayDelayedScenario(ds); }

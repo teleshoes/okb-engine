@@ -5,7 +5,7 @@ import optim
 import os, sys
 import pickle
 
-ERR = 0.1  # ouch!
+ERR = 0.01
 
 def err(x):
     return max(ERR, abs(x) * ERR)

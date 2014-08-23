@@ -2,7 +2,7 @@
 #include "tree.h"
 #include <QString>
 
-int main(int argc, char* argv[]) {
+int main(int, char* argv[]) {
   LetterTree t;
   t.loadFromFile(QString(argv[1]));
   t.dump();

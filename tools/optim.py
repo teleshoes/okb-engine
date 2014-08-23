@@ -27,6 +27,7 @@ LOG = None  # "/tmp/optim.log"
 OUT = "optim.log"
 
 defparams = [
+    [ "dummy", float, 0, 1, False ],
     [ "dist_max_start", int, 0, 150 ],
     [ "dist_max_next", int, 0, 150 ],
     [ "match_wait", int, 4, 12 ],
@@ -59,13 +60,27 @@ defparams = [
     [ "angle_dist_range", int, 10, 300],
     [ "incremental_length_lag", int ],  # no optimization
     [ "incremental_index_gap", int ],
+    [ "crv2_weight", float, 0, 0.5],
+    [ "crv_st_bonus", float, 0, 2],
+    [ "crv_concavity_amin", int, 90, 150 ],
+    [ "crv_concavity_amax", int, 120, 180 ],
+    [ "crv_concavity_max_turn", int, 10, 70 ],
+    [ "same_point_score", float, 0, 1 ],
+    [ "curve_surface_coef", float, 0, 20 ],
+    [ "coef_length", float, 0, 1 ],
+    [ "tip_amin", int, 1, 50 ],
+    [ "tip_amax", int, 30, 90 ],
+    [ "crv_st_amin", int, 1, 90 ],
+    [ "inflection_min_angle", int, 0, 50 ],
+    [ "inflection_coef", float, 0, 1 ],
 ]
 
 params = dict()
 for p in defparams:
     if len(p) > 2:
-        (name, type, min_value, max_value) = tuple(p)
-        params[name] = dict(type = type, min = min_value, max = max_value)
+        if len(p) == 4: p.append(False)
+        (name, type, min_value, max_value, auto) = tuple(p)
+        params[name] = dict(type = type, min = min_value, max = max_value, auto = auto)
     else:
         params[p[0]] = dict(type = p[1])
 
@@ -312,7 +327,7 @@ if __name__ == "__main__":
     print("===== Reference run =====")
     detail0 = dict()
     max_score = score = score0 = run_all(tests, params, typ, fail_on_bad_score = True, return_dict = detail0)
-    max_params = None
+    max_params = copy.deepcopy(params)
     print()
 
     changed = True
@@ -326,6 +341,7 @@ if __name__ == "__main__":
 
             if p_include and not re.match(p_include, p): continue
             if p_exclude and re.match(p_exclude, p): continue
+            if not  params[p]["auto"] and not p_include: continue
 
             print("===== Optimizing parameter '%s' =====" % p)
             score = optim(p, params, tests, typ)
@@ -338,7 +354,10 @@ if __name__ == "__main__":
             print("Current(%.3f): %s" % (score, params2str(params)))
             print("Best   (%.3f): %s" % (max_score, params2str(max_params)))
 
-        # if listpara and len(listpara) == 1: changed = False  # won't need another iteration
+    for p, v in sorted(max_params.items()):
+        if params0[p] != v:
+            print("Parameter change: %s: %.3f -> %.3f" % (p, params0[p]["value"], v["value"]))
+    print("Score: %.3f -> %.3f" % (score0, max_score))
 
     with open(OUT, "a") as f:
         detail_max = dict()

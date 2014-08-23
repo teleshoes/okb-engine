@@ -14,7 +14,15 @@ ScoreCounter::ScoreCounter() {
   line_count = 0;
   total_score = 0;
   total_coefs = 0;
+  total_col = NULL;
+}
 
+ScoreCounter::~ScoreCounter() {
+    if (total_col) {
+      delete[] total_col;
+      delete[] total_coef_col;
+      delete[] col_weight;
+    }
 }
 
 int ScoreCounter::get_col(char *name) {
@@ -36,20 +44,49 @@ void ScoreCounter::set_debug(bool debug) {
 }
 
 void ScoreCounter::set_cols(char **col) {
+  QString str;
   this -> col = col;
   if (debug) {
-    QString str("=");
+    str = "=";
     str.append(QString(" ").repeated(W_HEAD - 1));
+  }
 
-    char **ptr = col;
-    while (*ptr) {
+  char **ptr = col;
+  int count = 0;
+  while (*ptr) {
+    if (debug) {
       str.append("--");
       str.append(*ptr);
       str.append(QString("-").repeated(W_COL - 3 - strlen(*ptr)));
       str.append(" ");
-      ptr ++;
     }
+    count ++;
+    ptr ++;
+  }
+  if (debug) {
     logdebug_qstring(str);
+  }
+
+  if (total_col) {
+    delete[] total_col;
+    delete[] total_coef_col;
+    delete[] col_weight;
+  }
+  total_col = new float[count];
+  total_coef_col = new float[count];
+  col_weight = new float[count];
+  
+  for (int i = 0; i < count; i++) {
+    total_col[i] = total_coef_col[i] = 0;
+    col_weight[i] = 1;
+  }
+    
+  nb_cols = count;
+}
+
+void ScoreCounter::set_weights(float *weights) {
+  for (int i = 0; i < nb_cols; i++) {
+    col_weight[i] = weights[i];
   }
 }
 
@@ -69,22 +106,27 @@ void ScoreCounter::set_line_coef(float coef) {
   current_line_coef = coef;
 }
 
-void ScoreCounter::add_score(float value, float weight, char *name) {
+void ScoreCounter::add_score(float value, char *name) {
   // scores are [0, 1] values
   if (value == NO_SCORE) { return; }
 
-  add_bonus(pow(value, this -> score_pow), weight, name);
+  add_bonus(pow(value, this -> score_pow), name);
 }
 
-void ScoreCounter::add_bonus(float value, float weight, char *name) {
+void ScoreCounter::add_bonus(float value, char *name) {
   // bonus are positive or negative offsets
   if (value == NO_SCORE) { return; }
+
+  int col = get_col(name);
+  float weight = col_weight[col];
 
   line_total += value * weight;
   line_total_coefs += weight;
 
+  total_col[col] += value * current_line_coef;
+  total_coef_col[col] += current_line_coef;
+
   if (debug) {
-    int col = get_col(name);
     QString str;
     str.sprintf("%6.3f [%4.2f]", value, weight);
     update_dbg_line(str, W_HEAD + W_COL * col, W_COL);
@@ -111,7 +153,31 @@ void ScoreCounter::end_line() {
 }
 
 float ScoreCounter::get_score() {
-  return total_score / total_coefs;
+  float t = 0, tc = 0;
+  for(int col = 0; col < nb_cols; col++) {
+    if (total_coef_col[col] > 0) {
+      float value = total_col[col] / total_coef_col[col];
+      t += value * col_weight[col];
+      tc += col_weight[col];
+    }
+  }
+
+  if (debug) {
+    dbg_line = QString();
+    QString str;
+    for(int col = 0; col < nb_cols; col++) {
+      float value = total_col[col] / total_coef_col[col];
+      str.sprintf("%6.3f [%4.2f]", value, col_weight[col]);
+      update_dbg_line(str, W_HEAD + W_COL * col, W_COL);
+    }
+    update_dbg_line(QString("TOTAL:"), 0, W_HEAD);
+    logdebug_qstring(dbg_line);
+    logdebug("Total by line = %.2f / by columns = %.2f", total_score / total_coefs, t / tc);
+  }
+
+  // old & obsolete scoring strategy: return total_score / total_coefs;
+
+  return t / tc;
 }
 
 void ScoreCounter::update_dbg_line(QString text, int col, int) {
