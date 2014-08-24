@@ -38,7 +38,7 @@ class CurvePoint : public Point {
   CurvePoint(Point p, int msec);
   int t;
   int speed;
-  bool sharp_turn; // points with significant direction change -> they show user intention and must be correlated with a letter in a word
+  int sharp_turn; // points with significant direction change -> they show user intention and must be correlated with a letter in a word
   int turn_angle;
   int turn_smooth;
   float normalx, normaly;
@@ -128,6 +128,7 @@ class Params {
   float weight_turn;
   float length_penalty;
   int turn_threshold;
+  int turn_threshold2;
   int max_turn_index_gap;
   int curve_dist_threshold;
   float small_segment_min_score;

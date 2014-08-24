@@ -36,6 +36,7 @@ height = ymax - ymin
 def clean_value(value):
     if value is False: return "-"
     if value is True: return "X"
+    if value == 0: return "-"
     if str(value).find('.') > -1:
         try: return "%.3f" % float(value)
         except: pass

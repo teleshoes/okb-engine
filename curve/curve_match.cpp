@@ -48,6 +48,7 @@ void Params::toJson(QJsonObject &json) const {
   json["weight_turn"] = weight_turn;
   json["length_penalty"] = length_penalty;
   json["turn_threshold"] = turn_threshold;     
+  json["turn_threshold2"] = turn_threshold2;     
   json["max_turn_index_gap"] = max_turn_index_gap;
   json["curve_dist_threshold"] = curve_dist_threshold;
   json["small_segment_min_score"] = small_segment_min_score;
@@ -98,6 +99,7 @@ Params Params::fromJson(const QJsonObject &json) {
   p.weight_turn = json["weight_turn"].toDouble();
   p.length_penalty = json["length_penalty"].toDouble();
   p.turn_threshold = json["turn_threshold"].toDouble();
+  p.turn_threshold2 = json["turn_threshold2"].toDouble();
   p.max_turn_index_gap = json["max_turn_index_gap"].toDouble();
   p.curve_dist_threshold = json["curve_dist_threshold"].toDouble();
   p.small_segment_min_score = json["small_segment_min_score"].toDouble();
@@ -583,12 +585,12 @@ float Scenario::calc_curviness_score(int index) {
   int i1 = index_history[index];
   int i2 = index_history[index + 1];
 
-  if ((index == 0 && index_history[index - 1] == i1) ||
-      (index == count - 2 && index_history[index + 2] == i2) || 
+  if ((index > 0 && index_history[index - 1] == i1) ||
+      (index < count - 2 && index_history[index + 2] == i2) || 
       (i1 == i2)) {
     // could not compute tangents, so just skip this
     DBG("  [curviness score] %s[%d] idx=[%d, %d] ... skipped", getNameCharPtr(), index, i1, i2);
-    return 0;
+    return 0; // QQQ -1 !? ou autre pénalité
   }
 
   /* use theoretical curve for concavity test */
@@ -727,17 +729,17 @@ float Scenario::score_inflection(int index, bool st1, bool st2) {
 	bad_side ++;
       }
     }
-    if (infcount > max_inflection_point) {
-      if (max_inflection_point > 0) {
-	result = - params->inflection_coef * (infcount - max_inflection_point);
-      } else {
-	result = - pow((float) sum_bad / params->curv_turnmax, 2);
-      }
-    }
+    // QQ if (infcount > max_inflection_point) {
+    // QQif (max_inflection_point > 0) {
+	result -= params->inflection_coef * (infcount - max_inflection_point);
+	//QQ  } else {
+	result -= pow((float) sum_bad / params->curv_turnmax, 2);
+	// QQ}
+	// QQ}
     result -= params->inflection_coef * bad_side / (i2 - i1 + 1);
   }
-  DBG("  [curviness score] inflection %s[%d] idx=[%d,%d] st=%d/%d a=%d/%d s=%d/%d inf=%d/%d bad=%d partial score=%.2f",
-      getNameCharPtr(), index, i1, i2, st1, st2, (int) a1, (int) a2, s1, s2, infcount, max_inflection_point, sum_bad, result);
+  DBG("  [curviness score] inflection %s[%d] idx=[%d,%d] st=%d/%d a=%d/%d s=%d/%d inf=%d/%d bad_turn=%d bad_side=%d partial score=%.2f",
+      getNameCharPtr(), index, i1, i2, st1, st2, (int) a1, (int) a2, s1, s2, infcount, max_inflection_point, sum_bad, bad_side, result);
 
   return result;
 }
@@ -799,7 +801,7 @@ float Scenario::calc_length_score(unsigned char prev_letter, unsigned char lette
 float Scenario::calc_distance_score(unsigned char letter, int index, int count) {
   /* score based on distance to from curve to key */
 
-  float ratio = (count > 0)?params->dist_max_next:params->dist_max_start;
+  float ratio = count?params->dist_max_next:params->dist_max_start;
   Point k = keys->get(letter);
   
   float cplus;
@@ -871,16 +873,16 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &
   float max_score = -99999;
   int max_score_index = -1;
 
-  int max_turn_distance = params->max_turn_index_gap;
+  int max_turn_distance = params->max_turn_index_gap; // @todo this should be expressed as distance, not as a number of curve points
+  int first_turn_point = 0;
   int last_turn_point = 0;
-  float last_turn_point_score = 0;
-
-  float max_score_before_turn = 0;
-  int max_score_index_before_turn = -1;
+  float last_turn_score = 0;
 
   new_index_list.clear();
 
   overflow = false;
+  int failed = 0;
+  bool finished = false;
 
   int step = 1;
   while(1) {
@@ -902,24 +904,44 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &
       retry += step;
       if (retry > params->match_wait && count > params->match_wait) { break; }
     }
-
-    if (curve->getSharpTurn(index) && ! last_turn_point && index > start_index) {
-      // sharp turn
-      last_turn_point = index;
-      last_turn_point_score = new_score;
-    }
-    if (last_turn_point && index > last_turn_point + max_turn_distance && last_turn_point_score > 0) { break; }
-    
     score = new_score;
 
-    if (! last_turn_point) {
-      max_score_before_turn = max_score; 
-      max_score_index_before_turn = max_score_index;
+    // look for sharp turns
+    int st = curve->getSharpTurn(index);
+    if (st > 0 && index > start_index) {
+
+      if (last_turn_point) {
+	// we have already encountered a sharp turn linked with next letter so we can safely ignore this one
+	break;
+      }
+
+      if (st == 2) {
+	if (score <= 0) { failed = 1; break; }
+	if (last_turn_point) { failed = 2; break; }
+	new_index_list.clear();
+	new_index_list << index;
+	if (max_score_index < index - 1) { new_index_list << max_score_index; }
+	last_turn_point = index;
+	last_turn_score = score;
+	finished = true;
+	break;
+      }
+      
+      if (index > start_index + max_turn_distance) {
+	// this sharp turn is not linked to previous letter, so it is necessarily linked with the next one
+	last_turn_point = index;
+	last_turn_score = score;
+      } else if (score > 0) { first_turn_point = index; }
+    }
+
+    if (last_turn_point && index > last_turn_point + max_turn_distance) {
+      // we have gone past a point we had to match
+      break; 
     }
 
     step = 1;
     if (new_score < -1) {
-      step = (- 0.5 - new_score) * params->dist_max_next / 20;
+      step = (- 0.5 - new_score) * params->dist_max_next / 20; // warning : this is adherent to score_distance implementation
       int i = 1;
       while (i < step && index + i < curve->size() - 1 && ! curve->getSharpTurn(index + i)) {
 	i++;
@@ -931,49 +953,28 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &
     index += step;
   }
 
-  if (max_score > 0) {
-    if (last_turn_point) {
-      if (last_turn_point_score > 0 || last_turn_point < max_score_index) {
-	new_index_list << last_turn_point;
-      }
-      if (max_score > last_turn_point_score) {
-	// if sharp turn score is less than max_score we can return more than one possible indexes
-	new_index_list << max_score_index;
-      }
-      if (max_score_before_turn > 0) {
-	// add a candidate index before the sharp turn (in worst case we return 3 indexes)
-	new_index_list << max_score_index_before_turn;
-      }
-    } else {
-      // look for a near sharp turn (and add it as a candidate)
-      bool found = false;
-      for (int i = index ; i < curve->size() && i < index + max_turn_distance; i++) {
-	if (i >= curve->size() - 1) { overflow = true; }
-	if (curve->getSharpTurn(i)) {
-	  new_index_list << i;
-	  float score_turn = calc_distance_score(letter, i, this -> count);
+  if (max_score <= 0) { failed = 10; } // we didn't approach the target key
 
-	  if (score_turn < max_score) {
-	    // if sharp turn score is less than max_score we can return 2 possible indexes
-	    new_index_list << max_score_index;
-	  }
-	  found = true;
-	  break;
-	}
-      }
-      if (! found) { new_index_list << max_score_index; }
-    }
-    DBG("  [get_next_key_match] %s:%c[%d] max_score=%.3f[%d] last_turnpoint=%.3f[%d] last_index=%d -> new_indexes=[%s]", 
-	getNameCharPtr(), letter, start_index, max_score, max_score_index, last_turn_point_score, 
-	last_turn_point, index, QSTRING2PCHAR(qlist2str(new_index_list)));
-    return max_score;
+  if (finished || failed) {
+    // nothing more to do
   } else {
-    DBG("  [get_next_key_match] %s:%c[%d] max_score=%.3f[%d] last_turnpoint=%.3f[%d] last_index=%d -> FAIL",
-	getNameCharPtr(), letter, start_index, max_score, max_score_index, last_turn_point_score,
-	last_turn_point, index);
-    return -1;
+    if (first_turn_point && max_score_index <= first_turn_point + max_turn_distance) {
+      new_index_list << max_score_index << first_turn_point;
+    } else if (!last_turn_point || last_turn_score <= 0) {
+      new_index_list << max_score_index;
+    } else if (max_score_index < last_turn_point - max_turn_distance) {
+      new_index_list << max_score_index;
+    } else { // max_score_index > last_turn_point - max_turn_distance
+      new_index_list << last_turn_point << max_score_index;
+    }
   }
 
+  DBG("  [get_next_key_match] %s:%c[%d] %s max_score=%.3f[%d] first_turnpoint=[%d] last_turnpoint=%.3f[%d] last_index=%d -> new_indexes=[%s] fail_code=%d", 
+      getNameCharPtr(), letter, start_index, failed?"*FAIL*":"OK",
+      max_score, max_score_index, first_turn_point, last_turn_score, 
+      last_turn_point, index, failed?"*FAIL*":QSTRING2PCHAR(qlist2str(new_index_list)), failed);
+  
+  return failed?-1:max_score;
 }
 
 bool Scenario::childScenario(LetterNode &childNode, bool endScenario, QList<Scenario> &result, int &st_fork, bool incremental) {
@@ -994,6 +995,8 @@ bool Scenario::childScenario(LetterNode &childNode, bool endScenario, QList<Scen
 
   QList<int> new_index_list;
   float distance_score;
+
+  DBG("==== %s:%c [end=%d] ====", getNameCharPtr(), letter, endScenario);
 
   if (count == 0) {
     // this is the first letter
@@ -1025,10 +1028,12 @@ bool Scenario::childScenario(LetterNode &childNode, bool endScenario, QList<Scen
   if (new_index_list.size() >= 2) { st_fork ++; }
 
   bool first = true;
+  int continue_count = 0;
+  Scenario *first_scenario = NULL;
+
   foreach(int new_index, new_index_list) {
     if (count > 2 && new_index <= index_history[count - 2] + 1) {
-      // 3 consecutive letters are matched with the same curve point -> remove this scenario
-      continue;
+      continue; // 3 consecutive letters are matched with the same curve point -> remove this scenario
     }
 
     score_t score = {NO_SCORE, NO_SCORE, NO_SCORE, NO_SCORE, NO_SCORE, NO_SCORE}; // all scores are : <0 reject, 1 = best value, ]0,1] OK, NO_SCORE = 0 = not computed
@@ -1072,9 +1077,20 @@ bool Scenario::childScenario(LetterNode &childNode, bool endScenario, QList<Scen
       new_scenario.letter_history[count + 1] = 0; // letter_history is also a '\0' terminated string
       new_scenario.count = count + 1;
       new_scenario.finished = endScenario;
-      if (new_index_list.size() >= 2) new_scenario.last_fork = count + 1;
 
-      // temp score is used only for simple filtering
+      continue_count ++;
+      if (continue_count >= 2) {
+	if (first_scenario) {
+	  first_scenario->last_fork = count + 1;
+	  first_scenario = NULL;
+	}
+	new_scenario.last_fork = count + 1;
+
+      } else {
+	first_scenario = &new_scenario;
+      }
+
+      // temporary score is used only for simple filtering
       if (count == 0) {
 	new_scenario.temp_score = temp_score + score.distance_score;
       } else {
@@ -1223,9 +1239,14 @@ float Scenario::evalScore() {
       sc.end_line();
     }
   }
+
+  int samepoint = 0;
+  for(int i = 0; i < count - 1; i ++) {
+    samepoint += (index_history[i] == index_history[i+1]);
+  }
   
   float score1 = sc.get_score();
-  float score = score1 * (1.0 + params->length_penalty * count); // my scores have a bias towards number of letters
+  float score = score1 * (1.0 + params->length_penalty * count) * (count - samepoint) / count; // my scores have a bias towards number of letters
   
   DBG("==== %s --> Score: %.3f --> Final Score: %.3f", getNameCharPtr(), score1, score);
   
@@ -1323,7 +1344,14 @@ void CurveMatch::curvePreprocess1(int last_curve_index) {
     
     if (abs(total) < last_total_turn && last_total_turn > params.turn_threshold && wait_for_next_st < 0) {
       if (sharp_turn_index >= 2 && sharp_turn_index < l - 2) {
-	curve[sharp_turn_index].sharp_turn = true;
+
+	for(int j = i - 1; j <= i + 1; j ++) {
+	  if (abs(curve[j].turn_angle) > params.turn_threshold2) { 
+	    sharp_turn_index = j;
+	  }
+	}
+
+	curve[sharp_turn_index].sharp_turn = 1 + (last_total_turn > params.turn_threshold2);
 	wait_for_next_st = 2;
 	
 	// compute "normal" vector (really lame algorithm)
@@ -1558,7 +1586,7 @@ bool CurveMatch::match() {
     
   st_time = (int) timer.elapsed();
   st_count = count;
-  scenarioFilter(candidates, 0.7, 10, params.max_candidates, true); // @todo add to parameter list
+  scenarioFilter(candidates, 0.5 /* QQQ tests :-) 0.7 */, 10, params.max_candidates, true); // @todo add to parameter list
   
   logdebug("Candidates: %d (time=%d, nodes=%d, forks=%d, skim=%d)", candidates.size(), st_time, st_count, st_fork, st_skim);
 

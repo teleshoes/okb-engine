@@ -2,7 +2,7 @@
 
 [default]
 dummy = 0
-dist_max_start = 85
+dist_max_start = 75
 dist_max_next = 100
 match_wait = 7
 max_angle = 45
@@ -20,10 +20,11 @@ weight_curve2 = 4.0
 weight_turn = 6.0
 length_penalty = 0.001
 turn_threshold = 75
-max_turn_index_gap = 5
+turn_threshold2 = 150
+max_turn_index_gap = 4
 curve_dist_threshold = 100
 small_segment_min_score = 0.05
-anisotropy_ratio = 1.25
+anisotropy_ratio = 1.5
 sharp_turn_penalty = 0.4
 curv_amin = 5
 curv_amax = 75
@@ -46,7 +47,7 @@ tip_amin = 15
 tip_amax = 50
 crv_st_amin = 60
 inflection_min_angle = 15
-inflection_coef = 0.5
+inflection_coef = 1
 
 [portrait]
 
