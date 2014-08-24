@@ -1026,6 +1026,10 @@ bool Scenario::childScenario(LetterNode &childNode, bool endScenario, QList<Scen
 
   bool first = true;
   foreach(int new_index, new_index_list) {
+    if (count > 2 && new_index <= index_history[count - 2] + 1) {
+      // 3 consecutive letters are matched with the same curve point -> remove this scenario
+      continue;
+    }
 
     score_t score = {NO_SCORE, NO_SCORE, NO_SCORE, NO_SCORE, NO_SCORE, NO_SCORE}; // all scores are : <0 reject, 1 = best value, ]0,1] OK, NO_SCORE = 0 = not computed
     score.distance_score = distance_score;
@@ -1158,20 +1162,15 @@ void Scenario::postProcess() {
     float sc = (count>2)?calc_curviness_score(i):0;
     if (i == 0) { sc += begin_end_angle_score(false); }
     if (i == count - 2) { sc += begin_end_angle_score(true); }
-
+    
     sc += (count>2)?calc_curviness2_score(i):0;
-
+    
     scores[i + 1].curve_score2 = sc;
   }
-
+  
   evalScore();
 }
-
-float Scenario::speedCoef(int i) {
-  return 1.0 + params -> score_coef_speed * (curve->getSpeed(i) - 1000) / 1000;
-}
-
-#define COEF_LENGTH(l) (1.0 + params->coef_length * ((float) (l) - params->dist_max_next) / params->dist_max_next)
+  
 float Scenario::evalScore() {
   DBG("==== Evaluating final score: %s", getNameCharPtr());
   this -> final_score = 0;
@@ -1194,23 +1193,26 @@ float Scenario::evalScore() {
     if (i < count - 1) {
       l2 = distancep(curve->point(index_history[i + 1]), curve->point(index_history[i]));
     }
-    float length = (l1 + l2) / ((l1 > 0) + (l2 > 0));
-
+    float length = (l1 || l2)?(l1 + l2) / ((l1 > 0) + (l2 > 0)):0;
+    
     sc.start_line();
-    sc.set_line_coef(COEF_LENGTH(length) * speedCoef(index_history[i]));
+    sc.set_line_coef(lengthCoef(length) * speedCoef(index_history[i]));
     if (debug) { sc.line_label << "Key " << i << ":" << index_history[i] << ":" << QString(letter_history[i]); }
     sc.add_score(scores[i].distance_score, (char*) "distance");
     if (i > 0 && i < count - 1) {
       sc.add_score(scores[i + 1].turn_score, (char*) "turn");
+    } else if (i == 1 && count == 2) {
+      sc.add_score(1, (char*) "turn");
+      // avoid bias towards 3+ letters scenarios
     }
     sc.end_line();
 
     // segment scores
     if (i < count - 1) {
       float length = distancep(curve->point(index_history[i + 1]), curve->point(index_history[i]));
-
+      
       sc.start_line();
-      sc.set_line_coef(COEF_LENGTH(length) *
+      sc.set_line_coef(lengthCoef(length) *
 		       (speedCoef(index_history[i]) + 
 			speedCoef(index_history[i + 1])) / 2);
       if (debug) { sc.line_label << "Segment " << i + 1 << " [" << index_history[i] << ":" << index_history[i + 1] << "]"; }
@@ -1221,7 +1223,7 @@ float Scenario::evalScore() {
       sc.end_line();
     }
   }
-
+  
   float score1 = sc.get_score();
   float score = score1 * (1.0 + params->length_penalty * count); // my scores have a bias towards number of letters
   
@@ -1229,6 +1231,15 @@ float Scenario::evalScore() {
   
   this -> final_score = score;
   return score;
+}
+
+
+float Scenario::speedCoef(int i) {
+  return max(1.0 + params -> score_coef_speed * (curve->getSpeed(i) - 1000) / 1000, 0.3);
+}
+
+float Scenario::lengthCoef(float length) {
+  return max(1.0 + params->coef_length * ((float) length - params->dist_max_next) / params->dist_max_next, 0.3);
 }
 
 void Scenario::toJson(QJsonObject &json) {

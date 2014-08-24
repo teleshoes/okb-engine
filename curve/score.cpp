@@ -158,17 +158,19 @@ float ScoreCounter::get_score() {
     if (total_coef_col[col] > 0) {
       float value = total_col[col] / total_coef_col[col];
       t += value * col_weight[col];
-      tc += col_weight[col];
     }
+    tc += col_weight[col];
   }
 
   if (debug) {
     dbg_line = QString();
     QString str;
     for(int col = 0; col < nb_cols; col++) {
-      float value = total_col[col] / total_coef_col[col];
-      str.sprintf("%6.3f [%4.2f]", value, col_weight[col]);
-      update_dbg_line(str, W_HEAD + W_COL * col, W_COL);
+      if (total_coef_col[col] > 0) {
+	float value = total_col[col] / total_coef_col[col];
+	str.sprintf("%6.3f [%4.2f]", value, col_weight[col]);
+	update_dbg_line(str, W_HEAD + W_COL * col, W_COL);
+      }
     }
     update_dbg_line(QString("TOTAL:"), 0, W_HEAD);
     logdebug_qstring(dbg_line);

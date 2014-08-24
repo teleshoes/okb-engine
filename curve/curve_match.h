@@ -207,6 +207,7 @@ class Scenario {
   float score_inflection(int index, bool st1, bool st2);
   Point computed_curve_tangent(int index);
   float get_next_key_match(unsigned char letter, int index, QList<int> &new_index, bool &overflow);
+  float lengthCoef(float length);
   float speedCoef(int index);
   float evalScore();
   void copy_from(const Scenario &from);
