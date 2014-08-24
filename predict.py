@@ -18,14 +18,14 @@ class SqliteBackend:
         self.clear_stats()
         self.cache = dict()
 
-        # self.cache['#TOTAL'] = -2
-        # self.cache['#NA'] = -1
-        # self.cache['#START'] = -3
+        self.cache['#TOTAL'] = -2
+        self.cache['#NA'] = -1
+        self.cache['#START'] = -3
 
     def clear_stats(self):
         self.timer =  self.count = 0
 
-    def get_grams(self, ids_list):
+    def get_grams(self, ids_list, use_cache = True):
         self.count += 1
         _start = time.time()
 
@@ -35,7 +35,7 @@ class SqliteBackend:
         params = []
         first = True
         for ids in ids_list:
-            if ids in self.cache:
+            if ids in self.cache and use_cache:
                 if self.cache[ids]: result[ids] = self.cache[ids]  # negative caching
             else:
                 if not first: sql += ' OR '
@@ -68,7 +68,7 @@ class SqliteBackend:
             # we can issue a request by line, because performance is not critical (asynchronous write to DB)
             # (we can use conn.executemany() if needed)
             self.count += 1
-            if not ids in self.cache:
+            if ids not in self.cache:
                 raise Exception("DB inconsistency?")
             elif self.cache[ids] is not None:
                 # update line
@@ -78,17 +78,17 @@ class SqliteBackend:
                 # create new line
                 sql = 'INSERT INTO grams (stock_count, user_count, user_replace, last_time, id1, id2, id3) VALUES (0, ?, ?, ?, ?, ?, ?)'
                 stock_count = 0
-                
+
             self.cache[ids] = tuple([ stock_count, user_count, user_replace, last_time ])
 
             params = [ user_count, user_replace, last_time ] + ids.split(':')
             curs.execute(sql, tuple(params))
-                
-        self.conn.commit();
+
+        self.conn.commit()
         self.timer += time.time() - _start
 
 
-    def get_words(self, words, try_lower_case = True):
+    def get_words(self, words, try_lower_case = True, use_cache = True):
         self.count += 1
         _start = time.time()
 
@@ -98,7 +98,7 @@ class SqliteBackend:
         params = []
         first = True
         for word in words:
-            if word in self.cache:
+            if word in self.cache and use_cache:
                 if self.cache[word]: result[word] = self.cache[word]  # negative caching use None value and must not be returned
             else:
                 if not first: sql += ' OR '
@@ -178,16 +178,20 @@ class Predict:
             self.db.close()
         self.db = None
 
+    def refresh_db(self):
+        # dummy loading to "wake-up" db indexes
+        if self.db:
+            self.log("DB refresh...")
+            self.db.get_words(['#TOTAL', '#NA', '#START'], use_cache = False)
+            self.db.get_grams(["-2:-1:-1", "-2:0:0" ], use_cache = False)
+
     def load_db(self):
         """ load database if needed """
         if not self.db:
             if os.path.isfile(self.dbfile):
                 self.db = SqliteBackend(self.dbfile)
                 self.log("DB open OK:", self.dbfile)
-
-                # dummy loading to "wake-up" db indexes
-                self.db.get_words(['#TOTAL', '#NA', '#START'])
-                self.db.get_grams(["-2:-1:-1", "-2:0:0" ])
+                self.refresh_db()
 
             else:
                 self.log("DB not found:", self.dbfile)
