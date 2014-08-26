@@ -32,6 +32,19 @@ ymax = max(k['y'] + k['h'] / 2 for k in keys)
 width = xmax - xmin
 height = ymax - ymin
 
+# curve info
+max_speed = max([ pt['speed'] for pt in curve ])
+last_pt = curve[0]
+length = 0
+def add_length(pt):
+    global length, last_pt
+    length += int(math.sqrt((pt['x'] - last_pt['x']) ** 2 + (pt['y'] - last_pt['y']) ** 2))
+    pt['length'] = length
+    last_pt = pt
+    return pt
+curve = map(add_length, curve)
+
+
 # thingies
 def clean_value(value):
     if value is False: return "-"
@@ -113,6 +126,66 @@ def mkimg(scale = 1, scenario = None):
     img.save(out, 'PNG')
     return "data:image/png;base64," + base64.b64encode(out.getvalue())
 
+def get_letter(scenario, index):
+    l = [ s["letter"] for s in scenario["detail"] if s["index"] == index ]
+    return l[0] if len(l) else None
+
+def mkxygraph(size = 120, scenario = None):
+    img = Image.new("RGB", (size, size), color = '#C0C0C0')
+    draw = ImageDraw.Draw(img)
+
+    draw.line((0, size / 2, size - 1, size / 2), fill='#0000C0', width = 2)
+    draw.line((size / 2, 0, size / 2, size - 1), fill='#0000C0', width = 2)
+
+    lastdx, lastdy = None, None
+    c = 0
+    for i in range(0, len(curve)):
+        i1, i2 = max(0, i - 1), min(len(curve) - 1, i + 1)
+        dx = curve[i2]['x'] - curve[i1]['x']
+        dy = curve[i2]['y'] - curve[i1]['y']
+        speed = curve[i]['speed']
+        l = math.sqrt(dx * dx + dy * dy)
+        dx = size * (0.5 + 0.5 * speed * dx / l / max_speed)
+        dy = size * (0.5 + 0.5 * speed * dy / l / max_speed)
+        if scenario:
+            letter = get_letter(scenario, c)
+            if letter:
+                draw.rectangle((dx - 6, dy - 6, dx + 6, dy + 6), fill='#008000')
+                draw.text((dx + 7, dy + 7), letter, fill='#804000')
+        c += 1
+        if not c % 10 and not scenario: draw.rectangle((dx - 6, dy - 6, dx + 6, dy + 6), fill='#008000')
+        if lastdx: draw.line((lastdx, lastdy, dx, dy), fill='#C04000', width = 4)
+        lastdx, lastdy = dx, dy
+
+    out = StringIO.StringIO()
+    img.save(out, 'PNG')
+    return "data:image/png;base64," + base64.b64encode(out.getvalue())
+
+def mkspeedgraph(sx = 240, sy = 120, use_length = False, scenario = None):
+    img = Image.new("RGB", (sx, sy), color = '#C0C0C0')
+    draw = ImageDraw.Draw(img)
+
+    lastx, lasty = None, None
+    c = 0
+    for pt in curve:
+        if use_length: x = (sx - 1) * pt['length'] / length
+        else: x = (sx - 1) * pt['t'] / curve[-1]['t']
+        y = sy - 1 - (sy - 1) * pt['speed'] / max_speed
+        if scenario:
+            letter = get_letter(scenario, c)
+            if letter:
+                draw.line((x, 0, x, sy - 1), fill='#008000', width = 2)
+                draw.text((x + (2 if c < len(curve) - 1 else -2 - draw.textsize(letter)[0]), 2), letter, fill='#008000')
+        c += 1
+        if not c % 10 and not scenario: draw.line((x, 0, x, sy - 1), fill='#008000', width = 2)
+        if lastx is not None: draw.line((lastx, lasty, x, y), fill='#C04000', width = 4)
+        lastx, lasty = x, y
+
+    out = StringIO.StringIO()
+    img.save(out, 'PNG')
+    return "data:image/png;base64," + base64.b64encode(out.getvalue())
+
+
 # generate html
 title = 'Okboard result ' + input['datetime']
 
@@ -122,6 +195,13 @@ body = html.body
 body.h3(title)
 
 body.img(src = mkimg(scale = 1.4), border = '0')
+body.p()
+body.img(src = mkxygraph(size = 250), border = '0')
+body.span(" ")
+body.img(src = mkspeedgraph(sx = 500, sy = 250), border = '0')
+body.span(" ")
+body.img(src = mkspeedgraph(sx = 500, sy = 250, use_length = True), border = '0')
+
 body.p(font_size="-2").i("Word tree file: %s" % input["treefile"]).br. \
     i("Time: %d ms - Matches: %d - Nodes: %d - Points: %d - Draw time: %d ms [%s]" %
       (js["stats"]["time"], len(candidates), js["stats"]["count"], len(curve), curve[-1]["t"] - curve[0]["t"], js["ts"]))
@@ -144,16 +224,6 @@ body.p
 
 # curve
 c = 0
-
-last_pt = curve[0]
-length = 0
-def add_length(pt):
-    global length, last_pt
-    length += int(math.sqrt((pt['x'] - last_pt['x']) ** 2 + (pt['y'] - last_pt['y']) ** 2))
-    pt['length'] = length
-    last_pt = pt
-    return pt
-curve = map(add_length, curve)
 curve_ = curve
 while curve_:
     curve1 = curve_[0:30]
@@ -197,6 +267,10 @@ for scenario in candidates:
     for k in sorted(letter_info.keys()):
         tr.td(clean_value(total[k][0] / total[k][1]) if k in total else "", bgcolor="#C0C0C0", align = "center")
     n += 1
+
+    t0.td.img(src = mkxygraph(size = 300, scenario = scenario), border = '0')
+    t0.td.img(src = mkspeedgraph(sx = 400, sy = 200, use_length = False, scenario = scenario), border = '0')
+
 
 body.hr
 body.p.pre(json.dumps(input))
