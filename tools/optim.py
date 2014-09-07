@@ -16,9 +16,9 @@ import copy
 import time
 import fcntl
 import getopt
-from get_params import get_params
 from multiprocessing.pool import ThreadPool
 import multiprocessing
+import configparser as ConfigParser
 
 CLI = "../cli/build/cli"
 TRE_DIR = "../db"
@@ -27,7 +27,6 @@ LOG = None  # "/tmp/optim.log"
 OUT = "optim.log"
 
 defparams = [
-    [ "dummy", float, 0, 1, False ],
     [ "dist_max_start", int, 0, 150 ],
     [ "dist_max_next", int, 0, 150 ],
     [ "match_wait", int, 4, 12 ],
@@ -35,7 +34,6 @@ defparams = [
     [ "max_turn_error1", int, 10, 60 ],
     [ "max_turn_error2", int, 30, 145 ],
     [ "max_turn_error3", int, 10, 145 ],
-    [ "length_score_scale", int, 30, 150 ],
     [ "curve_score_min_dist", int, 20, 100 ],
     [ "score_pow", float, 0.1, 10 ],
     [ "weight_distance", float ],  # reference (=1)
@@ -48,33 +46,32 @@ defparams = [
     [ "turn_threshold", int, 10, 85 ],
     [ "turn_threshold2", int, 120, 179 ],
     [ "max_turn_index_gap", int, 2, 10],
+    [ "min_turn_index_gap", int, 1, 5],
     [ "curve_dist_threshold", int, 30, 200 ],
     [ "small_segment_min_score", float, 0.01, 0.9 ],
     [ "anisotropy_ratio", float, 1, 2 ],
     [ "sharp_turn_penalty", float, 0, 1 ],
-    [ "curv_amin", int, 1, 45 ],
-    [ "curv_amax", int, 45, 89 ],
-    [ "curv_turnmax", int, 40, 89 ],
     [ "max_active_scenarios", int ],  # no optimization, larger is always better
     [ "max_candidates", int ],  # idem
-    [ "score_coef_speed", float, -10, 10],
-    [ "angle_dist_range", int, 10, 300],
     [ "incremental_length_lag", int ],  # no optimization
     [ "incremental_index_gap", int ],
-    [ "crv2_weight", float, 0, 0.5],
-    [ "crv_st_bonus", float, 0, 2],
-    [ "crv_concavity_amin", int, 90, 150 ],
-    [ "crv_concavity_amax", int, 120, 180 ],
-    [ "crv_concavity_max_turn", int, 10, 70 ],
     [ "same_point_score", float, 0, 1 ],
-    [ "curve_surface_coef", float, 0, 20 ],
-    [ "coef_length", float, 0, 1 ],
-    [ "tip_amin", int, 1, 50 ],
-    [ "tip_amax", int, 30, 90 ],
-    [ "crv_st_amin", int, 1, 90 ],
-    [ "inflection_min_angle", int, 0, 50 ],
-    [ "inflection_coef", float, 0, 1 ],
+    [ "same_point_max_angle", int, 45, 179 ],
+    [ "cos_max_gap", int, 20, 150 ],
+    [ "slow_down_ratio", float, 1, 2 ],
+    [ "inf_min", int, 5, 40 ],
+    [ "inf_max", int, 40, 180 ],
 ]
+
+
+def get_params(fname):
+    cp = ConfigParser.SafeConfigParser()
+    cp.read(fname)
+    params = dict()
+    for s in [ "default", "portrait" ]:
+        for key, value in cp[s].items():
+            params[key] = value
+    return params
 
 params = dict()
 for p in defparams:
@@ -112,7 +109,7 @@ def parallel(lst):
 def cleanup_detail(details):
     return " ".join([ "%s=%.2f" % (k, v) for (k, v) in details.items() ])
 
-def dump(txt, id = ""):
+def dump_txt(txt, id = ""):
     sep = '--8<----[' + id + ']' + '-' * (65 - len(id))
     print(sep)
     print(txt)
@@ -146,6 +143,7 @@ def score1(json_str, expected, typ):
     others = []
     for c in js["candidates"]:
         score = c["score"]
+        if score is None: raise Exception("null score for '%s'" % expected)
         name = c["name"]
         if name == expected:
             score_ref = score
@@ -154,7 +152,7 @@ def score1(json_str, expected, typ):
     # print "Detail:" + ",".join("%s: %.3f" % (c, c["score"]) for x in js["candidates"])
 
     if score_ref is None: return -9999999  # targeted word is not even found
-    if not len(others): return -9999999  # too good to be true :-)
+    if not len(others): return 1  # sometime happens :-)
 
     average = sum(others) / len(others)
     stddev = math.sqrt(sum([(x - average) ** 2 for x in others]) / len(others))
@@ -173,7 +171,10 @@ def score1(json_str, expected, typ):
 
     return score
 
-def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, silent = False):
+def save(fname, content):
+    with open(fname, 'w') as f: f.write(content)
+
+def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, silent = False, dump = None):
     total, n = 0.0, 0
     runall = []
     inj = dict()
@@ -190,7 +191,8 @@ def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, s
         json_in2 = update_json(json_in, params)
         log1(">>>> " + json_in2)
         runall.append((key, run1, [json_in2, lang ]))
-        # json_out, err = run1(json_in2, lang)
+        if dump:
+            save(os.path.join(dump, "%s.in" % word), json_in)
 
     results = parallel(runall)
 
@@ -198,8 +200,12 @@ def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, s
         (json_out, err, code) = result
         word = wordk[key]
 
+        if dump:
+            save(os.path.join(dump, "%s.out" % word), json_out)
+            save(os.path.join(dump, "%s.err" % word), err)
+
         if code != 0:
-            dump(inj[word])
+            dump_txt(inj[word])
             raise Exception("return code: %s [word=%s, lang=%s]" % (code, word, lang))
         log1("<<<< " + json_out)
         log1("")
@@ -211,9 +217,9 @@ def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, s
         if not silent:
             print("%s (%s): " % (word, lang), "%.3f - " % score, end = "")
         if score < -999999 and fail_on_bad_score:
-            dump(json_out, "out")
-            dump(err, "err")
-            dump(json_in2, "in")
+            dump_txt(json_out, "out")
+            dump_txt(err, "err")
+            dump_txt(json_in2, "in")
             raise Exception("negative score in reference test data: %s (type=%s, score=%d)" % (word, typ, score))
         total += score
         n += 1

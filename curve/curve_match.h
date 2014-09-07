@@ -18,6 +18,8 @@
 #include "tree.h"
 #include "log.h"
 
+#include "params.h"
+
 #define DBG(args...) { if (debug) { logdebug(args); } }
 
 /* point 
@@ -85,6 +87,7 @@ class QuickCurve {
   inline int getTurn(int index);
   inline int getTurnSmooth(int index);
   inline int getSharpTurn(int index);
+  inline int getSpecialPoint(int index);
   inline int getNormalX(int index);
   inline int getNormalY(int index);
   inline int getSpeed(int index);
@@ -103,63 +106,6 @@ class QuickKeys {
   ~QuickKeys();
   void setKeys(QHash<unsigned char, Key> &keys);
   inline Point const& get(unsigned char letter) const;
-};
-
-/* settings */
-class Params {
- public:
-  /* BEGIN PARAMS */
-  float dummy;
-  float dist_max_start;
-  float dist_max_next;
-  int match_wait;
-  int max_angle;
-  int max_turn_error1;
-  int max_turn_error2;
-  int max_turn_error3;
-  int length_score_scale;
-  int curve_score_min_dist;
-  float score_pow;
-  float weight_distance;
-  float weight_cos;
-  float weight_length;
-  float weight_curve;
-  float weight_curve2;
-  float weight_turn;
-  float length_penalty;
-  int turn_threshold;
-  int turn_threshold2;
-  int max_turn_index_gap;
-  int curve_dist_threshold;
-  float small_segment_min_score;
-  float anisotropy_ratio;
-  float sharp_turn_penalty;
-  int curv_amin;
-  int curv_amax;
-  int curv_turnmax;
-  int max_active_scenarios;
-  int max_candidates;
-  float score_coef_speed;
-  int angle_dist_range;
-  int incremental_length_lag;
-  int incremental_index_gap;
-  float crv2_weight;
-  float crv_st_bonus;
-  int crv_concavity_amin;
-  int crv_concavity_amax;
-  int crv_concavity_max_turn;
-  float same_point_score;
-  float curve_surface_coef;
-  float coef_length;
-  int tip_amin;
-  int tip_amax;
-  int crv_st_amin;
-  int inflection_min_angle;
-  float inflection_coef;
-  /* END PARAMS */
-
-  void toJson(QJsonObject &json) const;
-  static Params fromJson(const QJsonObject &json);
 };
 
 /* tree traversal evaluation */
@@ -200,16 +146,12 @@ class Scenario {
   float calc_distance_score(unsigned char letter, int index, int count);
   float calc_cos_score(unsigned char prev_letter, unsigned char letter, int index, int new_index);
   float calc_curve_score(unsigned char prev_letter, unsigned char letter, int index, int new_index);
-  float calc_length_score(unsigned char prev_letter, unsigned char letter, int index, int new_index);
-  float calc_turn_score(unsigned char letter, int index);
-  float calc_curviness_score(int index);
-  float calc_curviness2_score(int index);
+  void calc_turn_score_all();
   float begin_end_angle_score(bool end);
   float score_inflection(int index, bool st1, bool st2);
   Point computed_curve_tangent(int index);
+  Point actual_curve_tangent(int i);
   float get_next_key_match(unsigned char letter, int index, QList<int> &new_index, bool &overflow);
-  float lengthCoef(float length);
-  float speedCoef(int index);
   float evalScore();
   void copy_from(const Scenario &from);
 
@@ -228,7 +170,7 @@ class Scenario {
   unsigned char* getNameCharPtr();
   QString getWordList();
   float getScore() const;
-  void postProcess();
+  bool postProcess();
   float getTempScore() const;
   float getCount();
   bool forkLast();
@@ -254,6 +196,7 @@ class CurveMatch {
   int id;
   bool debug;
   bool done;
+  int max_speed;
 
   void scenarioFilter(QList<Scenario> &scenarios, float score_ratio, int min_size, int max_size = -1, bool finished = false);
   void curvePreprocess1(int last_curve_index = -1);

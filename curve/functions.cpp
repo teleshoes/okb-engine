@@ -65,3 +65,15 @@ float surface4(const Point &p1, const Point &p2, const Point &p3, const Point &p
   
   return surf;
 }
+
+float response2(float value, float middle) {
+  if (value <= 0 || value >= 1) { return value; }
+
+  return response(pow(value, log(middle) / log(0.5)));
+}
+
+float response(float value) {
+  if (value <= 0 || value >= 1) { return value; }
+  
+  return (1 - cos(value * M_PI)) / 2;
+}

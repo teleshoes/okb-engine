@@ -15,4 +15,7 @@ float anglep(const Point &p1, const Point &p2);
 float dist_line_point(const Point &p1, const Point &p2, const Point &p);
 float surface4(const Point &p1, const Point &p2, const Point &p3, const Point &p4);
 
+float response2(float value, float middle);
+float response(float value);
+
 #endif /* FUNCTIONS_H */
