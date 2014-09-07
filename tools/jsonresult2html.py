@@ -213,11 +213,11 @@ while params:
     hr = t.tr
     tr = t.tr
     for p, v in params[0:30]:
-        td = hr.td(align = "center", bgcolor="#C0FFC0").font(size="-2")
+        td = hr.td(align = "center", bgcolor="#C0FFC0").font(size = "-2")
         for part in p.split('_'):
             td += part
             td.br
-        tr.td(clean_value(v), align = "center")
+        tr.td(align = "center").font(clean_value(v), size = "-2")
     params = params[30:]
 
 body.p
@@ -226,17 +226,17 @@ body.p
 c = 0
 curve_ = curve
 while curve_:
-    curve1 = curve_[0:30]
-    curve_ = curve_[30:]
+    curve1 = curve_[0:45]
+    curve_ = curve_[45:]
     t = body.table(border = "1")
-    li = t.tr(align = "center").td('#', bgcolor = "#C0FFC0")
+    li = t.tr(align = "center").td(bgcolor = "#C0FFC0").font('#', size = "-2")
     for i in range(0, len(curve1)):
-        li.td(str(c), bgcolor="#E0E0E0")
+        li.td(bgcolor="#E0E0E0").font(str(c), size = "-2")
         c += 1
     for lbl in ['x', 'y', 't', 'speed', 'turn_angle', 'sharp_turn', 'length']:
-        li = t.tr(align = "center").td(lbl, bgcolor="#C0FFC0")
+        li = t.tr(align = "center").td.font(lbl, size = "-2", bgcolor="#C0FFC0")
         for pt in curve1:
-            li.td(clean_value(pt[lbl]))
+            li.td.font(clean_value(pt[lbl]), size = "-2")
 
 # matches
 n = 1
@@ -256,9 +256,9 @@ for scenario in candidates:
             for k in sorted(letter_info.keys()): hr.td(bgcolor="#C0FFC0", align = "center").font(k, size="-2")
         tr = t.tr
         for k in sorted(letter_info.keys()):
-            tr.td(clean_value('-' if letter_info[k] in [ '-999' ] else letter_info[k]), align = "center")
+            tr.td(clean_value(letter_info[k]), align = "center")
             if k.startswith("score_"):
-                if str(letter_info[k]) not in [ '-999' ]:
+                if letter_info[k]:
                     if k not in total: total[k] = (0, 0)
                     total[k] = tuple(map(sum, zip(total[k], (1.0 * letter_info[k], 1))))
         first = False
@@ -269,7 +269,7 @@ for scenario in candidates:
     n += 1
 
     t0.td.img(src = mkxygraph(size = 300, scenario = scenario), border = '0')
-    t0.td.img(src = mkspeedgraph(sx = 400, sy = 200, use_length = False, scenario = scenario), border = '0')
+    t0.td.img(src = mkspeedgraph(sx = 400, sy = 200, use_length = True, scenario = scenario), border = '0')
 
 
 body.hr

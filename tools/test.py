@@ -4,8 +4,9 @@
 import optim
 import os, sys
 import pickle
+import getopt
 
-ERR = 0.01
+ERR = 0.05
 
 def err(x):
     return max(ERR, abs(x) * ERR)
@@ -20,31 +21,45 @@ class Color:
             try: self.db = pickle.load(open(fname, 'rb'))
             except: pass
 
-    def var(self, text, value, key, noreg = False):
-        if not self.fname: return text
+    def var(self, label, value, key, noreg = False):
+        text1 = "%s[%.2f]" % (label, value)
         if key not in self.db:
             self.db[key] = value
-            return text
+            return text1
+
+        if not self.fname: return text1
 
         old_value = self.db[key]
         self.db[key] = value
+        text2 = "%s[%.2f<-%.2f]" % (label, value, old_value)
 
         if value > old_value + err(old_value):
-            if self.color_ok: return "\x1b[1;32m%s\x1b[0m" % text
-            else: return "[+]" + text
+            if self.color_ok: return "\x1b[1;32m%s\x1b[0m" % text2
+            else: return "[+]" + text2
 
         if value < old_value - err(old_value):
             if noreg: self.reg.append("%s: %.2f -> %.2f" % (key, old_value, value))
-            if self.color_ok: return "\x1b[1;31m%s\x1b[0m" % text
-            else: return "[-]" + text
+            if self.color_ok: return "\x1b[1;31m%s\x1b[0m" % text2
+            else: return "[-]" + text2
 
-        return text
+        return text1
 
     def save(self):
         if self.fname: pickle.dump(self.db, open(self.fname, 'wb'))
 
 if __name__ == "__main__":
     os.chdir(os.path.dirname(sys.argv[0]))
+
+    dump_dir = None
+    opts, args =  getopt.getopt(sys.argv[1:], 'd:')
+    listpara = None
+    for o, a in opts:
+        if o == "-d":
+            dump_dir = a
+        else:
+            print("Bad option: %s", o)
+            exit(1)
+
 
     params = optim.params
     tests = optim.load_tests()
@@ -55,14 +70,14 @@ if __name__ == "__main__":
         curses.setupterm()
         color = curses.tigetnum("colors") > 2
 
-    c = Color(fname = sys.argv[1] if len(sys.argv) >= 2 else None, color_ok = color)
+    c = Color(fname = args[0] if len(args) >= 1 else None, color_ok = color)
 
     for typ in ["max", "max2", "stddev" ]:
         detail = dict()
-        score = optim.run_all(tests, params, typ, fail_on_bad_score = False, return_dict = detail, silent = True)
+        score = optim.run_all(tests, params, typ, fail_on_bad_score = False, return_dict = detail, silent = True, dump = dump_dir)
 
-        print("score", c.var("%s: %.3f" % (typ, score), score, "score.%s" % typ, noreg = True),
-              ' '.join([ c.var("%s[%.3f]" % (w, s), s, "word.%s.%s" % (typ, w))
+        print("score", c.var(typ, score, "score.%s" % typ, noreg = True),
+              ' '.join([ c.var(w, s, "word.%s.%s" % (typ, w))
                          for (w, s) in sorted(detail.items()) ]))
 
     c.save()
