@@ -6,7 +6,7 @@
 #include <math.h>
 
 #define W_HEAD 39
-#define W_COL 15
+#define W_COL 9
 
 ScoreCounter::ScoreCounter() {
   debug = false;
@@ -80,13 +80,22 @@ void ScoreCounter::set_cols(char **col) {
     total_col[i] = total_coef_col[i] = 0;
     col_weight[i] = 1;
   }
-    
+
   nb_cols = count;
 }
 
 void ScoreCounter::set_weights(float *weights) {
   for (int i = 0; i < nb_cols; i++) {
     col_weight[i] = weights[i];
+  }
+  if (debug) {
+    dbg_line = QString("=");
+    for (int i = 0; i < nb_cols; i++) {
+      QString str;
+      str.sprintf(" [%4.2f]", col_weight[i]);
+      update_dbg_line(str, W_HEAD + W_COL * i, W_COL);
+    }
+    logdebug_qstring(dbg_line);
   }
 }
 
@@ -128,7 +137,7 @@ void ScoreCounter::add_bonus(float value, char *name) {
 
   if (debug) {
     QString str;
-    str.sprintf("%6.3f [%4.2f]", value, weight);
+    str.sprintf("%6.3f", value);
     update_dbg_line(str, W_HEAD + W_COL * col, W_COL);
   }
 }
@@ -168,7 +177,7 @@ float ScoreCounter::get_score() {
     for(int col = 0; col < nb_cols; col++) {
       if (total_coef_col[col] > 0) {
 	float value = total_col[col] / total_coef_col[col];
-	str.sprintf("%6.3f [%4.2f]", value, col_weight[col]);
+	str.sprintf("%6.3f", value);
 	update_dbg_line(str, W_HEAD + W_COL * col, W_COL);
       }
     }
