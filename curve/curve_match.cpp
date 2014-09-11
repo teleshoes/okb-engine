@@ -897,6 +897,7 @@ void Scenario::calc_turn_score_all() {
 	turn[0][i], cur_turn[0], cur_total[0], (int) cur_matched[0],
 	turn[1][i], cur_turn[1], cur_total[1], (int) cur_matched[1],
 	segment_length[i], score);
+    scores[i].turn_score = score;
 
     // there is no "i = count - 1" iteration, this is just to match ongoing turns 
     if (i == count - 1) { break; } 
