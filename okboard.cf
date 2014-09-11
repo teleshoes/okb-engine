@@ -7,7 +7,8 @@ match_wait = 7
 max_angle = 45
 max_turn_error1 = 20
 max_turn_error2 = 70
-max_turn_error3 = 30
+turn_min_angle = 10
+turn_max_angle = 20
 curve_score_min_dist = 50
 score_pow = 1
 weight_distance = 3.0
@@ -39,5 +40,5 @@ inf_max = 120
 [portrait]
 
 [landscape]
-dist_max_start = 110
+dist_max_start = 90
 dist_max_next = 110

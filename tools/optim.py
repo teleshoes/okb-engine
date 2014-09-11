@@ -33,7 +33,8 @@ defparams = [
     [ "max_angle", int, 10, 90 ],
     [ "max_turn_error1", int, 10, 60 ],
     [ "max_turn_error2", int, 30, 145 ],
-    [ "max_turn_error3", int, 10, 145 ],
+    [ "turn_min_angle", int, 1, 45 ],
+    [ "turn_max_angle", int, 10, 80 ],
     [ "curve_score_min_dist", int, 20, 100 ],
     [ "score_pow", float, 0.1, 10 ],
     [ "weight_distance", float ],  # reference (=1)
