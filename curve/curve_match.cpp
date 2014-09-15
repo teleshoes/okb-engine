@@ -1027,8 +1027,8 @@ void Scenario::calc_turn_score_all() {
       }
 
       int index = d -> index;
-      DBG("  [turn score]  turn #%d: %.2f[%.2f] / %.2f length[%d:%d] index=%d (scale=%.2f) ---> score=%.2f",
-	  i, d->actual, d->corrected, d->expected, (int) d->length_before, (int) d->length_after, index, scale, score);
+      DBG("  [turn score]  turn #%d: %.2f[%.2f] / %.2f length[%d:%d] index=[%d:%d] (scale=%.2f) ---> score=%.2f",
+	  i, d->actual, d->corrected, d->expected, (int) d->length_before, (int) d->length_after, index, d->start_index , scale, score);
 
       if (scores[index + 1].turn_score >= 0) { scores[index + 1].turn_score = score; }
     }
@@ -1044,8 +1044,29 @@ void Scenario::calc_turn_score_all() {
 	DBG("  [turn score] *** U-turn with no ST=2 (curve_index=%d expected=%.2f)", curve_index, expected);
 	fail = (st == 1)?.35:1;
       } else if (abs(expected) < params->st2_min && st == 2) {
-	DBG("  [turn score] *** ST=2 w/o U-turn (curve_index=%d expected=%.2f)", curve_index, expected);
-	fail = 1;
+	bool found = false;
+	for(int j = 0; j < turn_count; j ++) {
+	  turn_t *d = &(turn_detail[j]);
+	  int length = 0;
+	  for (int k = d->start_index; k < d->index; k++) {
+	    int i1 = index_history[k];
+	    int i2 = index_history[k + 1];
+	    length += distancep(curve->point(i1), curve->point(i2));
+	  }
+	  if (abs(d->expected) >= params->st2_min &&
+	      abs(d->expected) <= 540 - 2 *  params->st2_min &&
+	      i >= d->start_index && i <= d->index &&
+	      length < params-> curve_score_min_dist) {
+	    found = true;
+	    break;
+	  }
+	}
+	if (found) {
+	  DBG("  [turn score] --- ST=2 w/o U-turn (curve_index=%d expected=%.2f) --> match turn #%d OK", curve_index, expected, found);
+	} else {
+	  DBG("  [turn score] *** ST=2 w/o U-turn (curve_index=%d expected=%.2f)", curve_index, expected);
+	  fail = 1;
+	}
       }
       if (fail) {
 	float *psc = &(scores[i + 1].turn_score);
