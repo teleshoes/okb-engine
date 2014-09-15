@@ -10,6 +10,7 @@ class Params {
   int cos_max_gap;
   int curve_dist_threshold;
   int curve_score_min_dist;
+  float curve_surface_coef;
   int dist_max_next;
   int dist_max_start;
   int incremental_index_gap;
@@ -23,6 +24,7 @@ class Params {
   int max_candidates;
   int max_turn_error1;
   int max_turn_error2;
+  int max_turn_error3;
   int max_turn_index_gap;
   int min_turn_index_gap;
   int same_point_max_angle;
@@ -31,10 +33,15 @@ class Params {
   float sharp_turn_penalty;
   float slow_down_ratio;
   float small_segment_min_score;
+  int st2_max;
+  int st2_min;
   int turn_max_angle;
   int turn_min_angle;
+  int turn_optim;
+  int turn_separation;
   int turn_threshold;
   int turn_threshold2;
+  int turn_threshold3;
   float weight_cos;
   float weight_curve;
   float weight_curve2;
@@ -57,6 +64,7 @@ static Params default_params = {
   100, // cos_max_gap
   85, // curve_dist_threshold
   50, // curve_score_min_dist
+  10.0, // curve_surface_coef
   100, // dist_max_next
   75, // dist_max_start
   5, // incremental_index_gap
@@ -70,24 +78,30 @@ static Params default_params = {
   30, // max_candidates
   20, // max_turn_error1
   70, // max_turn_error2
+  30, // max_turn_error3
   6, // max_turn_index_gap
   2, // min_turn_index_gap
   120, // same_point_max_angle
   0.1, // same_point_score
   1.0, // score_pow
-  0.4, // sharp_turn_penalty
+  0.6, // sharp_turn_penalty
   1.5, // slow_down_ratio
   0.05, // small_segment_min_score
+  170, // st2_max
+  130, // st2_min
   20, // turn_max_angle
   10, // turn_min_angle
+  75, // turn_optim
+  120, // turn_separation
   75, // turn_threshold
-  150, // turn_threshold2
-  1.0, // weight_cos
+  140, // turn_threshold2
+  115, // turn_threshold3
+  3.0, // weight_cos
   6.0, // weight_curve
   6.0, // weight_curve2
-  3.0, // weight_distance
+  2.0, // weight_distance
   1.0, // weight_length
-  1.0, // weight_turn
+  4.0, // weight_turn
 
   /* END DEFAULT */
 };
@@ -98,6 +112,7 @@ void Params::toJson(QJsonObject &json) const {
   json["cos_max_gap"] = cos_max_gap;
   json["curve_dist_threshold"] = curve_dist_threshold;
   json["curve_score_min_dist"] = curve_score_min_dist;
+  json["curve_surface_coef"] = curve_surface_coef;
   json["dist_max_next"] = dist_max_next;
   json["dist_max_start"] = dist_max_start;
   json["incremental_index_gap"] = incremental_index_gap;
@@ -111,6 +126,7 @@ void Params::toJson(QJsonObject &json) const {
   json["max_candidates"] = max_candidates;
   json["max_turn_error1"] = max_turn_error1;
   json["max_turn_error2"] = max_turn_error2;
+  json["max_turn_error3"] = max_turn_error3;
   json["max_turn_index_gap"] = max_turn_index_gap;
   json["min_turn_index_gap"] = min_turn_index_gap;
   json["same_point_max_angle"] = same_point_max_angle;
@@ -119,10 +135,15 @@ void Params::toJson(QJsonObject &json) const {
   json["sharp_turn_penalty"] = sharp_turn_penalty;
   json["slow_down_ratio"] = slow_down_ratio;
   json["small_segment_min_score"] = small_segment_min_score;
+  json["st2_max"] = st2_max;
+  json["st2_min"] = st2_min;
   json["turn_max_angle"] = turn_max_angle;
   json["turn_min_angle"] = turn_min_angle;
+  json["turn_optim"] = turn_optim;
+  json["turn_separation"] = turn_separation;
   json["turn_threshold"] = turn_threshold;
   json["turn_threshold2"] = turn_threshold2;
+  json["turn_threshold3"] = turn_threshold3;
   json["weight_cos"] = weight_cos;
   json["weight_curve"] = weight_curve;
   json["weight_curve2"] = weight_curve2;
@@ -141,6 +162,7 @@ Params Params::fromJson(const QJsonObject &json) {
   p.cos_max_gap = json["cos_max_gap"].toDouble();
   p.curve_dist_threshold = json["curve_dist_threshold"].toDouble();
   p.curve_score_min_dist = json["curve_score_min_dist"].toDouble();
+  p.curve_surface_coef = json["curve_surface_coef"].toDouble();
   p.dist_max_next = json["dist_max_next"].toDouble();
   p.dist_max_start = json["dist_max_start"].toDouble();
   p.incremental_index_gap = json["incremental_index_gap"].toDouble();
@@ -154,6 +176,7 @@ Params Params::fromJson(const QJsonObject &json) {
   p.max_candidates = json["max_candidates"].toDouble();
   p.max_turn_error1 = json["max_turn_error1"].toDouble();
   p.max_turn_error2 = json["max_turn_error2"].toDouble();
+  p.max_turn_error3 = json["max_turn_error3"].toDouble();
   p.max_turn_index_gap = json["max_turn_index_gap"].toDouble();
   p.min_turn_index_gap = json["min_turn_index_gap"].toDouble();
   p.same_point_max_angle = json["same_point_max_angle"].toDouble();
@@ -162,10 +185,15 @@ Params Params::fromJson(const QJsonObject &json) {
   p.sharp_turn_penalty = json["sharp_turn_penalty"].toDouble();
   p.slow_down_ratio = json["slow_down_ratio"].toDouble();
   p.small_segment_min_score = json["small_segment_min_score"].toDouble();
+  p.st2_max = json["st2_max"].toDouble();
+  p.st2_min = json["st2_min"].toDouble();
   p.turn_max_angle = json["turn_max_angle"].toDouble();
   p.turn_min_angle = json["turn_min_angle"].toDouble();
+  p.turn_optim = json["turn_optim"].toDouble();
+  p.turn_separation = json["turn_separation"].toDouble();
   p.turn_threshold = json["turn_threshold"].toDouble();
   p.turn_threshold2 = json["turn_threshold2"].toDouble();
+  p.turn_threshold3 = json["turn_threshold3"].toDouble();
   p.weight_cos = json["weight_cos"].toDouble();
   p.weight_curve = json["weight_curve"].toDouble();
   p.weight_curve2 = json["weight_curve2"].toDouble();

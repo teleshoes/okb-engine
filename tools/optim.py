@@ -32,10 +32,14 @@ defparams = [
     [ "match_wait", int, 4, 12 ],
     [ "max_angle", int, 10, 90 ],
     [ "max_turn_error1", int, 10, 60 ],
-    [ "max_turn_error2", int, 30, 145 ],
+    [ "max_turn_error2", int, 20, 90 ],
+    [ "max_turn_error3", int, 10, 60 ],
     [ "turn_min_angle", int, 1, 45 ],
     [ "turn_max_angle", int, 10, 80 ],
+    [ "turn_separation", int, 30, 300 ],
+    [ "turn_optim", int, 20, 150 ],
     [ "curve_score_min_dist", int, 20, 100 ],
+    [ "curve_surface_coef", float, 1, 50 ],
     [ "score_pow", float, 0.1, 10 ],
     [ "weight_distance", float ],  # reference (=1)
     [ "weight_cos", float, 0.1, 10 ],
@@ -46,6 +50,7 @@ defparams = [
     [ "length_penalty", float, -0.1, 0.1 ],
     [ "turn_threshold", int, 10, 85 ],
     [ "turn_threshold2", int, 120, 179 ],
+    [ "turn_threshold3", int, 90, 145 ],
     [ "max_turn_index_gap", int, 2, 10],
     [ "min_turn_index_gap", int, 1, 5],
     [ "curve_dist_threshold", int, 30, 200 ],
@@ -62,6 +67,9 @@ defparams = [
     [ "slow_down_ratio", float, 1, 2 ],
     [ "inf_min", int, 5, 40 ],
     [ "inf_max", int, 40, 180 ],
+    [ "st2_min", int, 70, 160 ],
+    [ "st2_max", int, 120, 179 ],
+
 ]
 
 

@@ -276,14 +276,15 @@ float Scenario::calc_cos_score(unsigned char prev_letter, unsigned char letter, 
   float len = distancep(k1, k2);
   float gap = len * a_sin;
   float score;
+  float coef_sin = min(1.0, distancep(p1, p2) / params->curve_score_min_dist / 2.0);
   if ((k2.x - k1.x)*(p2.x - p1.x) + (k2.y - k1.y)*(p2.y - p1.y) < 0) {
     score = -1;
   } else {
-    score = 1 - max(gap / max_gap, a_sin / max_sin);
+    score = 1 - max(gap / max_gap, coef_sin * a_sin / max_sin);
   }
   
-  DBG("  [cos score] %s:%c i=%d:%d angle=%.2f/%.2f gap=%d/%d -> score=%.2f", 
-      getNameCharPtr(), letter, index, new_index, a_sin, max_sin, (int) gap, (int) max_gap, score);
+  DBG("  [cos score] %s:%c i=%d:%d angle=%.2f/%.2f(%.2f) gap=%d/%d -> score=%.2f", 
+      getNameCharPtr(), letter, index, new_index, a_sin, max_sin, coef_sin, (int) gap, (int) max_gap, score);
   
   return score;
 }
@@ -319,7 +320,44 @@ Point Scenario::actual_curve_tangent(int i) {
   
 
 float Scenario::calc_curve_score(unsigned char prev_letter, unsigned char letter, int index, int new_index) {
-  /* score based on curve "smoothness" and maximum distance from straight path */
+  /* score based on maximum distance from straight path */
+
+  Point pbegin = keys->get(prev_letter);
+  Point pend = keys->get(letter);
+  
+  Point ptbegin = curve->point(index);
+  Point ptend = curve->point(new_index);
+  float surface = surface4(pbegin, ptbegin, ptend, pend);
+
+  float max_dist = 0;
+  float total_dist = 0;
+  int sharp_turn = 0;
+  int c = 0;
+  for (int i = index + 2; i < new_index - 1; i += 4) {
+    Point p = curve->point(i);
+    float dist = dist_line_point(ptbegin, ptend, p);
+
+    if (dist > max_dist) { max_dist = dist; }
+    total_dist += dist;
+    c++;
+
+  }
+
+  for (int i = index + 2; i < new_index - 2; i += 1) {
+    if (curve->getSharpTurn(i)) { sharp_turn ++; }
+  }
+
+  float scale = params->curve_dist_threshold * min(1, 0.5 + distancep(pbegin, pend) / params->curve_dist_threshold / 4.0);
+  float s1 = max(max_dist, 2 * c?total_dist / c:0) / scale;
+  float s2 = params->curve_surface_coef * surface / 1E6;
+  float s3 = params->sharp_turn_penalty * sharp_turn;
+
+  float score = 1 - s1 - s2 - s3;
+  DBG("  [curve score] %s:%c[%d->%d] sc=[%.3f:%.3f:%.3f] max_dist=%d surface=%d score=%.3f",
+      getNameCharPtr(), letter, index, new_index, s1, s2, s3, (int) max_dist, (int) surface, score);
+
+  return score;
+  /*
   Point pbegin = keys->get(prev_letter);
   Point pend = keys->get(letter);
   
@@ -363,6 +401,7 @@ float Scenario::calc_curve_score(unsigned char prev_letter, unsigned char letter
       getNameCharPtr(), letter, index, new_index, s1, s2, s3, s4, (int) max_dist, params->curve_dist_threshold, score);
 
   return score;
+  */
 }
 
 
@@ -768,6 +807,16 @@ bool Scenario::forkLast() {
   return last_fork == count;
 }
 
+typedef struct {
+  float expected;
+  float actual;
+  float corrected;
+  float length_before;
+  float length_after;
+  int index;
+  int start_index;
+} turn_t;
+  
 void Scenario::calc_turn_score_all() {
   /* this score check if actual segmentation (deduced from user input curve) 
      is a good match for the expected one (curve which link all keys in the
@@ -776,10 +825,6 @@ void Scenario::calc_turn_score_all() {
   if (count < 2) { return; }
 
   float turn[2][count]; // 0: actual - 1:expected
-
-  // thresholds
-  int t1 = params->max_turn_error1;
-  int t2 = params->max_turn_error2;
 
   // compute actual turn rate
   float segment_length[count];
@@ -797,7 +842,7 @@ void Scenario::calc_turn_score_all() {
     Point p3 = curve->point(i3);
     
     segment_length[i] = distancep(p2, p3);
-    if (i == 0) { segment_length[0] = distancep(p1, p2); } // piquets & intervalles
+    if (i == 1) { segment_length[0] = distancep(p1, p2); } // piquets & intervalles
 
     if (i3 > i2 && i2 > i1) {
       float actual = anglep(p2 - p1, p3 - p2) * 180 / M_PI;
@@ -842,78 +887,177 @@ void Scenario::calc_turn_score_all() {
   // match both sets
   // (a turn in a set must match a turn in the other one (even if they are not
   //  spread exactly on the same indexes)
-
   int min_angle = params->turn_min_angle;
   int max_angle = params->turn_max_angle;
+
+  turn_t turn_detail[count];
+  int turn_count = 0;
 
   int cur_turn[2] = { 0, 0 };
   float cur_total[2];
   float other_total[2];
   int cur_matched[2];
+  float length_before = segment_length[0];
+  int start_index[2] = { -1, -1 };
   
   for(int i = 1; i <= count - 1; i ++) {
-    float score = 1;
     int new_turn[2];
+
+    bool turn_end = (segment_length[i - 1] > params -> turn_separation || i == count - 1);
+
     for(int c = 0; c < 2; c ++) {     
       new_turn[c] = (turn[c][i] > min_angle) - (turn[c][i] < -min_angle);
     }
+
     bool match1 = false;
     for(int c = 0; c < 2; c ++) {     
-      if (new_turn[c] != cur_turn[c]) {
+      if (new_turn[c] != cur_turn[c] || turn_end) {
 	if (cur_turn[c]) {
-	  // turn finished -> check matchin
+	  // turn finished -> check matching
 	  if (abs(cur_total[c]) > max_angle && ! cur_matched[c]) {
 	    DBG("  [turn score]    -> turn not matched: c=%d turn=%.2f", c, cur_total[c]);
-	    score = -1; // @todo be more tolerant for small size segments
+	    scores[i].turn_score = -1; // @todo be more tolerant for small size segments
 	  }
+
+	  bool register_turn = (turn_end && ! match1);
 	  if (((new_turn[1 - c] != cur_turn[1 - c]) || (cur_matched[c] < i - 1)) && 
 	      (abs(cur_total[c]) > max_angle || abs(other_total[c]) > max_angle) &&
-	      cur_matched[c] && ! match1) {
+	      cur_matched[c] && ! match1 && i > 1) {
+	    register_turn = true;
+	  }
 
-	    float expected = c?cur_total[1]:other_total[0];
-	    float actual = c?other_total[1]:cur_total[0];
+	  if (register_turn) {
+	    turn_t *d = &(turn_detail[turn_count ++]);
+	    d -> expected = c?cur_total[1]:other_total[0];
+	    d -> corrected = d -> actual = c?other_total[1]:cur_total[0];
+	    d -> length_before = length_before?length_before:segment_length[i - 1];
+            d -> length_after = 0;
+	    d -> index = i - 1;
+	    d -> start_index = start_index[c];
 
-	    float scale = t1 + (t2 - t1) * sin(min(90, abs(expected)) * M_PI / 180);
-	    float diff = abs(actual - expected);
-	    if (abs(expected) < 180) {
-	      float sc0 = diff / scale;
-	      score = min(1, 1.5 - sc0);
-	    }
-
-	    DBG("  [turn score]    -> turn matched: %.2f / %.2f (scale=%.2f score=%.2f)", actual, expected, scale, score);
+	    DBG("  [turn score]    -> turn matched: %.2f / %.2f  index=[%d, %d]", d -> actual, d -> expected, d -> start_index, i - 1);
 	    match1 = true;
+	    length_before = 0;
 	  }
 										    
 	}
 	cur_total[c] = 0;
 	cur_matched[c] = 0;
 	other_total[c] = 0;
+	start_index[c] = -1;
 	cur_turn[c] = new_turn[c];
       }
     }
 
-    DBG("  [turn score] %s[%d:%c] act=%.2f->[%d,%.2f,%d] - exp=%.2f->[%d,%.2f,%d] - length=%.2f --> score=%.2f", 
+
+    if ((! (cur_turn[0] || cur_turn[1])) || turn_end) {
+      length_before += segment_length[i - 1];
+    }
+
+    DBG("  [turn score] %s[%d:%c] act=%.2f->[%d,%.2f,%d] - exp=%.2f->[%d,%.2f,%d] - length=%.2f", 
 	getNameCharPtr(), i, (i == count - 1)?'*':letter_history[i],
 	turn[0][i], cur_turn[0], cur_total[0], (int) cur_matched[0],
 	turn[1][i], cur_turn[1], cur_total[1], (int) cur_matched[1],
-	segment_length[i], score);
-    scores[i].turn_score = score;
+	segment_length[i]);
+
 
     // there is no "i = count - 1" iteration, this is just to match ongoing turns 
     if (i == count - 1) { break; } 
 
     for(int c = 0; c < 2; c ++) {     
       if (cur_turn[c]) {
+	if (start_index[c] == -1) { start_index[c] = i; }
 	cur_total[c] += turn[c][i];
       }
     }
     for(int c = 0; c < 2; c ++) {     
       if (cur_turn[c]) {
-	if (cur_turn[1 - c] == cur_turn[c]) { 
+	if (cur_turn[1 - c] == cur_turn[c]) {
 	  cur_matched[c] = i;
 	  other_total[c] = cur_total[1 - c];
+	  if (start_index[1 - c] < start_index[c]) {
+	    start_index[c] = start_index[1 - c]; 
+	  }
 	}
       }
+    }
+  }
+
+  if (turn_count) {
+
+    // thresholds
+    int t1 = params->max_turn_error1;
+    int t2 = params->max_turn_error2;
+    int t3 = params->max_turn_error3;
+
+    for(int i = 0; i < turn_count - 1; i++) {
+      turn_detail[i].length_after = turn_detail[i + 1].length_before;
+    }
+    turn_detail[turn_count - 1].length_after = length_before + segment_length[count - 2];
+      
+    for(int i = 0; i < turn_count; i++) {
+      turn_t *d = &(turn_detail[i]);
+
+      if (i < turn_count - 1) {
+	turn_t *d2 = &(turn_detail[i  + 1]);
+	if (d -> length_after < params -> turn_optim  && d -> expected * d2 -> expected < 0) {
+	  if (abs(d -> actual) < abs(d -> expected) && abs(d2 -> actual) < abs(d2 -> expected)) {
+	    float diff1 = d -> expected - d -> actual;
+	    float diff2 = d2 -> expected - d2 -> actual;
+	    if (diff1 * diff2 < 0) {
+	      float diff = min(abs(diff1), abs(diff2));
+	      float sign = (diff1 > 0) - (diff1 < 0);
+	      d -> corrected += diff * sign;
+	      d2 -> corrected -= diff * sign;
+	    }
+	  }
+	}
+      }
+
+      float actual = d -> corrected;
+      float expected = d -> expected;
+      float score = 1;
+      float scale = -1;
+      if (abs(expected) < 180) {
+	float t = (abs(expected) < 90)?t3:t1;	
+	scale = t + (t2 - t) * sin(min(abs(actual), abs(expected)) * M_PI / 180);
+	float diff = abs(actual - expected);
+	float sc0 = diff / scale;
+	score = 1 - pow(sc0, 2);
+      }
+
+      int index = d -> index;
+      DBG("  [turn score]  turn #%d: %.2f[%.2f] / %.2f length[%d:%d] index=%d (scale=%.2f) ---> score=%.2f",
+	  i, d->actual, d->corrected, d->expected, (int) d->length_before, (int) d->length_after, index, scale, score);
+
+      if (scores[index + 1].turn_score >= 0) { scores[index + 1].turn_score = score; }
+    }
+
+    // check for expected U-turn vs. ST=2 special points
+    for (int i = 1; i < count - 1; i ++) {
+      int curve_index = index_history[i];
+      int st = curve->getSpecialPoint(curve_index); 
+      
+      float fail = 0;
+      float expected = turn[1][i];
+      if (abs(expected) > params->st2_max && st != 2) {
+	DBG("  [turn score] *** U-turn with no ST=2 (curve_index=%d expected=%.2f)", curve_index, expected);
+	fail = (st == 1)?.35:1;
+      } else if (abs(expected) < params->st2_min && st == 2) {
+	DBG("  [turn score] *** ST=2 w/o U-turn (curve_index=%d expected=%.2f)", curve_index, expected);
+	fail = 1;
+      }
+      if (fail) {
+	float *psc = &(scores[i + 1].turn_score);
+	if (! *psc) { *psc = 1; }
+	*psc -= fail * params->sharp_turn_penalty;
+      }
+    }
+
+  } else {
+    // no turn = always a perfect match
+    for (int i = 1; i < count - 1; i ++) {
+      if (scores[i + 1].turn_score >= 0) { scores[i + 1].turn_score = 1;}
     }
   }
 
@@ -942,7 +1086,7 @@ float Scenario::evalScore() {
 
   ScoreCounter sc;
   char* cols[] = { (char*) "angle", (char*) "curve", (char*) "curv2", (char*) "dist", (char*) "length", (char*) "turn", 0 };
-  float weights[] = { params -> weight_cos, params -> weight_curve, params -> weight_curve2, params -> weight_distance, params -> weight_length, params -> weight_turn };
+  float weights[] = { params -> weight_cos, params -> weight_curve, - params -> weight_curve2, params -> weight_distance, - params -> weight_length, params -> weight_turn };
   sc.set_debug(debug); // will draw nice tables :-)
   sc.set_cols(cols);
   sc.set_weights(weights);
@@ -1101,7 +1245,8 @@ void CurveMatch::curvePreprocess1(int last_curve_index) {
 	  }
 	}
 
-	curve[sharp_turn_index].sharp_turn = 1 + (last_total_turn > params.turn_threshold2);
+	curve[sharp_turn_index].sharp_turn = 1 + (last_total_turn > params.turn_threshold2 ||
+						  abs(curve[sharp_turn_index].turn_angle) > params.turn_threshold3);
 	wait_for_next_st = 2;
 	
 	// compute "normal" vector (really lame algorithm)

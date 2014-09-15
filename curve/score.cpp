@@ -127,7 +127,7 @@ void ScoreCounter::add_bonus(float value, char *name) {
   if (value == NO_SCORE) { return; }
 
   int col = get_col(name);
-  float weight = col_weight[col];
+  float weight = abs(col_weight[col]);
 
   line_total += value * weight;
   line_total_coefs += weight;
@@ -166,9 +166,9 @@ float ScoreCounter::get_score() {
   for(int col = 0; col < nb_cols; col++) {
     if (total_coef_col[col] > 0) {
       float value = total_col[col] / total_coef_col[col];
-      t += value * col_weight[col];
+      t += value * abs(col_weight[col]);
     }
-    tc += col_weight[col];
+    tc += max(0, col_weight[col]);
   }
 
   if (debug) {
