@@ -27,6 +27,7 @@ class ScoreCounter {
   QTextStream line_label;
 
  private:
+  void free();
   float score_pow;
   bool debug;
   float current_line_coef;

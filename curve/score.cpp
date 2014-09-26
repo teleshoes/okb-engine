@@ -18,11 +18,16 @@ ScoreCounter::ScoreCounter() {
 }
 
 ScoreCounter::~ScoreCounter() {
-    if (total_col) {
-      delete[] total_col;
-      delete[] total_coef_col;
-      delete[] col_weight;
-    }
+  free();
+}
+
+void ScoreCounter::free() {
+  if (total_col) {
+    delete[] total_col;
+    delete[] total_coef_col;
+    delete[] col_weight;
+    total_col = NULL;
+  }
 }
 
 int ScoreCounter::get_col(char *name) {
@@ -67,11 +72,7 @@ void ScoreCounter::set_cols(char **col) {
     logdebug_qstring(str);
   }
 
-  if (total_col) {
-    delete[] total_col;
-    delete[] total_coef_col;
-    delete[] col_weight;
-  }
+  free();
   total_col = new float[count];
   total_coef_col = new float[count];
   col_weight = new float[count];

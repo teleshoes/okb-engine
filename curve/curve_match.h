@@ -115,7 +115,7 @@ typedef struct {
   float curve_score;
   float length_score;
   float turn_score;
-  float curve_score2;
+  float misc_score;
 } score_t;
 
 
@@ -147,6 +147,7 @@ class Scenario {
   float calc_cos_score(unsigned char prev_letter, unsigned char letter, int index, int new_index);
   float calc_curve_score(unsigned char prev_letter, unsigned char letter, int index, int new_index);
   void calc_turn_score_all();
+  float calc_score_misc(int i);
   float begin_end_angle_score(bool end);
   float score_inflection(int index, bool st1, bool st2);
   Point computed_curve_tangent(int index);

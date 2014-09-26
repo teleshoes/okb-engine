@@ -168,8 +168,10 @@ def mkspeedgraph(sx = 240, sy = 120, use_length = False, scenario = None):
     lastx, lasty = None, None
     c = 0
     for pt in curve:
-        if use_length: x = (sx - 1) * pt['length'] / length
-        else: x = (sx - 1) * pt['t'] / curve[-1]['t']
+        if use_length:
+            x = (sx - 1) * pt['length'] / length
+        else:
+            x = (sx - 1) * pt['t'] / curve[-1]['t'] if curve[-1]['t'] else 0
         y = sy - 1 - (sy - 1) * pt['speed'] / max_speed
         if scenario:
             letter = get_letter(scenario, c)

@@ -18,7 +18,7 @@ weight_distance = 2.0
 weight_cos = 3.0
 weight_length = 1.0
 weight_curve = 6.0
-weight_curve2 = 6.0
+weight_misc = 6.0
 weight_turn = 4
 length_penalty = 0.001
 turn_threshold = 75
@@ -27,7 +27,7 @@ turn_threshold3 = 115
 max_turn_index_gap = 6
 min_turn_index_gap = 2
 curve_dist_threshold = 85
-curve_surface_coef = 10
+curve_surface_coef = 20
 small_segment_min_score = 0.05
 anisotropy_ratio = 1.5
 sharp_turn_penalty = 0.6
@@ -43,6 +43,9 @@ inf_min = 20
 inf_max = 120
 st2_min = 130
 st2_max = 170
+tip_small_segment = .05
+turn_distance_threshold = 50
+turn_distance_ratio = 0.5
 
 [portrait]
 

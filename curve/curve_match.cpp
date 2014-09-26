@@ -348,7 +348,7 @@ float Scenario::calc_curve_score(unsigned char prev_letter, unsigned char letter
   }
 
   float scale = params->curve_dist_threshold * min(1, 0.5 + distancep(pbegin, pend) / params->curve_dist_threshold / 4.0);
-  float s1 = max(max_dist, 2 * c?total_dist / c:0) / scale;
+  float s1 = pow(max(max_dist, 2 * c?total_dist / c:0) / scale, 2);
   float s2 = params->curve_surface_coef * surface / 1E6;
   float s3 = params->sharp_turn_penalty * sharp_turn;
 
@@ -357,51 +357,6 @@ float Scenario::calc_curve_score(unsigned char prev_letter, unsigned char letter
       getNameCharPtr(), letter, index, new_index, s1, s2, s3, (int) max_dist, (int) surface, score);
 
   return score;
-  /*
-  Point pbegin = keys->get(prev_letter);
-  Point pend = keys->get(letter);
-  
-  Point ptbegin = curve->point(index);
-  Point ptend = curve->point(new_index);
-
-  float dist_begin = dist_line_point(pbegin, pend, ptend);
-  float dist_end = dist_line_point(pbegin, pend, ptbegin);
- 
-  float max_dist = 0;
-  float total_dist = 0;
-  int sharp_turns = 0;
-  int c = 0;
-  for (int i = index + 2; i < new_index - 1; i += 4) {
-    Point p = curve->point(i);
-    float dist = dist_line_point(pbegin, pend, p);
-
-    if (dist > max_dist) { max_dist = dist; }
-    total_dist += dist;
-    c++;
-  }
-  float avg_dist = c?total_dist / c:0;
-
-  for (int i = index + params->min_turn_index_gap + 1; i < new_index - params->min_turn_index_gap; i += 1) {
-    int st = curve->getSpecialPoint(i);
-    if (st && i >= 2 && i < curve->size() - 2) { sharp_turns ++; }
-  }
-  float s4 = sharp_turns * params->sharp_turn_penalty;
-
-  float s1 = -1, s2 = -1, s3 = -1, score = -1;
-  if (max_dist <= params->curve_dist_threshold) {
-    
-    s1 = max(dist_begin, dist_end) / params->curve_dist_threshold;
-    s2 = 2 * avg_dist / params->curve_dist_threshold;
-    s3 = max_dist / params->curve_dist_threshold;
-    score = 1 - (s1 + min(s2, s3)) / 2 - s4; // @todo score bisounours
-    if (score > 0) { score = pow(score, 0.25); }
-  }
-
-  DBG("  [curve score] %s:%c[%d->%d] sc=[%.3f:%.3f:%.3f:%.3f] max_dist=%d/%d -> score=%.3f",
-      getNameCharPtr(), letter, index, new_index, s1, s2, s3, s4, (int) max_dist, params->curve_dist_threshold, score);
-
-  return score;
-  */
 }
 
 
@@ -1042,7 +997,7 @@ void Scenario::calc_turn_score_all() {
       float expected = turn[1][i];
       if (abs(expected) > params->st2_max && st != 2) {
 	DBG("  [turn score] *** U-turn with no ST=2 (curve_index=%d expected=%.2f)", curve_index, expected);
-	fail = (st == 1)?.35:1;
+	fail = (st == 1)?.5:1;
       } else if (abs(expected) < params->st2_min && st == 2) {
 	bool found = false;
 	for(int j = 0; j < turn_count; j ++) {
@@ -1084,8 +1039,73 @@ void Scenario::calc_turn_score_all() {
 
 }
 
+#define ALIGN(a) (min(abs(a), abs(abs(a) - 180)))
+
+float Scenario::calc_score_misc(int i) {
+  /* misc scoring heuristic, i is in [0, count - 1] */
+  float score = 0;
+
+  /* lower score for small segment at curve begin / end
+     -> this means the user has entered a too short curve and missed 2 letters */
+  if ((i == 0 && index_history[1] <= 1) ||
+      (i == count - 1 && index_history[count - 1] - index_history[count - 2] <= 1)) {
+    DBG("  [score misc] small segment at tip (%s)", (i?"end":"begin"));
+    score -= params->tip_small_segment;
+  }
+
+  /* check turn relative position */
+  if (i > 0 && i < count - 1) {
+    Point k0 = keys->get(letter_history[i - 1]);
+    Point k1 = keys->get(letter_history[i]);
+    Point k2 = keys->get(letter_history[i + 1]);
+    float k_angle = anglep(k1 - k0, k2 - k1) * 180 / M_PI;
+    float dk01 = distancep(k0,k1);
+    float dk12 = distancep(k1,k2);
+    if (abs(k_angle) > 150 &&
+	dk01 > 2 * params->curve_score_min_dist &&
+	dk12 > 2 * params->curve_score_min_dist) {
+      int i1 = -1;
+      for(int d = 0; d <= params->max_turn_index_gap && i1 == -1; d ++) {
+	if (curve->getSharpTurn(index_history[i] - d)) {
+	  i1 = index_history[i] - d;
+	} else if (curve->getSharpTurn(index_history[i] + d)) {
+	  i1 = index_history[i] + d;
+	}
+      }
+      if (i1 == -1) {
+	/* turn point not found: this is unexpected! */
+	score -= 1;
+	DBG("  [score misc] %s[%d:%c] turn distance -> turn not found !",getNameCharPtr(), i, letter_history[i])
+      } else {
+	// @todo if curvature at i_h[i] is roughly the same as at index i1, replace i1 with i_h[i] for better score 
+	Point normal = (k1 - k0) * (10000 / dk01) - (k2 - k1) * (10000 / dk12);
+	Point p = curve->point(i1);
+	float d = distancep(Point(), normal);
+	float dx = normal.x;
+	float dy = normal.y;
+	float px = p.x - k1.x;
+	float py = p.y - k1.y;
+	float u = (px * dx + py * dy) / d;
+	float v = (px * dy - py * dx) / d;
+
+	int threshold = params->turn_distance_threshold;
+	float sc0 = max(0, (abs(v) + max(0, u * params->turn_distance_ratio)) / threshold - 1);
+	DBG("  [score misc] %s[%d:%c] turn distance u=%.2f v=%.2f score=%.2f",getNameCharPtr(), i, letter_history[i], u, v, sc0);
+	score -= sc0;
+      }
+	    
+
+    }
+  }
+ 
+  return score;
+}
+
 bool Scenario::postProcess() {
   calc_turn_score_all();
+  for(int i = 0; i < count; i++) {
+    scores[i].misc_score = calc_score_misc(i);
+  }
  
   return (evalScore() > 0);
 }
@@ -1105,9 +1125,11 @@ float Scenario::evalScore() {
     total_length += d;
   }
 
+  // columns named with strings is inefficient, but we don't care because this is done only at the end for the few remaining candidates
+  char* cols[] = { (char*) "angle", (char*) "curve", (char*) "misc", (char*) "dist", (char*) "length", (char*) "turn", 0 };
+  float weights[] = { params -> weight_cos, params -> weight_curve, - params -> weight_misc, params -> weight_distance, - params -> weight_length, params -> weight_turn };
+
   ScoreCounter sc;
-  char* cols[] = { (char*) "angle", (char*) "curve", (char*) "curv2", (char*) "dist", (char*) "length", (char*) "turn", 0 };
-  float weights[] = { params -> weight_cos, params -> weight_curve, - params -> weight_curve2, params -> weight_distance, - params -> weight_length, params -> weight_turn };
   sc.set_debug(debug); // will draw nice tables :-)
   sc.set_cols(cols);
   sc.set_weights(weights);
@@ -1138,7 +1160,7 @@ float Scenario::evalScore() {
       sc.add_score(scores[i + 1].cos_score, (char*) "angle"); 
       sc.add_score(scores[i + 1].curve_score, (char*) "curve");
       sc.add_score(scores[i + 1].length_score, (char*) "length");
-      sc.add_bonus(scores[i + 1].curve_score2, (char*) "curv2");
+      sc.add_bonus(scores[i + 1].misc_score, (char*) "misc");
       sc.end_line();
     }
   }
@@ -1177,7 +1199,7 @@ void Scenario::toJson(QJsonObject &json) {
     json_score["score_cos"] = score->cos_score;
     json_score["score_turn"] = score->turn_score;
     json_score["score_curve"] = score->curve_score;
-    json_score["score_curve2"] = score->curve_score2;
+    json_score["score_misc"] = score->misc_score;
     json_score["score_length"] = score->length_score;
     json_score_array.append(json_score);
   }

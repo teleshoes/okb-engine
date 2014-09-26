@@ -45,7 +45,7 @@ defparams = [
     [ "weight_cos", float, 0.1, 10 ],
     [ "weight_length", float, 0.1, 10 ],
     [ "weight_curve", float, 0.1, 10 ],
-    [ "weight_curve2", float, 0.1, 10 ],
+    [ "weight_misc", float, 0.1, 10 ],
     [ "weight_turn", float, 0.1, 10 ],
     [ "length_penalty", float, -0.1, 0.1 ],
     [ "turn_threshold", int, 10, 85 ],
@@ -69,7 +69,9 @@ defparams = [
     [ "inf_max", int, 40, 180 ],
     [ "st2_min", int, 70, 160 ],
     [ "st2_max", int, 120, 179 ],
-
+    [ "tip_small_segment", float, 0, .5 ],
+    [ "turn_distance_threshold", int, 10, 150 ],
+    [ "turn_distance_ratio", float, 0, 2 ],
 ]
 
 
@@ -357,7 +359,7 @@ if __name__ == "__main__":
 
             if p_include and not re.match(p_include, p): continue
             if p_exclude and re.match(p_exclude, p): continue
-            if not  params[p]["auto"] and not p_include: continue
+            # why ? if not params[p]["auto"] and not p_include: continue
 
             print("===== Optimizing parameter '%s' =====" % p)
             score = optim(p, params, tests, typ)
@@ -370,9 +372,10 @@ if __name__ == "__main__":
             print("Current(%.3f): %s" % (score, params2str(params)))
             print("Best   (%.3f): %s" % (max_score, params2str(max_params)))
 
-    for p, v in sorted(max_params.items()):
-        if params0[p] != v:
-            print("Parameter change: %s: %.3f -> %.3f" % (p, params0[p]["value"], v["value"]))
+    param_change_txt = '\n'.join([ "Parameter change: %s: %.3f -> %.3f" % (p, params0[p]["value"], v["value"])
+                                   for p, v in sorted(max_params.items())
+                                   if params0[p] != v ])
+    print(param_change_txt)
     print("Score: %.3f -> %.3f" % (score0, max_score))
 
     with open(OUT, "a") as f:
@@ -385,3 +388,4 @@ if __name__ == "__main__":
         f.write(" -> %s\n\n" % cleanup_detail(detail0))
         f.write("Best   (%.3f): %s\n" % (max_score, params2str(max_params)))
         f.write(" -> %s\n\n" % cleanup_detail(detail_max))
+        f.write("%s\n\n" % param_change_txt)
