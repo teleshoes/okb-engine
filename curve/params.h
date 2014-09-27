@@ -33,6 +33,9 @@ class Params {
   float sharp_turn_penalty;
   float slow_down_ratio;
   float small_segment_min_score;
+  int speed_max_index_gap;
+  int speed_min_angle;
+  float speed_penalty;
   int st2_max;
   int st2_min;
   float tip_small_segment;
@@ -89,12 +92,15 @@ static Params default_params = {
   1.0, // score_pow
   0.6, // sharp_turn_penalty
   1.5, // slow_down_ratio
-  0.05, // small_segment_min_score
+  0.2, // small_segment_min_score
+  3, // speed_max_index_gap
+  15, // speed_min_angle
+  0.5, // speed_penalty
   170, // st2_max
   130, // st2_min
   0.05, // tip_small_segment
-  0.5, // turn_distance_ratio
-  50, // turn_distance_threshold
+  1.0, // turn_distance_ratio
+  45, // turn_distance_threshold
   20, // turn_max_angle
   10, // turn_min_angle
   75, // turn_optim
@@ -102,11 +108,11 @@ static Params default_params = {
   75, // turn_threshold
   140, // turn_threshold2
   115, // turn_threshold3
-  3.0, // weight_cos
-  6.0, // weight_curve
+  2.0, // weight_cos
+  3.0, // weight_curve
   2.0, // weight_distance
   1.0, // weight_length
-  6.0, // weight_misc
+  8.0, // weight_misc
   4.0, // weight_turn
 
   /* END DEFAULT */
@@ -141,6 +147,9 @@ void Params::toJson(QJsonObject &json) const {
   json["sharp_turn_penalty"] = sharp_turn_penalty;
   json["slow_down_ratio"] = slow_down_ratio;
   json["small_segment_min_score"] = small_segment_min_score;
+  json["speed_max_index_gap"] = speed_max_index_gap;
+  json["speed_min_angle"] = speed_min_angle;
+  json["speed_penalty"] = speed_penalty;
   json["st2_max"] = st2_max;
   json["st2_min"] = st2_min;
   json["tip_small_segment"] = tip_small_segment;
@@ -194,6 +203,9 @@ Params Params::fromJson(const QJsonObject &json) {
   p.sharp_turn_penalty = json["sharp_turn_penalty"].toDouble();
   p.slow_down_ratio = json["slow_down_ratio"].toDouble();
   p.small_segment_min_score = json["small_segment_min_score"].toDouble();
+  p.speed_max_index_gap = json["speed_max_index_gap"].toDouble();
+  p.speed_min_angle = json["speed_min_angle"].toDouble();
+  p.speed_penalty = json["speed_penalty"].toDouble();
   p.st2_max = json["st2_max"].toDouble();
   p.st2_min = json["st2_min"].toDouble();
   p.tip_small_segment = json["tip_small_segment"].toDouble();

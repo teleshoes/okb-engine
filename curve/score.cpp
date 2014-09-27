@@ -26,6 +26,7 @@ void ScoreCounter::free() {
     delete[] total_col;
     delete[] total_coef_col;
     delete[] col_weight;
+    delete[] min_col;
     total_col = NULL;
   }
 }
@@ -76,9 +77,10 @@ void ScoreCounter::set_cols(char **col) {
   total_col = new float[count];
   total_coef_col = new float[count];
   col_weight = new float[count];
+  min_col = new float[count];
   
   for (int i = 0; i < count; i++) {
-    total_col[i] = total_coef_col[i] = 0;
+    min_col[i] = total_col[i] = total_coef_col[i] = 0;
     col_weight[i] = 1;
   }
 
@@ -128,13 +130,14 @@ void ScoreCounter::add_bonus(float value, char *name) {
   if (value == NO_SCORE) { return; }
 
   int col = get_col(name);
-  float weight = abs(col_weight[col]);
+  float weight = abs(col_weight[col]);  
 
   line_total += value * weight;
   line_total_coefs += weight;
 
   total_col[col] += value * current_line_coef;
   total_coef_col[col] += current_line_coef;
+  if (! min_col[col] || value < min_col[col]) { min_col[col] = value; }
 
   if (debug) {
     QString str;
@@ -190,6 +193,20 @@ float ScoreCounter::get_score() {
   // old & obsolete scoring strategy: return total_score / total_coefs;
 
   return t / tc;
+}
+
+float ScoreCounter::get_column_score(char *name) {
+  int col = get_col(name);
+  if (total_coef_col[col] > 0) {
+    return total_col[col] / total_coef_col[col];
+  } else {
+    return 0;
+  }
+}
+
+float ScoreCounter::get_column_min_score(char *name) {
+  int col = get_col(name);
+  return min_col[col];
 }
 
 void ScoreCounter::update_dbg_line(QString text, int col, int) {

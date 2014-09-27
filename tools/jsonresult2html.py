@@ -240,6 +240,25 @@ while curve_:
         for pt in curve1:
             li.td.font(clean_value(pt[lbl]), size = "-2")
 
+# overview
+if candidates:
+    body.p
+    scores = sorted(candidates[0]["avg_score"].keys())
+    t = body.table(border = "1")
+    hr0 = t.tr
+    hr = t.tr
+    hr0.td(bgcolor="#C0FFC0", rowspan="2").font("Word", size="-2")
+    hr0.td(bgcolor="#C0FFC0", rowspan="2").font("Score", size="-2")
+    for typ in [ "avg_score", "min_score" ]:
+        hr0.td(bgcolor="#C0FFC0", colspan = str(len(scores)), align = "center").font(typ, size="-2")
+        for sc in scores: hr.td(align = "center", bgcolor="#C0FFC0").font(re.sub(r'^score_', '', sc), size="-2")
+    for scenario in candidates:
+        tr = t.tr
+        tr.td(align = "center").font(scenario["name"], size="-2")
+        tr.td(align = "center").font(clean_value(scenario["score"]), size="-2")
+        for typ in [ "avg_score", "min_score" ]:
+            for sc in scores: tr.td(align = "center").font(clean_value(scenario[typ][sc]), size="-2")
+
 # matches
 n = 1
 for scenario in candidates:

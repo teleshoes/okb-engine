@@ -23,6 +23,8 @@ class ScoreCounter {
   void set_cols(char**);
   void set_weights(float *);
   float get_score();
+  float get_column_score(char *);
+  float get_column_min_score(char *);
 
   QTextStream line_label;
 
@@ -48,6 +50,7 @@ class ScoreCounter {
   float *total_col;
   float *total_coef_col;
   float *col_weight;
+  float *min_col;
 };
 
 #endif /* SCORE_H */

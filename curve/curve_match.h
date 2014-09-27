@@ -111,13 +111,16 @@ class QuickKeys {
 /* tree traversal evaluation */
 typedef struct {
   float distance_score;
+  float turn_score;
   float cos_score;
   float curve_score;
-  float length_score;
-  float turn_score;
   float misc_score;
+  float length_score;
 } score_t;
 
+#define SCORE_T_OFFSET (sizeof(float))
+#define SCORE_T_COUNT ((int) (sizeof(score_t) / SCORE_T_OFFSET))
+#define SCORE_T_GET(score, i) (((float*) &(score))[i])
 
 /* scenario (describe word candidates) */
 class Scenario {
@@ -141,6 +144,9 @@ class Scenario {
   QuickKeys *keys;
   QuickCurve *curve;
   Params *params;
+
+  score_t avg_score;
+  score_t min_score;
 
  private:
   float calc_distance_score(unsigned char letter, int index, int count);
@@ -168,7 +174,7 @@ class Scenario {
   bool operator<(const Scenario &other) const;
   bool isFinished() { return finished; };
   QString getName();
-  unsigned char* getNameCharPtr();
+  unsigned char* getNameCharPtr() const;
   QString getWordList();
   float getScore() const;
   bool postProcess();
@@ -176,6 +182,7 @@ class Scenario {
   float getCount();
   bool forkLast();
   int getCurveIndex();
+  void getDetailedScores(score_t &avg, score_t &min) const;
 
   void toJson(QJsonObject &json);
 };
@@ -202,6 +209,9 @@ class CurveMatch {
   void scenarioFilter(QList<Scenario> &scenarios, float score_ratio, int min_size, int max_size = -1, bool finished = false);
   void curvePreprocess1(int last_curve_index = -1);
   void curvePreprocess2();
+  void sortCandidates();
+  char compare_scenario(float sc1, float sc2, score_t &avg1, score_t &min1, score_t &avg2, score_t &min2);
+  void categorize_rec(int i, int n, char *cmp, score_t *avg, score_t *min, float *sc, int *cls);
 
  public:
   CurveMatch();

@@ -149,6 +149,7 @@ void IncrementalMatch::incrementalMatchUpdate(bool finished, bool aggressive) {
       }
     }
     candidates = new_candidates;
+    sortCandidates();
   }
   logdebug("=== incrementalMatchUpdate: %scurveIndex=%d, finished=%d, scenarios=%d, length=%d (next=%d), skim=%d, fork=%d, nodes=%d, retry=%d [time=%.3f]",
 	   aggressive?"[aggressive] ":"", curve.size(), finished, delayed_scenarios.size(), cumulative_length, next_iteration_length, 
