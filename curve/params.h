@@ -7,6 +7,11 @@ class Params {
  public:
   /* BEGIN DECL */
   float anisotropy_ratio;
+  int cat_window;
+  float cls_second_chance;
+  float cls_threshold0;
+  float cls_threshold1;
+  float cls_threshold2;
   int cos_max_gap;
   int curve_dist_threshold;
   int curve_score_min_dist;
@@ -38,6 +43,10 @@ class Params {
   float speed_penalty;
   int st2_max;
   int st2_min;
+  float tgt_coef;
+  float tgt_coef_invert;
+  int tgt_max_angle;
+  int tgt_min_angle;
   float tip_small_segment;
   float turn_distance_ratio;
   int turn_distance_threshold;
@@ -67,6 +76,11 @@ class Params {
 static Params default_params = {
   /* BEGIN DEFAULT */
   1.5, // anisotropy_ratio
+  12, // cat_window
+  0.07, // cls_second_chance
+  0.1, // cls_threshold0
+  0.8, // cls_threshold1
+  0.9, // cls_threshold2
   100, // cos_max_gap
   85, // curve_dist_threshold
   50, // curve_score_min_dist
@@ -93,11 +107,15 @@ static Params default_params = {
   0.6, // sharp_turn_penalty
   1.5, // slow_down_ratio
   0.2, // small_segment_min_score
-  3, // speed_max_index_gap
+  5, // speed_max_index_gap
   15, // speed_min_angle
   0.5, // speed_penalty
   170, // st2_max
   130, // st2_min
+  0.2, // tgt_coef
+  0.05, // tgt_coef_invert
+  15, // tgt_max_angle
+  15, // tgt_min_angle
   0.05, // tip_small_segment
   1.0, // turn_distance_ratio
   45, // turn_distance_threshold
@@ -121,6 +139,11 @@ static Params default_params = {
 void Params::toJson(QJsonObject &json) const {
   /* BEGIN TOJSON */
   json["anisotropy_ratio"] = anisotropy_ratio;
+  json["cat_window"] = cat_window;
+  json["cls_second_chance"] = cls_second_chance;
+  json["cls_threshold0"] = cls_threshold0;
+  json["cls_threshold1"] = cls_threshold1;
+  json["cls_threshold2"] = cls_threshold2;
   json["cos_max_gap"] = cos_max_gap;
   json["curve_dist_threshold"] = curve_dist_threshold;
   json["curve_score_min_dist"] = curve_score_min_dist;
@@ -152,6 +175,10 @@ void Params::toJson(QJsonObject &json) const {
   json["speed_penalty"] = speed_penalty;
   json["st2_max"] = st2_max;
   json["st2_min"] = st2_min;
+  json["tgt_coef"] = tgt_coef;
+  json["tgt_coef_invert"] = tgt_coef_invert;
+  json["tgt_max_angle"] = tgt_max_angle;
+  json["tgt_min_angle"] = tgt_min_angle;
   json["tip_small_segment"] = tip_small_segment;
   json["turn_distance_ratio"] = turn_distance_ratio;
   json["turn_distance_threshold"] = turn_distance_threshold;
@@ -177,6 +204,11 @@ Params Params::fromJson(const QJsonObject &json) {
 
   /* BEGIN FROMJSON */
   p.anisotropy_ratio = json["anisotropy_ratio"].toDouble();
+  p.cat_window = json["cat_window"].toDouble();
+  p.cls_second_chance = json["cls_second_chance"].toDouble();
+  p.cls_threshold0 = json["cls_threshold0"].toDouble();
+  p.cls_threshold1 = json["cls_threshold1"].toDouble();
+  p.cls_threshold2 = json["cls_threshold2"].toDouble();
   p.cos_max_gap = json["cos_max_gap"].toDouble();
   p.curve_dist_threshold = json["curve_dist_threshold"].toDouble();
   p.curve_score_min_dist = json["curve_score_min_dist"].toDouble();
@@ -208,6 +240,10 @@ Params Params::fromJson(const QJsonObject &json) {
   p.speed_penalty = json["speed_penalty"].toDouble();
   p.st2_max = json["st2_max"].toDouble();
   p.st2_min = json["st2_min"].toDouble();
+  p.tgt_coef = json["tgt_coef"].toDouble();
+  p.tgt_coef_invert = json["tgt_coef_invert"].toDouble();
+  p.tgt_max_angle = json["tgt_max_angle"].toDouble();
+  p.tgt_min_angle = json["tgt_min_angle"].toDouble();
   p.tip_small_segment = json["tip_small_segment"].toDouble();
   p.turn_distance_ratio = json["turn_distance_ratio"].toDouble();
   p.turn_distance_threshold = json["turn_distance_threshold"].toDouble();
