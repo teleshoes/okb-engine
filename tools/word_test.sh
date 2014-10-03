@@ -1,4 +1,4 @@
-#! /bin/sh -xe
+#! /bin/sh -e
 # just check curve matching plugin with expected word
 # (generates far less output)
 

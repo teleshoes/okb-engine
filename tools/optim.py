@@ -28,6 +28,10 @@ OUT = "optim.log"
 
 defparams = [
     [ "anisotropy_ratio", float, 1, 2 ],
+    [ "cls_threshold0", float, 0.01, 0.5 ],
+    [ "cls_threshold1", float, 0.5, 0.99 ],
+    [ "cls_threshold2", float, 0.5, 0.99 ],
+    [ "cls_second_chance", float, 0, 0.5 ],
     [ "cos_max_gap", int, 20, 150 ],
     [ "curve_dist_threshold", int, 30, 200 ],
     [ "curve_score_min_dist", int, 20, 100 ],
@@ -59,6 +63,10 @@ defparams = [
     [ "speed_penalty", float, 0.01, 1 ],
     [ "st2_max", int, 120, 179 ],
     [ "st2_min", int, 70, 160 ],
+    [ "tgt_coef", float, 0, 1 ],
+    [ "tgt_coef_invert", float, 0, 1 ],
+    [ "tgt_max_angle", int, 0, 90 ],
+    [ "tgt_min_angle", int, 0, 90 ],
     [ "tip_small_segment", float, 0, .5 ],
     [ "turn_distance_ratio", float, 0, 2 ],
     [ "turn_distance_threshold", int, 10, 150 ],
@@ -75,6 +83,7 @@ defparams = [
     [ "weight_length", float, 0.1, 10 ],
     [ "weight_misc", float, 0.1, 10 ],
     [ "weight_turn", float, 0.1, 10 ],
+    [ "cat_window", int ],  # no optim, larger is better (and slower)
 ]
 
 
@@ -155,13 +164,18 @@ def score1(json_str, expected, typ):
 
     score_ref = None
     others = []
+    starred = False
+    star_count = 0
     for c in js["candidates"]:
         score = c["score"]
         if score is None: raise Exception("null score for '%s'" % expected)
         name = c["name"]
         if name == expected:
             score_ref = score
-        else: others.append(score)
+            starred = c["star"]
+        else:
+            others.append(score)
+            if c["star"]: star_count += 1
 
     # print "Detail:" + ",".join("%s: %.3f" % (c, c["score"]) for x in js["candidates"])
 
@@ -174,6 +188,13 @@ def score1(json_str, expected, typ):
 
     if typ == "stddev":
         score = score_ref - (average + stddev)
+
+    elif typ == "cls":
+        score = 0.5 * (score_ref - (average + stddev))
+        if star_count > 0:
+            if not starred: score -= .5
+            else: score += 0.5 - 0.5 * star_count / 4
+
     elif typ.startswith("max"):
         if score_ref >= max_score:
             score = score_ref - max_score

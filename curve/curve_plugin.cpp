@@ -85,7 +85,7 @@ QVariantList CurveKB::scenarioList2QVariantList(QList<Scenario> &candidates) {
   QVariantList ret;
   foreach (Scenario scenario, candidates) {
     QVariantList item;
-    item << scenario.getName() << scenario.getScore() << scenario.getWordList();
+    item << scenario.getName() << scenario.getScore() << scenario.getClass() << scenario.getStar() << scenario.getWordList();
     ret.append((QVariant) item); // avoid list flattening
   }
   return ret;

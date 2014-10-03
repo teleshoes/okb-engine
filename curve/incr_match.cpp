@@ -49,11 +49,7 @@ void IncrementalMatch::incrementalMatchBegin() {
   next_iteration_length = 0;
   last_curve_index = 0;
 
-  st_retry = 0;
-
-  st_fork = 0;
-  st_skim = 0;
-  st_count = 0;
+  memset(&st, 0, sizeof(st));
 
   QList<LetterNode> childNodes = root.getNextKeys();
   QHash<unsigned char, NextLetter> childs;
@@ -153,7 +149,7 @@ void IncrementalMatch::incrementalMatchUpdate(bool finished, bool aggressive) {
   }
   logdebug("=== incrementalMatchUpdate: %scurveIndex=%d, finished=%d, scenarios=%d, length=%d (next=%d), skim=%d, fork=%d, nodes=%d, retry=%d [time=%.3f]",
 	   aggressive?"[aggressive] ":"", curve.size(), finished, delayed_scenarios.size(), cumulative_length, next_iteration_length, 
-	   st_skim, st_fork, st_count, st_retry, (float)(t_start.msecsTo(QTime::currentTime())) / 1000);
+	   st.st_skim, st.st_fork, st.st_count, st.st_retry, (float)(t_start.msecsTo(QTime::currentTime())) / 1000);
 
 
   next_iteration_index = curve.size() + params.incremental_index_gap;
@@ -195,7 +191,7 @@ void IncrementalMatch::delayedScenariosFilter() {
 
     if (sc < min_score) {
 
-      st_skim ++;
+      st.st_skim ++;
       delayed_scenarios[i].die();
       DBG("filtering(size): %s (%.3f)", delayed_scenarios[i].scenario.getNameCharPtr(), delayed_scenarios[i].scenario.getScore());
 
@@ -285,20 +281,20 @@ void IncrementalMatch::incrementalNextKeys(Scenario &scenario, QList<DelayedScen
 bool IncrementalMatch::evalChildScenario(Scenario &scenario, LetterNode &childNode, QList<DelayedScenario> &result, bool finished) {
   /* evaluate a scenario (temporary score + create child scenario) using the standard (non-incremental) code */
 
-  st_count += 1;
+  st.st_count += 1;
   if (childNode.hasPayload() && scenario.getCount() >= 1 && finished) {
     QList<Scenario> tmpList;
-    scenario.childScenario(childNode, true, candidates, st_fork); // finished scenarios are directly added to candidates list
+    scenario.childScenario(childNode, true, candidates, st.st_fork); // finished scenarios are directly added to candidates list
   }
   QList<Scenario> tmpList;
-  if (scenario.childScenario(childNode, false, tmpList, st_fork, ! finished)) {
+  if (scenario.childScenario(childNode, false, tmpList, st.st_fork, ! finished)) {
     foreach (Scenario scenario, tmpList) {
       incrementalNextKeys(scenario, result, finished);
     }
     return true;
   } else {
     // we are too close to the end of the curve, we'll have to retry later (only occurs when not finished)
-    st_retry += 1;
+    st.st_retry += 1;
     return false;
   }
 }
@@ -326,7 +322,7 @@ void IncrementalMatch::addPoint(Point point, int timestamp) {
   } else if (curve.size() >= next_iteration_index) {
     incrementalMatchUpdate(false);
   }
-  st_time = (int) timer.elapsed();
+  st.st_time = (int) timer.elapsed();
 }
 
 void IncrementalMatch::endCurve(int id) {

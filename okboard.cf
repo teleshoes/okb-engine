@@ -2,6 +2,11 @@
 
 [default]
 anisotropy_ratio = 1.5
+cat_window = 12
+cls_second_chance = 0.07
+cls_threshold0 = 0.1
+cls_threshold1 = 0.8
+cls_threshold2 = 0.9
 cos_max_gap = 100
 curve_dist_threshold = 85
 curve_score_min_dist = 50
@@ -28,11 +33,15 @@ score_pow = 1
 sharp_turn_penalty = 0.6
 slow_down_ratio = 1.5
 small_segment_min_score = 0.2
-speed_max_index_gap = 3	 
+speed_max_index_gap = 5
 speed_min_angle = 15		   
 speed_penalty = 0.5
 st2_max = 170
 st2_min = 130
+tgt_coef = 0.2
+tgt_coef_invert = 0.05
+tgt_max_angle = 15
+tgt_min_angle = 15
 tip_small_segment = .05
 turn_distance_ratio = 1.0
 turn_distance_threshold = 45

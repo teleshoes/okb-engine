@@ -491,15 +491,19 @@ class Predict:
     def guess(self, matches, correlation_id = -1, speed = -1):
         """ main entry point for predictive guess """
 
+        class word_score:
+            def __init__(self, score, cls, star): 
+                (self.score, self.cls, self.star) = (score, cls, star)
+
         words = dict()
         for x in matches:
-            for y in x[2].split(','):
+            for y in x[4].split(','):
                 word = x[0] if y == '=' else y
-                words[word] = x[1]
+                words[word] = word_score(x[1], x[2], x[3])
 
         if not self.db:
             # in case we have no prediction DB (this case is probably useless)
-            self.predict_list = sorted(words.keys(), key = lambda x: words[x], reverse = True)
+            self.predict_list = sorted(words.keys(), key = lambda x: words[x].score, reverse = True)
             if self.predict_list: return self.predict_list.pop(0)
             return None
 
@@ -524,12 +528,12 @@ class Predict:
             score_predict, detail_score = scores.get(word, (None, dict()))
 
             # overall score
-            score = words[word]
+            score = words[word].score
             score_predict = (math.log10(score_predict) + 8 if score_predict > 1E-8 else 0) / 8  # [0, 1]
             score += coef_score_predict * score_predict
             if word[0].isupper(): score -= coef_score_upper
             if word.find("'") > -1 or word.find("-") >  1: score -= coef_score_sign
-            message = "score[%s]: %.3f + %.3f[%s] --> %.3f" % (word, words[word], score_predict, detail_score, score)
+            message = "score[%s]: %.3f[%d%s] + %.3f[%s] --> %.3f" % (word, words[word].score, words[word].cls, "*" if words[word].star else "", score_predict, detail_score, score)
             lst.append((word, score, message))
 
         lst.sort(key = lambda x: x[1], reverse = True)

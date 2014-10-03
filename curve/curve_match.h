@@ -148,6 +148,9 @@ class Scenario {
   score_t avg_score;
   score_t min_score;
 
+  int result_class;
+  bool star;
+
  private:
   float calc_distance_score(unsigned char letter, int index, int count);
   float calc_cos_score(unsigned char prev_letter, unsigned char letter, int index, int new_index);
@@ -183,9 +186,18 @@ class Scenario {
   bool forkLast();
   int getCurveIndex();
   void getDetailedScores(score_t &avg, score_t &min) const;
+  void setClass(int cls) { result_class = cls; };
+  int getClass() { return result_class; };
+  void setStar(bool value) { star = value; };
+  int getStar() { return star; }
 
   void toJson(QJsonObject &json);
 };
+
+typedef struct {
+  int st_time, st_count, st_fork, st_skim;
+  int st_speed, st_special, st_retry;
+} stats_t;
 
 /* main processing for curve matching */
 class CurveMatch {
@@ -197,7 +209,6 @@ class CurveMatch {
   Params params;
   LetterTree wordtree;
   bool loaded;
-  int st_time, st_count, st_fork, st_skim;
   QString treeFile;
   QString logFile;
   QTime startTime;
@@ -205,6 +216,8 @@ class CurveMatch {
   bool debug;
   bool done;
   int max_speed;
+
+  stats_t st;
 
   void scenarioFilter(QList<Scenario> &scenarios, float score_ratio, int min_size, int max_size = -1, bool finished = false);
   void curvePreprocess1(int last_curve_index = -1);

@@ -58,8 +58,6 @@ class IncrementalMatch : public CurveMatch {
 
   QElapsedTimer timer;
 
-  int st_retry;
-
   QuickCurve quickCurve;
   QuickKeys quickKeys;
 

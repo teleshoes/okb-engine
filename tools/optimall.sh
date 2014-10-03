@@ -2,7 +2,7 @@
 
 cd `dirname "$0"`
 (
-    for sc in max max2 stddev ; do
+    for sc in max max2 stddev cls ; do
 	echo "./optim.py $sc > /tmp/okboard-optim-$sc.log"
     done 
 ) | parallel
