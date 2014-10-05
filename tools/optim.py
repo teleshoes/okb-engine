@@ -214,11 +214,8 @@ def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, s
     runall = []
     inj = dict()
     wordk = dict()
-    for (word, json_in, lang) in tests:
-        key, i = word, 0
-        while key in wordk:
-            i += 1
-            key = "%s.%d" % (word, i)
+    for (word, json_in, lang, test_id) in tests:
+        key = test_id
         wordk[key] = word
         inj[word] = json_in
         log1("# %s (%s)" % (word, lang))
@@ -315,7 +312,7 @@ def load_tests():
     l = os.listdir(TEST_DIR)
     for fname in [ x for x in l if x[-5:] == '.json']:
         lang = "en"
-        letters = fname[:-5]  # unicode()
+        test_id = letters = fname[:-5]  # remove ".json"
 
         mo = re.match('^([a-z][a-z])\-(.*)', letters)
         if mo: lang, letters = mo.group(1), mo.group(2)
@@ -323,7 +320,7 @@ def load_tests():
         letters = ''.join(c for c in unicodedata.normalize('NFD', letters) if unicodedata.category(c) != 'Mn')
         letters = re.sub(r'[^a-z]', '', letters.lower())
         letters = re.sub(r'(.)\1+', lambda m: m.group(1), letters)
-        tests.append((letters, open(os.path.join(TEST_DIR, fname)).read(), lang))
+        tests.append((letters, open(os.path.join(TEST_DIR, fname)).read(), lang, test_id))
 
     tests.sort(key = lambda x: x[0])
     return tests
