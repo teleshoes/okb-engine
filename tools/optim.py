@@ -193,7 +193,7 @@ def score1(json_str, expected, typ):
         score = 0.5 * (score_ref - (average + stddev))
         if star_count > 0:
             if not starred: score -= .5
-            else: score += 0.5 - 0.5 * star_count / 4
+            else: score += 0.5 / (1.0 + star_count / 2)
 
     elif typ.startswith("max"):
         if score_ref >= max_score:
