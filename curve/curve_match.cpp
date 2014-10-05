@@ -869,8 +869,8 @@ void Scenario::calc_turn_score_all() {
   int turn_count = 0;
 
   int i0 = 1;
-  char typ_exp[count];
-  char typ_act[count];
+  int typ_exp[count];
+  int typ_act[count];
   memset(&typ_exp, 0, sizeof(typ_exp));
   memset(&typ_act, 0, sizeof(typ_act));
 
