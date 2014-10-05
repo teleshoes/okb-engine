@@ -112,16 +112,16 @@ static Params default_params = {
   0.5, // speed_penalty
   170, // st2_max
   130, // st2_min
-  0.2, // tgt_coef
-  0.05, // tgt_coef_invert
+  0.1, // tgt_coef
+  0.2, // tgt_coef_invert
   15, // tgt_max_angle
-  15, // tgt_min_angle
+  23, // tgt_min_angle
   0.05, // tip_small_segment
   1.0, // turn_distance_ratio
   45, // turn_distance_threshold
   20, // turn_max_angle
   10, // turn_min_angle
-  75, // turn_optim
+  120, // turn_optim
   120, // turn_separation
   75, // turn_threshold
   140, // turn_threshold2
