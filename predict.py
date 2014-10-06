@@ -265,12 +265,12 @@ class Predict:
                 user_count = user_replace = last_time = 0
 
             elif current_day > last_time:
-                # data ageing            
+                # data ageing
                 coef = math.exp(-0.7 * (current_day - last_time) / float(half_life))
                 user_count *= coef
                 user_replace *= coef
                 last_time = current_day
-            
+
             # action
             if action:
                 user_count += 1
@@ -284,14 +284,15 @@ class Predict:
         self.db.set_grams(todo)
 
         t = int((time.time() - t0) * 1000)
-        self.log("Commit: Lines updated:", len(todo), "elapsed:", t, "db_time:", int(1000 * self.db.timer), "db_count:", self.db.count, "cache:", len(self.db.cache))        
+        self.log("Commit: Lines updated:", len(todo), "elapsed:", t,
+                 "db_time:", int(1000 * self.db.timer), "db_count:", self.db.count, "cache:", len(self.db.cache))
 
     def _learn(self, add, word, context, replaces = None, silent = False):
         now = int(time.time())
 
         try:
             pos = context.index('#START')
-            context = context[0:pos+1]
+            context = context[0:pos + 1]
         except:
             pass  # #START not found, this is not an error
 
@@ -308,7 +309,7 @@ class Predict:
                 key2 = '_'.join(([ replaces ] + context)[0:3])
                 self.learn_history[key2] = (False, [ replaces ] + context, now)  # add replacement occurence (failed prediction)
         else:
-            if key in self.learn_history and self.learn_history[key] == False:
+            if key in self.learn_history and not self.learn_history[key][0]:
                 pass  # don't remove word replacements
             else:
                 self.learn_history.pop(key, None)
@@ -324,7 +325,7 @@ class Predict:
         if pos == -1: return  # disable recording if not in a real text box
 
         def only_current_sentence(text):
-            return re.sub(r'[\.\!\?]', ' #START ', text);
+            return re.sub(r'[\.\!\?]', ' #START ', text)
 
         list_before = [ x for x in re.split(r'[^\w\'\-\#]+', only_current_sentence(self.last_surrounding_text)) if x ]
         list_after = [ x for x in re.split(r'[^\w\'\-\#]+', only_current_sentence(self.surrounding_text)) if x ]
@@ -360,13 +361,13 @@ class Predict:
             # word removed
             word = list_before[0]
             if (begin or end) or word == self.preedit:
-                # we "un-learn" words only when sentence is not empty (to distinguish a removal from a jump to another location) 
-                # or if the word removed has been made into a preedit 
+                # we "un-learn" words only when sentence is not empty (to distinguish a removal from a jump to another location)
+                # or if the word removed has been made into a preedit
                 #  (^^^ this last tests depends on the preedit change notification is sent before surrounding text one)
                 self._learn(False, word, context, silent = not verbose)
 
                 # @todo if there is text following removed word, learn [ context + following word ] (only n-grams with n >= 2)
-            
+
         elif len(list_before) == 1 and len(list_after) == 1:
             # word replaced
             word1 = list_before[0]
@@ -403,7 +404,10 @@ class Predict:
 
     def _get_last_words(self, count, include_preedit = True):
         """ internal method : compute list of last words for n-gram scoring """
-        if self.cursor_pos == -1: return [] # no context available -> handle this as isolated words instead of the beginning of a new sentence (so no #START)
+
+        # if no context available, handle this as isolated words instead of the beginning of a new sentence (so no #START)
+        if self.cursor_pos == -1: return []
+
         text_before = self.surrounding_text[0:self.cursor_pos] + (" " + self.preedit) if include_preedit else ""
         pos = text_before.find('.')
         if pos > -1: text_before = text_before[pos + 1:]
@@ -492,7 +496,7 @@ class Predict:
         """ main entry point for predictive guess """
 
         class word_score:
-            def __init__(self, score, cls, star): 
+            def __init__(self, score, cls, star):
                 (self.score, self.cls, self.star) = (score, cls, star)
 
         words = dict()
@@ -533,7 +537,10 @@ class Predict:
             score += coef_score_predict * score_predict
             if word[0].isupper(): score -= coef_score_upper
             if word.find("'") > -1 or word.find("-") >  1: score -= coef_score_sign
-            message = "score[%s]: %.3f[%d%s] + %.3f[%s] --> %.3f" % (word, words[word].score, words[word].cls, "*" if words[word].star else "", score_predict, detail_score, score)
+            message = "score[%s]: %.3f[%d%s] + %.3f[%s] --> %.3f" % (word,
+                                                                     words[word].score, words[word].cls,
+                                                                     "*" if words[word].star else "",
+                                                                     score_predict, detail_score, score)
             lst.append((word, score, message))
 
         lst.sort(key = lambda x: x[1], reverse = True)
