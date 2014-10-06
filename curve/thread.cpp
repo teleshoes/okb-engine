@@ -176,6 +176,9 @@ void CurveThread::run() {
 
       } else if (point.x == CMD_QUIT) {
 	logdebug("thread exiting ...");
+	mutex.lock();
+	setIdle(true);
+	mutex.unlock();
 	return;	
 
       } else {
@@ -192,6 +195,7 @@ void CurveThread::run() {
 }
 
 void CurveThread::setIdle(bool value) {
+  // this method must be called within a mutex.lock()
   if (value and ! idle) {
     idleCondition.wakeAll(); // wake up any parent thread waiting for idle	
   }  

@@ -75,6 +75,15 @@ void CurveKB::endCurveAsync(int id)
   callBack(curveMatch.getCandidates());
 #endif /* THREAD */
 }
+
+void CurveKB::resetCurve()
+{
+#ifdef THREAD
+  thread.clearCurve();
+#else
+  curveMatch.clearCurve();
+#endif /* THREAD */
+}
  
 void CurveKB::sendSignal(QList<Scenario> &candidates) 
 {

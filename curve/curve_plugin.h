@@ -48,6 +48,7 @@ class CurveKB : public QObject {
     Q_INVOKABLE void addPoint(int x, int y);
     Q_INVOKABLE void endCurve(int id);
     Q_INVOKABLE void endCurveAsync(int id);
+    Q_INVOKABLE void resetCurve();
 
     Q_INVOKABLE void loadKeys(QVariantList list);
     Q_INVOKABLE bool loadTree(QString fileName);
