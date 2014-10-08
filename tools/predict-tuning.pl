@@ -103,48 +103,48 @@ sub get_gram_proba {
 
 sub eval_interpolate {
     my($gram1, $gram2, $gram3, $grams, $params) = @_;
-    my($lambda1, $lambda2) = @$params;
+    my($lambda2, $lambda1) = @$params;
     
     my $p3 = get_gram_proba($grams, $gram3, 1);
     my $p2 = get_gram_proba($grams, $gram2, 1);
     my $p1 = get_gram_proba($grams, $gram1, 1);
     
     if ($gram3) {
-	return $p3 * (1 - $lambda1 - $lambda2) + $lambda1 * $p2 + $lambda2 * $p1;
+	return $p3 * (1 - $lambda1 - $lambda2) + $lambda2 * $p2 + $lambda1 * $p1;
     } 
     
     if ($gram2) { # normalize 2-words context to [0,1]
-	my $lambda = ($lambda1 < $lambda2)?($lambda1 / $lambda2):1;
-	return $p2 * (1 - $lambda) + $lambda;
+	return ($p2 * $lambda2 + $p1 * $lambda1) / ($lambda2 + $lambda1);
     }
     
     return $p1;
 }
 
-sub eval_backoff {
-    # @@@@ oops, i just realized that perplexity is useless with my "backoff-with-fake-smoothing" ... :-)
-
-    my($gram1, $gram2, $gram3, $grams, $params) = @_;
-    my($alpha1, $alpha2) = @$params;
-    
-    my $p3 = get_gram_proba($grams, $gram3);
-    my $p2 = get_gram_proba($grams, $gram2);
-    my $p1 = get_gram_proba($grams, $gram1, 1);
-    
-    if ($gram3) {
-    	if ($p3) { return $p3; }
-	if ($p2) { return $alpha1 * $p2; }
-    	return $alpha2 * $p1;
-    }
-    
-    if ($gram2) {
-	if ($p2) { return $p2; }
-	my $alpha = ($alpha1 < $alpha2)?($alpha1 / $alpha2):1;
-	return $alpha * $p1;
-    } 
-    
-    return $p1;
-}
+# @@@@ oops, i just realized that perplexity is useless with my "backoff-with-fake-smoothing" ... :-)
+#sub eval_backoff {
+#    
+#
+#    my($gram1, $gram2, $gram3, $grams, $params) = @_;
+#    my($alpha1, $alpha2) = @$params;
+#    
+#    my $p3 = get_gram_proba($grams, $gram3);
+#    my $p2 = get_gram_proba($grams, $gram2);
+#    my $p1 = get_gram_proba($grams, $gram1, 1);
+#    
+#    if ($gram3) {
+#    	if ($p3) { return $p3; }
+#	if ($p2) { return $alpha1 * $p2; }
+#    	return $alpha2 * $p1;
+#    }
+#    
+#    if ($gram2) {
+#	if ($p2) { return $p2; }
+#	my $alpha = ($alpha1 < $alpha2)?($alpha1 / $alpha2):1;
+#	return $alpha * $p1;
+#    } 
+#    
+#    return $p1;
+#}
 
 sub evaluate {
     my ($grams, $test, $eval_func, $params) = @_;
@@ -176,7 +176,7 @@ if ($optim) {
     # crude gradient descent
 
     # please tune this by hand if values are not good
-    my $DELTA = 0.01;
+    my $DELTA = 0.001;
     my $COEF = 0.1;
 
     while(1) { # you'll have to Ctrl-C when happy with the result
