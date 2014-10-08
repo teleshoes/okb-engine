@@ -12,11 +12,13 @@ import gzip
 import re
 import getopt
 
-debug = False
-opts, args =  getopt.getopt(sys.argv[1:], 'd')
+debug = clean = False
+opts, args =  getopt.getopt(sys.argv[1:], 'cd')
 for o, a in opts:
     if o == "-d":
         debug = True
+    elif o == "-c":
+        clean = True
     else:
         print("Bad option: %s", o)
         exit(1)
@@ -27,17 +29,20 @@ if len(args) < 1:
     print(" words not included in dictionary file are ignored (text file, one word per line)")
     print(" result is written as semicolon separated CSV to stdout")
     print(" option -d only outputs cleaned sentences (for debug)")
+    print(" option -c outputs cleaned sentences (one per lines)")
     exit(255)
 
 dictfile = args[0]
 
 class CorpusImporter:
-    def __init__(self, debug = False):
+    def __init__(self, debug = False, clean = False):
         self.grams = dict()
         self.sentence = []
         self.word_used = set()
         self.size = 0
         self.debug = debug
+        self.clean = clean
+        self.dejavu = set()
 
     def load_words(self, words):
         id = 2
@@ -99,8 +104,13 @@ class CorpusImporter:
     def next_sentence(self):
         if not self.sentence: return
         sentence = self.sentence
+        txt = ' '.join(sentence)
         if self.debug: print("WORDS:", sentence)
+        if self.clean and sentence != [ '#ERR' ]: print(txt)
         self.sentence = [ ]
+
+        if txt in self.dejavu: return
+        self.dejavu.add(txt)
 
         roll = [ '#START' ] * 3
         if sentence[0] == '#ERR':
@@ -153,7 +163,7 @@ class CorpusImporter:
             print("%d;%s" % (count, key))
 
 # 1) load dictionary
-ci = CorpusImporter(debug = debug)
+ci = CorpusImporter(debug = debug, clean = clean)
 if dictfile[-3:] == '.gz': f = gzip.open(dictfile)
 else: f = open(dictfile)
 ci.load_words(f.readlines())
@@ -171,4 +181,4 @@ while line:
         last = now
 
 # 3) result to stdout CSV
-if not debug: ci.print_grams()
+if not debug and not clean: ci.print_grams()
