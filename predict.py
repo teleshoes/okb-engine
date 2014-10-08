@@ -22,6 +22,14 @@ class SqliteBackend:
         self.cache['#NA'] = -1
         self.cache['#START'] = -3
 
+        # fetch parameters
+        self.params = dict()
+        sql = 'SELECT key, value FROM params'
+        curs = self.conn.cursor()
+        curs.execute(sql)
+        for (key, value) in curs.fetchall():
+            self.params[key] = float(value)
+
     def clear_stats(self):
         self.timer =  self.count = 0
 
@@ -207,7 +215,7 @@ class Predict:
         self.db.clear_stats()
 
         current_day = int(time.time() / 86400)
-        half_life = self.cf('learning_half_life', 180)
+        half_life = self.cf('learning_half_life', 180, int)
 
         if commit_all:
             learn = self.learn_history.keys()
@@ -452,8 +460,8 @@ class Predict:
         todo = dict()
         ids_list = set()
         for word in words:
+            result[word] = (0, dict())
             if word not in word2id:  # unknown word -> dummy scoring
-                result[word] = (0, {})
                 continue
             wid = word2id[word]
 
@@ -466,27 +474,52 @@ class Predict:
         # request
         sqlresult = self.db.get_grams(ids_list)
 
+        # initialize parameters
+        lambda2 = self.db.params.get('lambda2', self.cf('default_lambda2', 0.5, float))
+        lambda1 = self.db.params.get('lambda1', self.cf('default_lambda1', 0.05, float))
+        lambda3 = 1 - lambda1 - lambda2
+
         # process request result & compute scores
+        current_day = int(time.time() / 86400)
+        half_life = self.cf('learning_half_life', 180)
+
         for word in todo:
-            scores = dict()
+            score = dict()
+            detail = dict()
             for score_id in todo[word]:
                 num_id, den_id = todo[word][score_id]
-                num = sqlresult.get(num_id, [ None ])
+                num = sqlresult.get(num_id, None)
                 if not num: continue
-                den = sqlresult.get(den_id, [ None ])
+                den = sqlresult.get(den_id, None)
                 if not den: continue
 
                 # stock stats
-                if word not in result: result[word] = dict()
-                stock_num, stock_den = num[0], den[0]
-                if stock_num and stock_den:
-                    scores[score_id] = 1.0 * stock_num / stock_den
+                (stock_count, user_count, user_replace, last_time) = num
+                (total_stock_count, total_user_count, dummy1, dummy2) = den
+                
+                stock_proba = 1.0 * stock_count / total_stock_count if total_stock_count > 0 else 0
+                user_proba = 1.0 * user_count / total_user_count if total_user_count > 0 else 0
+                replace_proba = 1.0 * user_replace / total_user_count if total_user_count > 0 else 0
 
-                # user stats
-                # @todo
+                age_coef = math.exp(-0.7 * (current_day - last_time) / float(half_life))
 
-            # select score for the N-gram with the largest "N" (cf. Jurasky & Martin §4.6 : simple backoff)
-            result[word] = (scores.get("s3", None) or scores.get("s2", None) or scores.get("s1", None) or 0, scores)
+                # final score for current N value
+                score[score_id] = stock_proba
+
+                # only for logging
+                detail[score_id] = "stock=%.2e[%d/%d] user=%.2e[%d/%d] age=%d" % (stock_proba, stock_count, total_stock_count,
+                                                                                  user_proba, user_count, total_user_count,
+                                                                                  current_day - last_time)
+
+            # use linear interpolation between probabilities for each N value (cf. Jurasky & Martin §4.6: interpolation)
+            if "s3" in score:
+                final_score = lambda1 * score["s1"] + lambda2 * score["s2"] + lambda3 * score["s3"]
+            elif "s2" in score:  # context size is 2 (e.g. first word in a sentence)
+                final_score = (lambda1 * score["s1"] + lambda2 * score["s2"]) / (lambda1 + lambda2)
+            else: # context size in 1 (e.g. first word after an unknown word)
+                final_score = score["s1"]
+
+            result[word] = (final_score, detail)
 
         self.recent_contexts = self.recent_contexts[1:10] + [ (word, list(self.last_words)) ]
 
