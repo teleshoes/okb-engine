@@ -296,6 +296,8 @@ class Predict:
                  "db_time:", int(1000 * self.db.timer), "db_count:", self.db.count, "cache:", len(self.db.cache))
 
     def _learn(self, add, word, context, replaces = None, silent = False):
+        if not self.db: return
+
         now = int(time.time())
 
         try:
@@ -496,7 +498,7 @@ class Predict:
                 # stock stats
                 (stock_count, user_count, user_replace, last_time) = num
                 (total_stock_count, total_user_count, dummy1, dummy2) = den
-                
+
                 stock_proba = 1.0 * stock_count / total_stock_count if total_stock_count > 0 else 0
                 user_proba = 1.0 * user_count / total_user_count if total_user_count > 0 else 0
                 replace_proba = 1.0 * user_replace / total_user_count if total_user_count > 0 else 0
@@ -512,6 +514,7 @@ class Predict:
                                                                                   current_day - last_time)
 
             # use linear interpolation between probabilities for each N value (cf. Jurasky & Martin §4.6: interpolation)
+            final_score = None
             if "s3" in score:
                 final_score = lambda1 * score["s1"] + lambda2 * score["s2"] + lambda3 * score["s3"]
             elif "s2" in score:  # context size is 2 (e.g. first word in a sentence)
@@ -519,7 +522,7 @@ class Predict:
             else: # context size in 1 (e.g. first word after an unknown word)
                 final_score = score["s1"]
 
-            result[word] = (final_score, detail)
+            if final_score: result[word] = (final_score, detail)  # we need smoothing
 
         self.recent_contexts = self.recent_contexts[1:10] + [ (word, list(self.last_words)) ]
 
@@ -536,7 +539,7 @@ class Predict:
         for x in matches:
             for y in x[4].split(','):
                 word = x[0] if y == '=' else y
-                words[word] = word_score(x[1], x[2], x[3])
+                words[word] = word_score(x[1], x[2], x[3])  # score, class, star
 
         if not self.db:
             # in case we have no prediction DB (this case is probably useless)
@@ -554,33 +557,54 @@ class Predict:
         self.log("ID: %d - Speed: %d - Context: %s - Matches: %s" %
                  (correlation_id, speed,  self.last_words, ','.join(words.keys())))
 
-        scores = self._get_all_predict_scores(words.keys())  # requests all scores using bulk requests
+        all_predict_proba = self._get_all_predict_scores(words.keys())  # requests all scores using bulk requests
 
         coef_score_predict = self.cf('score_predict', 0.6, float)
-        coef_score_upper = self.cf('score_upper', 0.2, float)
-        coef_score_sign = self.cf('score_sign', 0.1, float)
+        coef_score_upper = self.cf('score_upper', 0.05, float)
+        coef_score_sign = self.cf('score_sign', 0.05, float)
+
+        # not sure if this is a good idea: should be only activated in case of bad swipe ?
+        non_star_second_chance = self.cf('non_star_second_chance', 0.4, float)
+
+        starred_words = [ w for w in words if words[w].star ]
+        max_starred_score = max( [ words[w].score for w in starred_words ] ) if starred_words else 1
 
         lst = []
-        for word in scores:
-            score_predict, detail_score = scores.get(word, (None, dict()))
+        for word in words:
+            predict_proba, detail_predict = all_predict_proba.get(word, (0, dict()))
+
+            score_predict = (math.log10(predict_proba) + 8 if predict_proba > 1E-8 else 0) / 8  # [0, 1]
 
             # overall score
             score = words[word].score
-            score_predict = (math.log10(score_predict) + 8 if score_predict > 1E-8 else 0) / 8  # [0, 1]
             score += coef_score_predict * score_predict
             if word[0].isupper(): score -= coef_score_upper
             if word.find("'") > -1 or word.find("-") >  1: score -= coef_score_sign
             message = "score[%s]: %.3f[%d%s] + %.3f[%s] --> %.3f" % (word,
                                                                      words[word].score, words[word].cls,
                                                                      "*" if words[word].star else "",
-                                                                     score_predict, detail_score, score)
-            lst.append((word, score, message))
+                                                                     score_predict, detail_predict, score)
 
-        lst.sort(key = lambda x: x[1], reverse = True)
-        for word in lst: self.log(word[2])
+            # filter non-starred words (if there are any)
+            if starred_words and word not in starred_words and words[word].score < max_starred_score + non_star_second_chance: 
+                continue
 
-        self.predict_list = [ x[0] for x in lst ]
-        self.predict_list = self.predict_list[0:self.cf('max_predict', 30, int)]
+            words[word].message = message
+            words[word].final_score = score
+            words[word].predict_proba = predict_proba
+            words[word].word = word
+            lst.append(word)
+
+        lst.sort(key = lambda w: words[w].final_score, reverse = True)
+
+        max_score = words[lst[0]].final_score
+        lst = [ w for w in lst if words[w].final_score > max_score / 2 ]
+        if len(lst) > 5:
+            lst = lst[0:5] + [ w for w in lst[5:] if words[w].predict_proba > 0 ]
+
+        for w in lst: self.log(words[w].message)
+
+        self.predict_list = lst[0:self.cf('max_predict', 30, int)]
 
         if self.predict_list:
             word = self.predict_list.pop(0)
@@ -598,7 +622,13 @@ class Predict:
 
         self._commit_learn(commit_all = force_flush)
 
-        return len(self.learn_history) > 0
+        if self.db and not self.learn_history and len(self.db.cache) > self.cf("max_cache", 10000, int):
+            # emergency cache flush. @todo replace it with a proper LRU implementation
+            self.log("DB cache flush")
+            self.db.cache = dict()
+            self.refresh_db()
+
+        return len(self.learn_history) > 0  # ask to be called again later
 
     def close(self):
         """ Close all resources & flush data """
