@@ -64,3 +64,4 @@ weight_turn = 4
 [landscape]
 dist_max_start = 90
 dist_max_next = 110
+disable_orientation = 1
