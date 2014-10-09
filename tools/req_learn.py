@@ -3,7 +3,12 @@
 
 """ query to get learning information from predict DB """
 
-query = "select w1.word, w2.word, w3.word, g.stock_count, g.user_count, g.user_replace, g.last_time from words w1, words w2, words w3, grams g where g.id1 = w1.id and g.id2 = w2.id and g.id3 = w3.id and user_count > 0 order by w1.word, w2.word, w3.word"
+query = """
+select w1.word, w2.word, w3.word, g.stock_count, g.user_count, g.user_replace, g.last_time
+from words w1, words w2, words w3, grams g
+where g.id1 = w1.id and g.id2 = w2.id and g.id3 = w3.id and user_count > 0
+order by w1.word, w2.word, w3.word
+"""
 
 W_SIZE = 15
 
@@ -11,6 +16,7 @@ import sqlite3
 import getopt
 import sys
 import time
+import os
 
 opts, args =  getopt.getopt(sys.argv[1:], 'r')
 raw = False
@@ -22,7 +28,7 @@ for o, a in opts:
         exit(1)
 
 if len(args) < 1:
-    print("usage: ", os.path.basename(__file__), " <predict db file>")
+    print("usage:", os.path.basename(__file__), "<predict db file>")
     exit(1)
 
 conn = sqlite3.connect(args[0])
