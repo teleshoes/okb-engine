@@ -891,6 +891,14 @@ void Scenario::calc_turn_score_all() {
 	}
       }
 
+      /* step 1.5 :  "half soft turns */
+      for(int j = i0; j <= i; j++) {
+	if ((abs(a_expected[j]) > min_angle || abs(a_actual[j]) > min_angle) && a_expected[j] * a_actual[j] > 0) {
+	  int direction = (a_actual[j] > 0)?1:-1;
+	  typ_exp[j] = typ_act[j] = direction;
+	}
+      }
+
       /* step 2 : try to fill the gaps */
       for(int j = i0; j <= i; j++) {
 	if ((typ_exp[j] == 1 || typ_exp[j] == -1) && (typ_exp[j] == typ_act[j])) {
@@ -940,7 +948,7 @@ void Scenario::calc_turn_score_all() {
       }
 
       for(int j = i0; j <= i; j ++) {
-	DBG("  [score turn]  > turn point #%d %.2f[%d] %.2f[%d]", j, a_actual[j], typ_act[j], a_expected[j], typ_exp[j]);
+	DBG("  [score turn]  > turn point #%d:%c %.2f[%d] %.2f[%d]", j, letter_history[j], a_actual[j], typ_act[j], a_expected[j], typ_exp[j]);
       }
 
       /* step 4 : put everything together, calculate turns list and find unmatched turns */
