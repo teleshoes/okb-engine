@@ -167,6 +167,14 @@ class Predict:
         self.recent_contexts = []
         self.learn_history = dict()
         self.first_word = None
+        self.mock_time = None
+
+    def _mock_time(self, time):
+        self.mock_time = time
+
+    def _now(self):
+        if self.mock_time: return self.mock_time
+        return int(time.time())
 
     def cf(self, key, default_value, cast = None):
         """ "mockable" configuration """
@@ -221,7 +229,7 @@ class Predict:
         t0 = time.time()
         self.db.clear_stats()
 
-        current_day = int(time.time() / 86400)
+        current_day = int(self._now() / 86400)
         half_life = self.cf('learning_half_life', 180, int)
 
         if commit_all:
@@ -274,7 +282,7 @@ class Predict:
 
         # apply modifications
         for wids, action in todo.items():
-            values = grams.get(wids, [ 0, 0, 0, 0 ])  # default value for creating a new line in prediction database
+            values = grams.get(wids, (0, 0, 0, 0))  # default value for creating a new line in prediction database
             (stock_count, user_count, user_replace, last_time) = values
             if not last_time:
                 user_count = user_replace = last_time = 0
@@ -292,7 +300,7 @@ class Predict:
             else:
                 user_replace += 1
 
-            todo[wids] = (stock_count, user_count, user_replace, current_day)
+            grams[wids] = todo[wids] = (stock_count, user_count, user_replace, current_day)
             # self.log("learn update: [%s] %.2f:%.2f:%d" % (wids, user_count, user_replace, last_time))
 
         # store to database
@@ -368,7 +376,7 @@ class Predict:
                 self.first_word = word  # keep first word for later
             else:
                 if self.first_word and len(begin) == 1 and begin[0] == self.first_word:
-                    self._learn(True, word, [ '#START' ], silent = not verbose)  # delayed learning for first word
+                    self._learn(True, self.first_word, [ '#START' ], silent = not verbose)  # delayed learning for first word
                 self._learn(True, word, context, silent = not verbose)
 
             # @todo if there is text following new word "unlearn" it (only n-grams with n >= 2)
@@ -491,11 +499,12 @@ class Predict:
         lambda3 = 1 - lambda1 - lambda2
 
         # process request result & compute scores
-        current_day = int(time.time() / 86400)
-        half_life = self.cf('learning_half_life', 180, int)
+        current_day = int(self._now() / 86400)
 
         (global_stock_count, global_user_count) = sqlresult["-2:-1:-1"][0:2]  # grand total #NA:#NA:#TOTAL
         learning_count = self.cf('learning_count', 5000, int)
+        learning_count_min = self.cf('learning_count_min', 10, int)
+        learning_master_switch = self.cf('learning_enable', True, bool)
 
         for word in todo:
             score = dict()
@@ -514,25 +523,26 @@ class Predict:
                 stock_proba = 1.0 * stock_count / total_stock_count if total_stock_count > 0 else 0
 
                 # final score for current N value
-                if (user_count or user_replace) and global_user_count:
+                if (user_count or user_replace) and global_user_count and learning_master_switch:
                     # use information learned from user
 
-                    # usage of this context compared to stock corpus
-                    # > 1 if this context is more used than in stock
-                    # for 1-grams it's always 1
-                    if global_stock_count:
-                        context_usage = (total_user_count / global_user_count) / (total_stock_count / global_stock_count)
-                    else:
-                        context_usage = 1
+                    # usage of this context compared to the whole corpus
+                    # for 1-grams it's always 1, <= 1 otherwise
+                    context_usage = (total_user_count / global_user_count)
+                    if global_stock_count and total_stock_count:
+                        context_usage = math.sqrt(context_usage * (total_stock_count / global_stock_count))
 
                     # user text input is way smaller than stock corpus (predict.db) and
-                    coef_user = 1 - math.exp(-0.7 * total_user_count * context_usage / learning_count)
+                    coef_user = 1 - math.exp(-0.7 * total_user_count / max(learning_count_min, learning_count * context_usage))
 
-                    c = (1.0 * total_stock_count / total_user_count) * coef_user
-                    proba = (stock_count + c * (user_count - user_replace)) / (total_stock_count + c * total_user_count)
+                    c = max(1, 1.0 * total_stock_count / total_user_count) * coef_user
+                    if not total_stock_count: c = 1.0
+
+                    proba = ((stock_count + c * user_count * user_count / (user_count + user_replace))
+                             / (total_stock_count + c * total_user_count))
 
                     detail_append = (" user=[%d-%d/%d] age=%d [learn: ctx=%.2e coef=%.2e proba=%.2e->%.2e]" %
-                                     (context_usage, user_count, user_replace, total_user_count, current_day - last_time, coef_user, stock_proba, proba))
+                                     (user_count, user_replace, total_user_count, current_day - last_time, context_usage, coef_user, stock_proba, proba))
 
                 else:
                     # only use stock information
@@ -549,7 +559,7 @@ class Predict:
                 final_score = lambda1 * score["s1"] + lambda2 * score["s2"] + lambda3 * score["s3"]
             elif "s2" in score:  # context size is 2 (e.g. first word in a sentence)
                 final_score = (lambda1 * score["s1"] + lambda2 * score["s2"]) / (lambda1 + lambda2)
-            else: # context size in 1 (e.g. first word after an unknown word)
+            else:  # context size in 1 (e.g. first word after an unknown word)
                 final_score = score["s1"]
 
             if final_score: result[word] = (final_score, detail)  # we need smoothing
@@ -591,9 +601,9 @@ class Predict:
 
         # these settings are completely empirical (or just random guesses), and they probably depend on end user
         # @todo they should be auto-tuned (at least coef_score_predict)
-        coef_score_predict = self.cf('score_predict', 0.6, float)
-        coef_score_upper = self.cf('score_upper', 0.05, float)
-        coef_score_sign = self.cf('score_sign', 0.05, float)
+        coef_score_predict = self.cf('score_predict', 0.4, float)
+        coef_score_upper = self.cf('score_upper', 0.02, float)
+        coef_score_sign = self.cf('score_sign', 0.02, float)
 
         # not sure if this is a good idea: should be only activated in case of bad swipe ?
         non_star_second_chance = self.cf('non_star_second_chance', 0.4, float)
@@ -630,7 +640,6 @@ class Predict:
 
         lst.sort(key = lambda w: words[w].final_score, reverse = True)
 
-        max_score = words[lst[0]].final_score
         # lst = [ w for w in lst if words[w].final_score > max_score / 2 ]
         if len(lst) > 5:
             lst = lst[0:5] + [ w for w in lst[5:] if words[w].predict_proba > 0 ]
