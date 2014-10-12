@@ -51,11 +51,14 @@ if __name__ == "__main__":
     os.chdir(os.path.dirname(sys.argv[0]))
 
     dump_dir = None
-    opts, args =  getopt.getopt(sys.argv[1:], 'd:')
+    opts, args =  getopt.getopt(sys.argv[1:], 'd:n')
     listpara = None
+    save = True
     for o, a in opts:
         if o == "-d":
             dump_dir = a
+        elif o == "-n":
+            save = False
         else:
             print("Bad option: %s", o)
             exit(1)
@@ -80,7 +83,7 @@ if __name__ == "__main__":
               ' '.join([ c.var(w, s, "word.%s.%s" % (typ, w))
                          for (w, s) in sorted(detail.items()) ]))
 
-    c.save()
+    if save: c.save()
 
     if c.reg: print("Regression detected:", ' '.join(c.reg))
     # exit(1 if c.reg else 0)
