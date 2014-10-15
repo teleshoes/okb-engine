@@ -135,8 +135,13 @@ void ScoreCounter::add_bonus(float value, char *name) {
   line_total += value * weight;
   line_total_coefs += weight;
 
-  total_col[col] += value * current_line_coef;
-  total_coef_col[col] += current_line_coef;
+  if (col_weight[col] > 0) {
+    total_col[col] += value * current_line_coef;
+    total_coef_col[col] += current_line_coef;
+  } else {
+    total_col[col] += value;
+    total_coef_col[col] = 1;
+  }
   if (! min_col[col] || value < min_col[col]) { min_col[col] = value; }
 
   if (debug) {
@@ -207,6 +212,17 @@ float ScoreCounter::get_column_score(char *name) {
 float ScoreCounter::get_column_min_score(char *name) {
   int col = get_col(name);
   return min_col[col];
+}
+
+float ScoreCounter::get_min_score() {
+  float t = 0, tc = 0;
+  for(int col = 0; col < nb_cols; col++) {
+    if (total_coef_col[col] > 0) {
+      t += min_col[col] * abs(col_weight[col]);
+    }
+    tc += max(0, col_weight[col]);
+  }
+  return t/tc;
 }
 
 void ScoreCounter::update_dbg_line(QString text, int col, int) {

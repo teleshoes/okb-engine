@@ -25,6 +25,7 @@ class ScoreCounter {
   float get_score();
   float get_column_score(char *);
   float get_column_min_score(char *);
+  float get_min_score();
 
   QTextStream line_label;
 
