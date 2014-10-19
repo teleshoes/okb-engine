@@ -1,7 +1,11 @@
 #! /bin/sh
 
-HOST=192.168.2.16 # <- my jolla usb ip address
+[ -f "$HOME/.okboard-test" ] && . $HOME/.okboard-test
+
 d=`dirname "$0"`
+host=${OKBOARD_REMOTE_HOST:-jolla} # <- my jolla hostname/ip address
 tmp=`mktemp /tmp/curvekb.XXXXXX.html`
-ssh nemo@$HOST 'tail -n 10 souk/okboard/curve.log | grep "^OUT:" | tail -n 1' | sed 's/^OUT:\ *//' | $d/jsonresult2html.py > $tmp && firefox "$tmp"
+L="${OKBOARD_TEST_DIR:-/tmp}/curve.log"
+
+ssh "nemo@$host" "( [ -f $L.bak ] && tail -n 10 $L.bak ; [ -f $L ] && tail -n 10 $L ) | grep \"^OUT:\" | tail -n 1" | sed 's/^OUT:\ *//' | $d/jsonresult2html.py > $tmp && firefox "$tmp"
 
