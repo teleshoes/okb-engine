@@ -79,7 +79,7 @@ if __name__ == "__main__":
         detail = dict()
         score = optim.run_all(tests, params, typ, fail_on_bad_score = False, return_dict = detail, silent = True, dump = dump_dir)
 
-        print("score", c.var(typ, score, "score.%s" % typ, noreg = True),
+        print("### score", c.var(typ, score, "score.%s" % typ, noreg = True),
               ' '.join([ c.var(w, s, "word.%s.%s" % (typ, w))
                          for (w, s) in sorted(detail.items()) ]))
 

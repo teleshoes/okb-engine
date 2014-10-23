@@ -205,8 +205,10 @@ body.span(" ")
 body.img(src = mkspeedgraph(sx = 500, sy = 250, use_length = True), border = '0')
 
 body.p(font_size="-2").i("Word tree file: %s" % input["treefile"]).br. \
-    i("Time: %d ms - Matches: %d - Nodes: %d - Points: %d - Draw time: %d ms [%s]" %
-      (js["stats"]["time"], len(candidates), js["stats"]["count"], len(curve), curve[-1]["t"] - curve[0]["t"], js["ts"]))
+    i("Time: %d ms - Matches: %d - Nodes: %d - Points: %d - Draw time: %d ms [%s] - Build: [%s]" %
+      (js["stats"]["time"], len(candidates), js["stats"]["count"], len(curve), curve[-1]["t"] - curve[0]["t"], js["ts"],
+       js.get("build", "unknown")))
+
 
 # params
 params = sorted(input["params"].items())
@@ -249,6 +251,9 @@ if candidates:
     hr = t.tr
     hr0.td(bgcolor="#C0FFC0", rowspan="2").font("Word", size="-2")
     hr0.td(bgcolor="#C0FFC0", rowspan="2").font("Score", size="-2")
+    hr0.td(bgcolor="#C0FFC0", rowspan="2").font("Min", size="-2")
+    hr0.td(bgcolor="#C0FFC0", rowspan="2").font("Err", size="-2")
+    hr0.td(bgcolor="#C0FFC0", rowspan="2").font("Gd", size="-2")
     for typ in [ "avg_score", "min_score" ]:
         hr0.td(bgcolor="#C0FFC0", colspan = str(len(scores)), align = "center").font(typ, size="-2")
         for sc in scores: hr.td(align = "center", bgcolor="#C0FFC0").font(re.sub(r'^score_', '', sc), size="-2")
@@ -257,6 +262,9 @@ if candidates:
         tr = t.tr
         tr.td(align = "center").font(scenario["name"], size="-2")
         tr.td(align = "center").font(clean_value(scenario["score"]), size="-2")
+        tr.td(align = "center").font(clean_value(scenario["min_total"]), size="-2")
+        tr.td(align = "center").font(clean_value(scenario.get("error", "")), size="-2")
+        tr.td(align = "center").font(clean_value(scenario.get("good", "")), size="-2")
         for typ in [ "avg_score", "min_score" ]:
             for sc in scores: tr.td(align = "center").font(clean_value(scenario[typ][sc]), size="-2")
         tr.td(align = "center").font(str(scenario.get("class", "?")) + ("*" if scenario.get("star") else ""), size="-2")

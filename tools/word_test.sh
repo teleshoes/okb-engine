@@ -16,6 +16,6 @@ echo "$word" | $dir/tools/loadkb.py "$tre"
 
 export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$dir/curve/build"
 
-$dir/cli/build/cli -d "$tre" "$test" 2>&1 | grep -vi '^Result:'
+$dir/cli/build/cli ${CLI_OPTS} -d "$tre" "$test" 2>&1 | grep -vi '^Result:'
 
 rm -f "$tre"
