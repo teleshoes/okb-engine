@@ -36,6 +36,17 @@ class SqliteBackend:
         self.get_words(['#TOTAL', '#NA', '#START'], use_cache = False)
         self.get_grams(["-2:-1:-1", "-2:-3:-1" ], use_cache = False)
 
+    def set_param(self, key, value):
+        if key in self.params:
+            sql = 'UPDATE params SET value = ? WHERE key = ?'
+        else:
+            sql = 'INSERT INTO params (value, key) VALUES (?, ?)'
+        curs = self.conn.cursor()
+        curs.execute(sql, (value, key))
+        self.conn.commit()
+
+        self.params[key] = float(value)
+
     def clear_stats(self):
         self.timer =  self.count = 0
 
@@ -168,6 +179,10 @@ class Predict:
         self.learn_history = dict()
         self.first_word = None
         self.mock_time = None
+        self.guess_history = dict()
+        self.coef_score_predict = 0
+
+        self.mod_ts = time.ctime(os.stat(__file__).st_mtime)
 
     def _mock_time(self, time):
         self.mock_time = time
@@ -215,6 +230,11 @@ class Predict:
                 self.db = SqliteBackend(self.dbfile)
                 self.log("DB open OK:", self.dbfile)
                 self.refresh_db()
+
+                if "predict_coef" in self.db.params:
+                    self.coef_score_predict = self.db.params["predict_coef"]
+                else:
+                    self.coef_score_predict = self.cf('default_score_predict', 0.4, float)
 
             else:
                 self.log("DB not found:", self.dbfile)
@@ -415,6 +435,35 @@ class Predict:
 
         self._learn(True, new, self.last_words, replaces = old)
 
+        if not self.cf('predict_auto_tune', True, bool): return
+
+        # use replacement information to auto-tune prediction weight
+        oldkey = ':'.join([ old ] + self.last_words[:2])
+        if oldkey in self.guess_history:
+            gh = self.guess_history[oldkey]
+            if new not in gh["words"]: return  # should not happen
+            infonew = gh["words"][new]
+            infoguess = gh["words"][gh["guess"]]
+
+            increase = decrease = False
+            if infoguess.score_predict < infonew.score_predict:
+                increase = True
+            if infoguess.score_no_predict < infonew.score_no_predict:
+                decrease = True
+
+            if increase != decrease:
+                name, sign = ("increase", 1) if increase else ("decrease", -1)
+
+                self.coef_score_predict += sign * self.cf("score_predict_tune_increment", 0.003, float)
+                self.coef_score_predict = max(0.001, min(1, self.coef_score_predict))
+                self.log("Replacement [%s -> %s] - Predict coef %s, new value: %.3f" %
+                         (old, new, name, self.coef_score_predict))
+
+                self.db.set_param("predict_coef", self.coef_score_predict)
+
+            newkey = ':'.join([ new ] + self.last_words[:2])
+            self.guess_history[newkey] = gh
+
     def get_predict_words(self):
         """ return prediction list, in a format suitable for QML ListModel """
         return [ { "text": word } for word in self.predict_list ]
@@ -505,6 +554,7 @@ class Predict:
         learning_count = self.cf('learning_count', 5000, int)
         learning_count_min = self.cf('learning_count_min', 10, int)
         learning_master_switch = self.cf('learning_enable', True, bool)
+        no_gram_penalty = self.cf('no_gram_penalty', 1.0, float)
 
         for word in todo:
             score = dict()
@@ -523,7 +573,8 @@ class Predict:
                 stock_proba = 1.0 * stock_count / total_stock_count if total_stock_count > 0 else 0
 
                 # final score for current N value
-                if (user_count or user_replace) and global_user_count and learning_master_switch:
+                if (user_count or user_replace) and total_user_count \
+                and global_user_count and learning_master_switch:
                     # use information learned from user
 
                     # usage of this context compared to the whole corpus
@@ -539,7 +590,8 @@ class Predict:
                     if not total_stock_count: c = 1.0
 
                     proba = ((stock_count + c * user_count * user_count / (user_count + user_replace))
-                             / (total_stock_count + c * total_user_count))
+                             / (total_stock_count + c * total_user_count + learning_count))
+                    # ^^^ learning count in denominator is for smoothing in case of word not in stock
 
                     detail_append = (" user=[%d-%d/%d] age=%d [learn: ctx=%.2e coef=%.2e proba=%.2e->%.2e]" %
                                      (user_count, user_replace, total_user_count, current_day - last_time, context_usage, coef_user, stock_proba, proba))
@@ -554,15 +606,21 @@ class Predict:
                 detail[score_id] = "stock=%.2e[%d/%d]%s" % (stock_proba, stock_count, total_stock_count, detail_append)
 
             # use linear interpolation between probabilities for each N value (cf. Jurasky & Martin §4.6: interpolation)
-            final_score = None
+            final_score, n = None, 0
             if "s3" in score:
-                final_score = lambda1 * score["s1"] + lambda2 * score["s2"] + lambda3 * score["s3"]
+                final_score = lambda1 * score.get("s1",0) + lambda2 * score.get("s2", 0) + lambda3 * score["s3"]
+                n = 3
             elif "s2" in score:  # context size is 2 (e.g. first word in a sentence)
-                final_score = (lambda1 * score["s1"] + lambda2 * score["s2"]) / (lambda1 + lambda2)
-            else:  # context size in 1 (e.g. first word after an unknown word)
+                final_score = (lambda1 * score.get("s1",0) + lambda2 * score["s2"]) / (lambda1 + lambda2)
+                n = 2
+            elif "s1" in score:  # context size in 1 (e.g. first word after an unknown word)
                 final_score = score["s1"]
+                n = 1
 
-            if final_score: result[word] = (final_score, detail)  # we need smoothing
+            if final_score:
+                if no_gram_penalty and n < 3:
+                    final_score *= math.pow(10, no_gram_penalty * (n - 3))
+                result[word] = (final_score, detail)  # we need smoothing
 
         self.recent_contexts = self.recent_contexts[1:10] + [ (word, list(self.last_words)) ]
 
@@ -589,7 +647,7 @@ class Predict:
 
         self.db.clear_stats()
 
-        self.log(time.ctime())
+        self.log('[*] ' + time.ctime() + " - Version: " + self.mod_ts)
         t0 = time.time()
         self._update_last_words()
         if not len(matches): return
@@ -601,15 +659,20 @@ class Predict:
 
         # these settings are completely empirical (or just random guesses), and they probably depend on end user
         # @todo they should be auto-tuned (at least coef_score_predict)
-        coef_score_predict = self.cf('score_predict', 0.4, float)
-        coef_score_upper = self.cf('score_upper', 0.02, float)
-        coef_score_sign = self.cf('score_sign', 0.02, float)
+        coef_score_predict = self.coef_score_predict
+        coef_score_upper = self.cf('score_upper', 0.01, float)
+        coef_score_sign = self.cf('score_sign', 0.01, float)
 
-        # not sure if this is a good idea: should be only activated in case of bad swipe ?
-        non_star_second_chance = self.cf('non_star_second_chance', 0.4, float)
+        lst0 = sorted(words.keys(), key = lambda x: words[x].score, reverse = False)
+        max_star_index = -1
+        for i in range(len(lst0)):
+            if words[lst0[i]].star: max_star_index = i
 
-        starred_words = [ w for w in words if words[w].star ]
-        max_starred_score = max( [ words[w].score for w in starred_words ] ) if starred_words else 1
+        star_bonus = 0
+        if max_star_index >= 0 and max_star_index <= self.cf('max_star_index', 8, int):
+            star_bonus = self.cf('star_bonus', 1.0, float) / (1 + max_star_index)
+
+        no_new_word = (max_star_index > self.cf('max_star_index_new_word', 5, int))
 
         lst = []
         for word in words:
@@ -623,24 +686,30 @@ class Predict:
             if word[0].isupper(): score -= coef_score_upper
             if word.find("'") > -1 or word.find("-") >  1: score -= coef_score_sign
 
-            # filter non-starred words (if there are any)
-            if starred_words and (word in starred_words or words[word].score > max_starred_score + non_star_second_chance):
-                score += 1
 
-            message = "score[%s]: %.3f[%d%s] + %.3f[%s] --> %.3f" % (word,
+            if words[word].star: score += star_bonus
+            if no_new_word and not score_predict: score -= star_bonus
+
+            # filter non-starred words (if there are any)
+            #if starred_words and (word in starred_words or words[word].score > max_starred_score + non_star_second_chance):
+            #    score += 1
+
+            message = "score[%s]: %.3f[%d%s] + %.3f * %.3f[%s] --> %.3f" % (word,
                                                                      words[word].score, words[word].cls,
                                                                      "*" if words[word].star else "",
-                                                                     score_predict, detail_predict, score)
+                                                                     coef_score_predict, score_predict, detail_predict, score)
 
             words[word].message = message
             words[word].final_score = score
             words[word].predict_proba = predict_proba
             words[word].word = word
+            words[word].score_predict = score_predict
+            words[word].coef_score_predict = coef_score_predict
+            words[word].score_no_predict = score - coef_score_predict * score_predict
             lst.append(word)
 
         lst.sort(key = lambda w: words[w].final_score, reverse = True)
 
-        # lst = [ w for w in lst if words[w].final_score > max_score / 2 ]
         if len(lst) > 5:
             lst = lst[0:5] + [ w for w in lst[5:] if words[w].predict_proba > 0 ]
 
@@ -654,9 +723,18 @@ class Predict:
             word = None
 
         t = int((time.time() - t0) * 1000)
-        self.log("Selected word:", word, "elapsed:", t, "db_time:", int(1000 * self.db.timer), "db_count:", self.db.count, "cache:", len(self.db.cache))
+        self.log("Selected word:", word, "- elapsed:", t, "- db_time:", int(1000 * self.db.timer), "- db_count:", self.db.count, "- cache:", len(self.db.cache))
         self.log()
         self.last_guess = word
+
+        # store result for later user correction
+        if word:
+            key = ':'.join([ word ] + self.last_words[:2])
+            self.guess_history[key] = dict(ts = t0,
+                                           words = words,
+                                           guess = word)
+
+        # done :-)
         return word
 
     def cleanup(self, force_flush = False):
@@ -669,6 +747,10 @@ class Predict:
             self.log("DB cache flush")
             self.db.cache = dict()
             self.refresh_db()
+
+        now = time.time()
+        for key in list(self.guess_history):
+            if self.guess_history[key]["ts"] < now - 600: del self.guess_history[key]
 
         return len(self.learn_history) > 0  # ask to be called again later
 
