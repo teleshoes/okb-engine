@@ -28,16 +28,17 @@ OUT = "optim.log"
 
 defparams = [
     [ "anisotropy_ratio", float, 1, 2 ],
-    [ "cls_threshold0", float, 0.01, 0.5 ],
-    [ "cls_threshold1", float, 0.5, 0.99 ],
-    [ "cls_threshold2", float, 0.5, 0.99 ],
-    [ "cls_second_chance", float, 0, 0.5 ],
+    [ "cls_enable", int ],
+    [ "coef_distance", float, 0.01, 1 ],
+    [ "coef_error", float ],  # more is better (at the moment ... unless i have better test cases)
     [ "cos_max_gap", int, 20, 150 ],
     [ "curve_dist_threshold", int, 30, 200 ],
     [ "curve_score_min_dist", int, 20, 100 ],
     [ "curve_surface_coef", float, 1, 50 ],
     [ "dist_max_next", int, 0, 150 ],
     [ "dist_max_start", int, 0, 150 ],
+    [ "error_correct", int ],
+    [ "error_correct_gap", int, 2, 10 ],
     [ "incremental_index_gap", int ],
     [ "incremental_length_lag", int ],  # no optimization
     [ "inf_max", int, 40, 180 ],
@@ -69,6 +70,7 @@ defparams = [
     [ "tgt_min_angle", int, 0, 90 ],
     [ "tip_small_segment", float, 0, .5 ],
     [ "turn_distance_ratio", float, 0, 2 ],
+    [ "turn_distance_score", float, 0, 2 ],
     [ "turn_distance_threshold", int, 10, 150 ],
     [ "turn_max_angle", int, 10, 80 ],
     [ "turn_min_angle", int, 1, 45 ],

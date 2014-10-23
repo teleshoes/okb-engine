@@ -8,16 +8,17 @@ class Params {
   /* BEGIN DECL */
   float anisotropy_ratio;
   int cat_window;
-  float cls_second_chance;
-  float cls_threshold0;
-  float cls_threshold1;
-  float cls_threshold2;
+  int cls_enable;
+  float coef_distance;
+  float coef_error;
   int cos_max_gap;
   int curve_dist_threshold;
   int curve_score_min_dist;
   float curve_surface_coef;
   int dist_max_next;
   int dist_max_start;
+  int error_correct;
+  int error_correct_gap;
   int incremental_index_gap;
   int incremental_length_lag;
   int inf_max;
@@ -49,6 +50,7 @@ class Params {
   int tgt_min_angle;
   float tip_small_segment;
   float turn_distance_ratio;
+  float turn_distance_score;
   int turn_distance_threshold;
   int turn_max_angle;
   int turn_min_angle;
@@ -77,16 +79,17 @@ static Params default_params = {
   /* BEGIN DEFAULT */
   1.5, // anisotropy_ratio
   12, // cat_window
-  0.07, // cls_second_chance
-  0.1, // cls_threshold0
-  0.8, // cls_threshold1
-  0.9, // cls_threshold2
+  1, // cls_enable
+  0.1, // coef_distance
+  0.1, // coef_error
   100, // cos_max_gap
   85, // curve_dist_threshold
   50, // curve_score_min_dist
   20.0, // curve_surface_coef
   100, // dist_max_next
   75, // dist_max_start
+  1, // error_correct
+  4, // error_correct_gap
   5, // incremental_index_gap
   100, // incremental_length_lag
   120, // inf_max
@@ -95,7 +98,7 @@ static Params default_params = {
   7, // match_wait
   500, // max_active_scenarios
   45, // max_angle
-  30, // max_candidates
+  60, // max_candidates
   20, // max_turn_error1
   70, // max_turn_error2
   30, // max_turn_error3
@@ -117,8 +120,9 @@ static Params default_params = {
   15, // tgt_max_angle
   23, // tgt_min_angle
   0.05, // tip_small_segment
-  1.0, // turn_distance_ratio
-  45, // turn_distance_threshold
+  0.65, // turn_distance_ratio
+  1.0, // turn_distance_score
+  60, // turn_distance_threshold
   20, // turn_max_angle
   10, // turn_min_angle
   120, // turn_optim
@@ -140,16 +144,17 @@ void Params::toJson(QJsonObject &json) const {
   /* BEGIN TOJSON */
   json["anisotropy_ratio"] = anisotropy_ratio;
   json["cat_window"] = cat_window;
-  json["cls_second_chance"] = cls_second_chance;
-  json["cls_threshold0"] = cls_threshold0;
-  json["cls_threshold1"] = cls_threshold1;
-  json["cls_threshold2"] = cls_threshold2;
+  json["cls_enable"] = cls_enable;
+  json["coef_distance"] = coef_distance;
+  json["coef_error"] = coef_error;
   json["cos_max_gap"] = cos_max_gap;
   json["curve_dist_threshold"] = curve_dist_threshold;
   json["curve_score_min_dist"] = curve_score_min_dist;
   json["curve_surface_coef"] = curve_surface_coef;
   json["dist_max_next"] = dist_max_next;
   json["dist_max_start"] = dist_max_start;
+  json["error_correct"] = error_correct;
+  json["error_correct_gap"] = error_correct_gap;
   json["incremental_index_gap"] = incremental_index_gap;
   json["incremental_length_lag"] = incremental_length_lag;
   json["inf_max"] = inf_max;
@@ -181,6 +186,7 @@ void Params::toJson(QJsonObject &json) const {
   json["tgt_min_angle"] = tgt_min_angle;
   json["tip_small_segment"] = tip_small_segment;
   json["turn_distance_ratio"] = turn_distance_ratio;
+  json["turn_distance_score"] = turn_distance_score;
   json["turn_distance_threshold"] = turn_distance_threshold;
   json["turn_max_angle"] = turn_max_angle;
   json["turn_min_angle"] = turn_min_angle;
@@ -205,16 +211,17 @@ Params Params::fromJson(const QJsonObject &json) {
   /* BEGIN FROMJSON */
   p.anisotropy_ratio = json["anisotropy_ratio"].toDouble();
   p.cat_window = json["cat_window"].toDouble();
-  p.cls_second_chance = json["cls_second_chance"].toDouble();
-  p.cls_threshold0 = json["cls_threshold0"].toDouble();
-  p.cls_threshold1 = json["cls_threshold1"].toDouble();
-  p.cls_threshold2 = json["cls_threshold2"].toDouble();
+  p.cls_enable = json["cls_enable"].toDouble();
+  p.coef_distance = json["coef_distance"].toDouble();
+  p.coef_error = json["coef_error"].toDouble();
   p.cos_max_gap = json["cos_max_gap"].toDouble();
   p.curve_dist_threshold = json["curve_dist_threshold"].toDouble();
   p.curve_score_min_dist = json["curve_score_min_dist"].toDouble();
   p.curve_surface_coef = json["curve_surface_coef"].toDouble();
   p.dist_max_next = json["dist_max_next"].toDouble();
   p.dist_max_start = json["dist_max_start"].toDouble();
+  p.error_correct = json["error_correct"].toDouble();
+  p.error_correct_gap = json["error_correct_gap"].toDouble();
   p.incremental_index_gap = json["incremental_index_gap"].toDouble();
   p.incremental_length_lag = json["incremental_length_lag"].toDouble();
   p.inf_max = json["inf_max"].toDouble();
@@ -246,6 +253,7 @@ Params Params::fromJson(const QJsonObject &json) {
   p.tgt_min_angle = json["tgt_min_angle"].toDouble();
   p.tip_small_segment = json["tip_small_segment"].toDouble();
   p.turn_distance_ratio = json["turn_distance_ratio"].toDouble();
+  p.turn_distance_score = json["turn_distance_score"].toDouble();
   p.turn_distance_threshold = json["turn_distance_threshold"].toDouble();
   p.turn_max_angle = json["turn_max_angle"].toDouble();
   p.turn_min_angle = json["turn_min_angle"].toDouble();

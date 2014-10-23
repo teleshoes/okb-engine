@@ -100,12 +100,14 @@ class QuickCurve {
 class QuickKeys {
  private:
   Point* points;
+  Point* dim;
  public:
   QuickKeys(QHash<unsigned char, Key> &keys);
   QuickKeys();
   ~QuickKeys();
   void setKeys(QHash<unsigned char, Key> &keys);
   inline Point const& get(unsigned char letter) const;
+  inline Point const& size(unsigned char letter) const;
 };
 
 /* tree traversal evaluation */
@@ -136,6 +138,7 @@ class Scenario {
 
   float temp_score;
   float final_score;
+  float final_score2;
 
   int last_fork;
 
@@ -150,6 +153,12 @@ class Scenario {
 
   int result_class;
   bool star;
+
+  int error_count;
+
+  float min_total;
+
+  int good_count;
 
  private:
   float calc_distance_score(unsigned char letter, int index, int count);
@@ -190,6 +199,14 @@ class Scenario {
   int getClass() { return result_class; };
   void setStar(bool value) { star = value; };
   int getStar() { return star; }
+  float getMinScore() { return min_total; }
+  int getErrorCount() { return error_count; }
+  score_t getScores() { return avg_score; }
+  score_t getMinScores() { return min_score; }
+  int getGoodCount() { return good_count; }
+  float distance();
+  void setScore(float score) { final_score2 = score; }
+  float getScoreOrig() const { return final_score; }
 
   void toJson(QJsonObject &json);
 };
@@ -223,8 +240,6 @@ class CurveMatch {
   void curvePreprocess1(int last_curve_index = -1);
   void curvePreprocess2();
   void sortCandidates();
-  char compare_scenario(float sc1, float sc2, score_t &avg1, score_t &min1, score_t &avg2, score_t &min2);
-  void categorize_rec(int i, int n, char *cmp, score_t *avg, score_t *min, float *sc, int *cls);
 
  public:
   CurveMatch();
