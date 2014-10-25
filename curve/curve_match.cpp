@@ -218,6 +218,8 @@ Scenario::Scenario(LetterTree *tree, QuickKeys *keys, QuickCurve *curve, Params 
   min_total = 0;
   good_count = 0;
 
+  dist = dist_sqr = 0;
+
   index_history = new unsigned char[1];
   letter_history = new unsigned char[1];
   scores = new score_t[1];
@@ -258,6 +260,9 @@ void Scenario::copy_from(const Scenario &from) {
   result_class = from.result_class;
   star = from.star;
   error_count = from.error_count;
+
+  dist = from.dist;
+  dist_sqr = from.dist_sqr;
 
   index_history = new unsigned char[count + 1];
   letter_history = new unsigned char[count + 2]; // one more char to allow to keep a '\0' at the end (for use for display as a char*)
@@ -699,6 +704,7 @@ bool Scenario::childScenario(LetterNode &childNode, bool endScenario, QList<Scen
       new_scenario.finished = endScenario;
       new_scenario.error_count = error_count + error_ignore?1:0;
 
+      // number of keys actually crossed
       Point key = keys->get(letter);
       Point size = keys->size(letter);
       Point pt = curve->point(new_index);
@@ -706,6 +712,12 @@ bool Scenario::childScenario(LetterNode &childNode, bool endScenario, QList<Scen
 	  pt.y >= key.y - size.y / 2 && pt.y <= key.y + size.y / 2) {
 	new_scenario.good_count ++;
       }
+
+      // compute distance
+      int dx = key.x - pt.x;
+      int dy = key.y - pt.y;
+      new_scenario.dist_sqr += dx * dx + dy * dy;
+      new_scenario.dist = sqrt(new_scenario.dist_sqr);
 
       continue_count ++;
       if (continue_count >= 2) {
@@ -758,7 +770,10 @@ QList<LetterNode> Scenario::getNextKeys() {
 
 bool Scenario::operator<(const Scenario &other) const {
   if (this -> getScore() == -1 || other.getScore() == -1) {
+    // QQQ
     return this -> getTempScore() < other.getTempScore();
+    //return this -> distance() > other.distance();
+    // QQQ :-)
   } else {
     return this -> getScore() < other.getScore();
   }
@@ -1437,6 +1452,8 @@ void Scenario::toJson(QJsonObject &json) {
   json["name"] = getName();
   json["finished"] = finished;
   json["score"] = getScore();
+  json["score_std"] = getScoreOrig();
+  json["distance"] = distance();
   json["class"] = result_class;
   json["star"] = star;
   json["min_total"] = min_total;
@@ -1469,14 +1486,8 @@ void Scenario::getDetailedScores(score_t &avg, score_t &min) const {
   min = min_score;
 }
 
-float Scenario::distance() {
-  float total = 0;
-  for(int i = 0; i < count; i ++) {
-    Point c = curve->point(index_history[i]);
-    Point k = keys->get(letter_history[i]);
-    total += pow(distancep(c, k), 2);
-  }
-  return sqrt(total);
+float Scenario::distance() const {
+  return dist;
 }
 
 
@@ -1806,8 +1817,11 @@ void CurveMatch::sortCandidates() {
   */
 
   if (candidates.size() < 2) { return; }
+
   QElapsedTimer timer;
   timer.start();
+
+  scenarioFilter(candidates, 0.7, 10, 3 * params.max_candidates, true); // @todo add to parameter list
 
   int n = candidates.size();
   int cls[n];
@@ -1863,6 +1877,7 @@ void CurveMatch::sortCandidates() {
     /* step 2: compare and filter groups */
     for(int g0 = 1; g0 < group_count; g0 ++) {
       // decide to keep group g0 or not ...
+      group_info *gi = &(group[g0]);
 
       for(int g = 0; g < g0; g ++) { // so compare it with other groups
 	if (group[g].errcount > group[g0].errcount) {
@@ -1874,14 +1889,13 @@ void CurveMatch::sortCandidates() {
 	if (group[g].disable) { continue; }
 
 	// look if the new group should be removed (compared to prior groups)
-	group_info *gi = &(group[g0]);
 	score_t *sc_cmp = &(group[g].best_score_detail);
 	score_t *sc_new = &(gi->best_score_detail);
 
 	int cmp = compare_score(*sc_cmp, *sc_new, true, false);
 	if ((cmp > 0 && gi->best_score > group[g].best_score - 0.10 /* @todo add to configuration */) ||
-	    (gi->best_score > group[g].best_score - 0.06 /* @todo add to configuration */) ||
-	    (gi->sqdist < 0.8 * group[g].sqdist)) {
+	    (gi->best_score > group[g].best_score - 0.06 - 0.035 * max(0, (group[g].length - gi->length)) /* @todo add to configuration */) ||
+	    (gi->sqdist < 0.9 * group[g].sqdist)) {
 	  // OK
 	} else {
 	  DBG("SORT> group #%d disabled because of group #%d", g0, g);
@@ -1910,12 +1924,8 @@ void CurveMatch::sortCandidates() {
 	       candidates[j].getScores().distance_score < best_candidate.getScores().distance_score - 0.05 /* @todo add to configuration */ ||
 	       candidates[j].getMinScores().distance_score < best_candidate.getMinScores().distance_score - 0.12 /* @todo add to configuration */)
 	    ||
-	    /* c'était pour "force" mais c'est trop bisounours
-	       (candidates[j].distance() < best_candidate.distance() * 1.15)
-	       ||
-	    */
 	    (candidates[j].getScore() > best_candidate.getScore())) {
-	  cls[j] = 1;
+	  cls[j] = n - j;
 	}
       }
     }
@@ -1926,7 +1936,7 @@ void CurveMatch::sortCandidates() {
 
   for(int i = 0; i < n; i ++) {
     candidates[i].setClass(cls[i]); // obsolete
-    candidates[i].setStar(cls[i] == 1);
+    candidates[i].setStar(cls[i] > 0);
   }
 
   float min_dist = 0;
@@ -1937,11 +1947,12 @@ void CurveMatch::sortCandidates() {
   }
   for(int i = 0; i < n; i ++) {
     float new_score = candidates[i].getScore()
-      - params.coef_distance * (candidates[i].distance() - min_dist) / min_dist
+      - params.coef_distance * (candidates[i].distance() - min_dist) / max(15, min_dist)
       - params.coef_error * candidates[i].getErrorCount();
     candidates[i].setScore(new_score);
   }
-  qSort(candidates.begin(), candidates.end());
+
+  scenarioFilter(candidates, 0.7, 10, params.max_candidates, true); // @todo add to parameter list
 
   int elapsed = timer.elapsed();
 
@@ -2022,7 +2033,6 @@ bool CurveMatch::match() {
 
   st.st_time = (int) timer.elapsed();
   st.st_count = count;
-  scenarioFilter(candidates, 0.7, 10, params.max_candidates, true); // @todo add to parameter list
 
   sortCandidates();
 

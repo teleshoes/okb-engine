@@ -329,8 +329,6 @@ void IncrementalMatch::endCurve(int id) {
   incrementalMatchUpdate(true);
   done = true;
   
-  scenarioFilter(candidates, 0.7, 10, params.max_candidates, true); // @todo add to parameter list  
-
   CurveMatch::endCurve(id);
 }
 

@@ -140,6 +140,9 @@ class Scenario {
   float final_score;
   float final_score2;
 
+  float dist;
+  float dist_sqr;
+
   int last_fork;
 
   bool debug;
@@ -204,7 +207,7 @@ class Scenario {
   score_t getScores() { return avg_score; }
   score_t getMinScores() { return min_score; }
   int getGoodCount() { return good_count; }
-  float distance();
+  float distance() const;
   void setScore(float score) { final_score2 = score; }
   float getScoreOrig() const { return final_score; }
 

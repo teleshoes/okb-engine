@@ -98,7 +98,7 @@ static Params default_params = {
   7, // match_wait
   500, // max_active_scenarios
   45, // max_angle
-  60, // max_candidates
+  25, // max_candidates
   20, // max_turn_error1
   70, // max_turn_error2
   30, // max_turn_error3
