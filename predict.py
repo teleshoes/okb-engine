@@ -180,7 +180,7 @@ class Predict:
         self.first_word = None
         self.mock_time = None
         self.guess_history = dict()
-        self.coef_score_predict = 0
+        self.coef_score_predict = dict()
 
         self.mod_ts = time.ctime(os.stat(__file__).st_mtime)
 
@@ -231,10 +231,11 @@ class Predict:
                 self.log("DB open OK:", self.dbfile)
                 self.refresh_db()
 
-                if "predict_coef" in self.db.params:
-                    self.coef_score_predict = self.db.params["predict_coef"]
-                else:
-                    self.coef_score_predict = self.cf('default_score_predict', 0.4, float)
+                for n in [1, 2, 3]:
+                    if "predict_coef_%d" % n in self.db.params:
+                        self.coef_score_predict[n] = self.db.params["predict_coef_%d" % n]
+                    else:
+                        self.coef_score_predict[n] = self.cf('default_score_predict_%d' %n, 0.4 - 0.125 * (3 - n), float)
 
             else:
                 self.log("DB not found:", self.dbfile)
@@ -441,28 +442,33 @@ class Predict:
         oldkey = ':'.join([ old ] + self.last_words[:2])
         if oldkey in self.guess_history:
             gh = self.guess_history[oldkey]
-            if new not in gh["words"]: return  # should not happen
+            if new in gh["words"]:
+                gh["replaced"] = new
+                newkey = ':'.join([ new ] + self.last_words[:2])
+                self.guess_history[newkey] = gh
+                del self.guess_history[oldkey]
+
             infonew = gh["words"][new]
             infoguess = gh["words"][gh["guess"]]
 
+            # update coefficients
             increase = decrease = False
-            if infoguess.score_predict < infonew.score_predict:
+            if infoguess.coef_score_predict * infoguess.score_predict < infoguess.coef_score_predict * infonew.score_predict:
                 increase = True
             if infoguess.score_no_predict < infonew.score_no_predict:
                 decrease = True
 
-            if increase != decrease:
+            if increase != decrease and infonew.gram:
                 name, sign = ("increase", 1) if increase else ("decrease", -1)
+                gram = infonew.gram
 
-                self.coef_score_predict += sign * self.cf("score_predict_tune_increment", 0.003, float)
-                self.coef_score_predict = max(0.001, min(1, self.coef_score_predict))
-                self.log("Replacement [%s -> %s] - Predict coef %s, new value: %.3f" %
-                         (old, new, name, self.coef_score_predict))
+                self.coef_score_predict[gram] += sign * self.cf("score_predict_tune_increment", 0.005, float)
+                self.coef_score_predict[gram] = max(0.001, min(1, self.coef_score_predict[gram]))
+                self.log("Replacement [%s -> %s] - Predict coef[%d] %s, new value: %.3f" %
+                         (old, new, gram, name, self.coef_score_predict[gram]))
 
-                self.db.set_param("predict_coef", self.coef_score_predict)
+                self.db.set_param("predict_coef_%d" % gram, self.coef_score_predict[gram])
 
-            newkey = ':'.join([ new ] + self.last_words[:2])
-            self.guess_history[newkey] = gh
 
     def get_predict_words(self):
         """ return prediction list, in a format suitable for QML ListModel """
@@ -554,7 +560,6 @@ class Predict:
         learning_count = self.cf('learning_count', 5000, int)
         learning_count_min = self.cf('learning_count_min', 10, int)
         learning_master_switch = self.cf('learning_enable', True, bool)
-        no_gram_penalty = self.cf('no_gram_penalty', 1.0, float)
 
         for word in todo:
             score = dict()
@@ -618,8 +623,7 @@ class Predict:
                 n = 1
 
             if final_score:
-                if no_gram_penalty and n < 3:
-                    final_score *= math.pow(10, no_gram_penalty * (n - 3))
+                if n: detail["gram"] = n
                 result[word] = (final_score, detail)  # we need smoothing
 
         self.recent_contexts = self.recent_contexts[1:10] + [ (word, list(self.last_words)) ]
@@ -659,14 +663,11 @@ class Predict:
 
         # these settings are completely empirical (or just random guesses), and they probably depend on end user
         # @todo they should be auto-tuned (at least coef_score_predict)
-        coef_score_predict = self.coef_score_predict
         coef_score_upper = self.cf('score_upper', 0.01, float)
         coef_score_sign = self.cf('score_sign', 0.01, float)
 
         lst0 = sorted(words.keys(), key = lambda x: words[x].score, reverse = False)
-        max_star_index = -1
-        for i in range(len(lst0)):
-            if words[lst0[i]].star: max_star_index = i
+        max_star_index = max([x.cls for x in words.values()] + [ -1 ])
 
         star_bonus = 0
         if max_star_index >= 0 and max_star_index <= self.cf('max_star_index', 8, int):
@@ -681,7 +682,9 @@ class Predict:
             score_predict = (math.log10(predict_proba) + 8 if predict_proba > 1E-8 else 0) / 8  # [0, 1]
 
             # overall score
+            gram = detail_predict.get("gram", None)
             score = words[word].score
+            coef_score_predict = self.coef_score_predict.get(gram, 0)
             score += coef_score_predict * score_predict
             if word[0].isupper(): score -= coef_score_upper
             if word.find("'") > -1 or word.find("-") >  1: score -= coef_score_sign
@@ -689,10 +692,6 @@ class Predict:
 
             if words[word].star: score += star_bonus
             if no_new_word and not score_predict: score -= star_bonus
-
-            # filter non-starred words (if there are any)
-            #if starred_words and (word in starred_words or words[word].score > max_starred_score + non_star_second_chance):
-            #    score += 1
 
             message = "score[%s]: %.3f[%d%s] + %.3f * %.3f[%s] --> %.3f" % (word,
                                                                      words[word].score, words[word].cls,
@@ -706,6 +705,7 @@ class Predict:
             words[word].score_predict = score_predict
             words[word].coef_score_predict = coef_score_predict
             words[word].score_no_predict = score - coef_score_predict * score_predict
+            words[word].gram = gram
             lst.append(word)
 
         lst.sort(key = lambda w: words[w].final_score, reverse = True)
