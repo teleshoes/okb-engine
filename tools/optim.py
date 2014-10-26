@@ -48,6 +48,8 @@ defparams = [
     [ "max_active_scenarios", int ],  # no optimization, larger is always better
     [ "max_angle", int, 10, 90 ],
     [ "max_candidates", int ],  # idem
+    [ "max_segment_length", int ],
+    [ "max_star_index", int, 3, 20 ],
     [ "max_turn_error1", int, 10, 60 ],
     [ "max_turn_error2", int, 20, 90 ],
     [ "max_turn_error3", int, 10, 60 ],
@@ -58,6 +60,7 @@ defparams = [
     [ "score_pow", float, 0.1, 10 ],
     [ "sharp_turn_penalty", float, 0, 1 ],
     [ "slow_down_ratio", float, 1, 2 ],
+    [ "slow_down_min", float, 0, 1],
     [ "small_segment_min_score", float, 0.01, 0.9 ],
     [ "speed_max_index_gap", int, 1, 6 ],
     [ "speed_min_angle", int, 1, 45 ],
@@ -148,10 +151,14 @@ def log1(txt):
         f.write("\n")
 
 def run1(json_str, lang):
-    sp = subprocess.Popen([ CLI, os.path.join(TRE_DIR, "%s.tre" % lang) ], stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+    opts = re.split('\s+', os.getenv('CLI_OPTS', ""))
+    opts = [ x for x in opts if x ]
+    cmd = [ CLI ] + opts + [ os.path.join(TRE_DIR, "%s.tre" % lang) ]
+
+    sp = subprocess.Popen(cmd, stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+
     (json_out, err) = sp.communicate(bytes(json_str, "UTF-8"))
-    json_out, err = str(json_out), str(err)
-    return json_out, err, sp.returncode
+    return json_out, err, sp.returncode, ' '.join(cmd)
 
 def update_json(json_str, params):
     js = json.loads(json_str)
@@ -194,7 +201,7 @@ def score1(json_str, expected, typ):
     elif typ == "cls":
         score = 0.5 * (score_ref - (average + stddev))
         if star_count > 0:
-            if not starred: score -= .5
+            if not starred: score -= 9999999
             else: score += 0.5 / (1.0 + star_count / 2)
 
     elif typ.startswith("max"):
@@ -226,21 +233,22 @@ def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, s
         log1(">>>> " + json_in2)
         runall.append((key, run1, [json_in2, lang ]))
         if dump:
-            save(os.path.join(dump, "%s.in" % word), json_in)
+            save(os.path.join(dump, "%s.in" % key), json_in2)
 
     results = parallel(runall)
 
     for key, result in results.items():
-        (json_out, err, code) = result
+        (json_out, err, code, cmd) = result
         word = wordk[key]
+        json_out, err = json_out.decode(encoding='UTF-8'), err.decode(encoding='UTF-8')
 
         if dump:
-            save(os.path.join(dump, "%s.out" % word), json_out)
-            save(os.path.join(dump, "%s.err" % word), err)
+            save(os.path.join(dump, "%s.out" % key), json_out)
+            save(os.path.join(dump, "%s.err" % key), err)
 
         if code != 0:
             dump_txt(inj[word])
-            raise Exception("return code: %s [word=%s, lang=%s]" % (code, word, lang))
+            raise Exception("return code: %s [id=%s, word=%s, lang=%s] command: %s" % (code, key, word, lang, cmd))
         log1("<<<< " + json_out)
         log1("")
 

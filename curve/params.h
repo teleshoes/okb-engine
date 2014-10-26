@@ -28,6 +28,8 @@ class Params {
   int max_active_scenarios;
   int max_angle;
   int max_candidates;
+  int max_segment_length;
+  int max_star_index;
   int max_turn_error1;
   int max_turn_error2;
   int max_turn_error3;
@@ -37,6 +39,7 @@ class Params {
   float same_point_score;
   float score_pow;
   float sharp_turn_penalty;
+  float slow_down_min;
   float slow_down_ratio;
   float small_segment_min_score;
   int speed_max_index_gap;
@@ -96,9 +99,11 @@ static Params default_params = {
   20, // inf_min
   0.001, // length_penalty
   7, // match_wait
-  500, // max_active_scenarios
+  250, // max_active_scenarios
   45, // max_angle
   25, // max_candidates
+  25, // max_segment_length
+  8, // max_star_index
   20, // max_turn_error1
   70, // max_turn_error2
   30, // max_turn_error3
@@ -108,6 +113,7 @@ static Params default_params = {
   0.1, // same_point_score
   1.0, // score_pow
   0.6, // sharp_turn_penalty
+  0.6, // slow_down_min
   1.5, // slow_down_ratio
   0.2, // small_segment_min_score
   5, // speed_max_index_gap
@@ -164,6 +170,8 @@ void Params::toJson(QJsonObject &json) const {
   json["max_active_scenarios"] = max_active_scenarios;
   json["max_angle"] = max_angle;
   json["max_candidates"] = max_candidates;
+  json["max_segment_length"] = max_segment_length;
+  json["max_star_index"] = max_star_index;
   json["max_turn_error1"] = max_turn_error1;
   json["max_turn_error2"] = max_turn_error2;
   json["max_turn_error3"] = max_turn_error3;
@@ -173,6 +181,7 @@ void Params::toJson(QJsonObject &json) const {
   json["same_point_score"] = same_point_score;
   json["score_pow"] = score_pow;
   json["sharp_turn_penalty"] = sharp_turn_penalty;
+  json["slow_down_min"] = slow_down_min;
   json["slow_down_ratio"] = slow_down_ratio;
   json["small_segment_min_score"] = small_segment_min_score;
   json["speed_max_index_gap"] = speed_max_index_gap;
@@ -231,6 +240,8 @@ Params Params::fromJson(const QJsonObject &json) {
   p.max_active_scenarios = json["max_active_scenarios"].toDouble();
   p.max_angle = json["max_angle"].toDouble();
   p.max_candidates = json["max_candidates"].toDouble();
+  p.max_segment_length = json["max_segment_length"].toDouble();
+  p.max_star_index = json["max_star_index"].toDouble();
   p.max_turn_error1 = json["max_turn_error1"].toDouble();
   p.max_turn_error2 = json["max_turn_error2"].toDouble();
   p.max_turn_error3 = json["max_turn_error3"].toDouble();
@@ -240,6 +251,7 @@ Params Params::fromJson(const QJsonObject &json) {
   p.same_point_score = json["same_point_score"].toDouble();
   p.score_pow = json["score_pow"].toDouble();
   p.sharp_turn_penalty = json["sharp_turn_penalty"].toDouble();
+  p.slow_down_min = json["slow_down_min"].toDouble();
   p.slow_down_ratio = json["slow_down_ratio"].toDouble();
   p.small_segment_min_score = json["small_segment_min_score"].toDouble();
   p.speed_max_index_gap = json["speed_max_index_gap"].toDouble();

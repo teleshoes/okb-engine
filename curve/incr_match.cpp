@@ -34,7 +34,6 @@ void IncrementalMatch::incrementalMatchBegin() {
   scenarios.clear();
   candidates.clear();
   delayed_scenarios.clear();
-  index2distance.clear();
  
   if (! loaded || ! keys.size()) { return; }
 
@@ -45,7 +44,6 @@ void IncrementalMatch::incrementalMatchBegin() {
   root.setDebug(debug);
   scenarios.append(root);
 
-  cumulative_length = 0;
   next_iteration_length = 0;
   last_curve_index = 0;
 
@@ -76,11 +74,10 @@ void IncrementalMatch::incrementalMatchUpdate(bool finished, bool aggressive) {
   DBG("=== incrementalMatchUpdate: %sfinished=%d, curveIndex=%d, length=%d", aggressive?"[aggressive] ":"", finished, curve.size(), cumulative_length);
   QTime t_start = QTime::currentTime();
 
-  quickCurve.setCurve(curve); // curve may have new points since last iteration
-
   next_iteration_length = -1;
  
   curvePreprocess1(last_curve_index);
+  quickCurve.setCurve(curve); // curve may have new points since last iteration
 
   QList<DelayedScenario> new_delayed_scenarios;
 
@@ -250,8 +247,8 @@ void IncrementalMatch::incrementalNextKeys(Scenario &scenario, QList<DelayedScen
     */
     Point keyPoint(k.x, k.y);
     int dist = distancep(curve[index], keyPoint);
-    int max_length = finished?-1:(index2distance[index] + (1.0 + (float)dist / params.dist_max_next / 20) * (params.incremental_length_lag + dist));
-    int min_length = finished?-1:(index2distance[index] + max(0, dist - params.incremental_length_lag / 2));
+    int max_length = finished?-1:(curve[index].length + (1.0 + (float)dist / params.dist_max_next / 20) * (params.incremental_length_lag + dist));
+    int min_length = finished?-1:(curve[index].length + max(0, dist - params.incremental_length_lag / 2));
 
     bool keep_for_later = true;
 
@@ -305,19 +302,21 @@ void IncrementalMatch::clearCurve() {
 }
 
 void IncrementalMatch::addPoint(Point point, int timestamp) {
-  if (curve.size() > 0) {
-    cumulative_length += distancep(point, curve.last());
-  } else {
+  bool first_point = false;
+
+  if (curve.size() == 0) {
     delayed_scenarios.clear();
-    index2distance.clear();
     next_iteration_index = 0;
-    cumulative_length = 0;
     timer.start();
+    first_point = true;
   }
+
   DBG(" --- Add point #%d: (%d, %d)  length=%d", curve.size(), point.x, point.y, cumulative_length);
   CurveMatch::addPoint(point, timestamp); // parent
-  index2distance.append(cumulative_length);
-  if (curve.size() == 1) {
+
+  cumulative_length = curve.last().length;
+
+  if (first_point) {
     incrementalMatchBegin();
   } else if (curve.size() >= next_iteration_index) {
     incrementalMatchUpdate(false);

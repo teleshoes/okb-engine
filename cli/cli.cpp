@@ -109,10 +109,9 @@ int main(int argc, char* argv[]) {
     
     switch (implem) {
     case 0:
-      cm->endCurve(-1);
-      break;
     case 1:
       // in case of incremental algorithm testing we must simulate points feeding
+      // also useful for testing smoothing implemented in addPoint
       cm->clearCurve();
       foreach(CurvePoint p, points) {
 	cm->addPoint(p, p.t);

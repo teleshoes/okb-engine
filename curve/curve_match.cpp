@@ -159,13 +159,14 @@ Point const Point::operator*(const float &other) const {
   return Point(x * other, y * other);
 }
 
-CurvePoint::CurvePoint(Point p, int t) : Point(p.x, p.y) {
+CurvePoint::CurvePoint(Point p, int t, int l) : Point(p.x, p.y) {
   this -> t = t;
   this -> speed = 1;
   this -> sharp_turn = false;
   this -> turn_angle = 0;
   this -> turn_smooth = 0;
   this -> normalx = this -> normaly = 0;
+  this -> length = l;
 }
 
 /* --- key --- */
@@ -457,7 +458,7 @@ float Scenario::calc_distance_score(unsigned char letter, int index, int count) 
   return score;
 }
 
-float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &new_index_list, bool &overflow) {
+float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &new_index_list, bool incremental, bool &overflow) {
   /* given an index on the curve, and a possible next letter key, evaluate the following:
      - if the next letter is a good candidate (i.e. the curve pass by the key)
      - compute a score based on curve to point distance
@@ -496,7 +497,11 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &
 
   int step = 1;
   while(1) {
-    if (index >= curve->size() - 1) { overflow = true; break; }
+    if (index >= curve->size() - 4 && incremental) { overflow = true; break; }
+    /* the magic value "4" is because the curvePreprocess1 (which find special points)
+       does not work near the end of the curve, so this may be an issue in
+       incremental mode */
+    if (index >= curve->size() - 1) { break; }
 
     float new_score = calc_distance_score(letter, index, this -> count);
 
@@ -627,7 +632,9 @@ bool Scenario::childScenario(LetterNode &childNode, bool endScenario, QList<Scen
       for(int i = index + 1; i <= new_index; i ++) {
 	st_found |= (curve->getSharpTurn(i) > 0);
       }
-      if (! st_found) {
+      if (st_found) {
+	DBG("debug [%s:%c] * =FAIL= sharp turn found before end", getNameCharPtr(), letter);
+      } else {
 	new_index_list << new_index;
 	distance_score = calc_distance_score(letter, new_index, -1);
       }
@@ -635,12 +642,12 @@ bool Scenario::childScenario(LetterNode &childNode, bool endScenario, QList<Scen
     } else {
 
       bool overflow = false;
-      distance_score = get_next_key_match(letter, index, new_index_list, overflow);
+      distance_score = get_next_key_match(letter, index, new_index_list, incremental, overflow);
       if (incremental && overflow) {
 	return false; // ask me again later
       }
       if (new_index_list.isEmpty()) {
-	DBG("debug [%s:%c] %s =FAIL= {distance / turning point}", getNameCharPtr(), letter,endScenario?"*":" ");
+	DBG("debug [%s:%c] %s =FAIL= {distance / turning point}", getNameCharPtr(), letter, endScenario?"*":" ");
 	return true;
       }
 
@@ -770,10 +777,8 @@ QList<LetterNode> Scenario::getNextKeys() {
 
 bool Scenario::operator<(const Scenario &other) const {
   if (this -> getScore() == -1 || other.getScore() == -1) {
-    // QQQ
-    return this -> getTempScore() < other.getTempScore();
-    //return this -> distance() > other.distance();
-    // QQQ :-)
+    // @todo remove temporary score (was: "return this -> getTempScore() < other.getTempScore();")
+    return this -> distance() / sqrt(this -> getCount()) > other.distance() / sqrt(other.getCount());
   } else {
     return this -> getScore() < other.getScore();
   }
@@ -793,7 +798,7 @@ float Scenario::getTempScore() const {
   return count?temp_score / count:0;
 }
 
-float Scenario::getCount() {
+float Scenario::getCount() const {
   return count;
 }
 
@@ -827,6 +832,7 @@ typedef struct {
   int index;
   int start_index;
   bool unmatched;
+  int length;
 } turn_t;
 
 void Scenario::calc_turn_score_all() {
@@ -1166,9 +1172,18 @@ void Scenario::calc_turn_score_all() {
 
       if (score < 0) { score = 0.01; } // we can keep this scenario in case other are even worse
 
+      int length = 0;
+      for (int k = d->start_index; k < d->index; k++) {
+	int i1 = index_history[k];
+	int i2 = index_history[k + 1];
+	length += distancep(curve->point(i1), curve->point(i2));
+      }
+      d->length = length;
+
       int index = d -> index;
-      DBG("  [score turn]  turn #%d: %.2f[%.2f] / %.2f length[%d:%d] index=[%d:%d] (scale=%.2f) ---> score=%.2f",
-	  i, d->actual, d->corrected, d->expected, (int) d->length_before, (int) d->length_after, d->start_index, index, scale, score);
+      DBG("  [score turn]  turn #%d: %.2f[%.2f] / %.2f length[%d:%d] index=[%d:%d]->[%d:%d] length=%d (scale=%.2f) ---> score=%.2f",
+	  i, d->actual, d->corrected, d->expected, (int) d->length_before, (int) d->length_after, d->start_index, index,
+	  index_history[d->start_index], index_history[index], int(length), scale, score);
 
       if (scores[index + 1].turn_score >= 0) { scores[index + 1].turn_score = score; }
     }
@@ -1190,12 +1205,7 @@ void Scenario::calc_turn_score_all() {
 	bool found = false;
 	for(int j = 0; j < turn_count; j ++) {
 	  turn_t *d = &(turn_detail[j]);
-	  int length = 0;
-	  for (int k = d->start_index; k < d->index; k++) {
-	    int i1 = index_history[k];
-	    int i2 = index_history[k + 1];
-	    length += distancep(curve->point(i1), curve->point(i2));
-	  }
+	  int length = d->length;
 	  if (abs(d->expected) >= params->st2_min &&
 	      abs(d->expected) <= 540 - 2 *  params->st2_min &&
 	      i >= d->start_index && i <= d->index &&
@@ -1531,10 +1541,15 @@ void CurveMatch::curvePreprocess1(int last_curve_index) {
   int last_total_turn = -1;
 
   // speed evaluation
+  int max_speed = 0;
   for(int i = 0; i < l; i ++) {
     int i1 = i - 2, i2 = i + 2;
-    if (i1 < 0) { i1 = 0; i2 = 4; }
+    if (i1 < 1) { i1 = 1; i2 = 5; }
     if (i2 > l - 1) { i1 = l - 5; i2 = l - 1; }
+
+    while(curve[i1].t - curve[0].t < 50 && i2 < l - 1) { i1 ++; i2 ++; }
+    while(curve[i2].t - curve[i1].t < 40 && i2 < l - 1 && i1 > 1 ) { i2 ++; i1 --; }
+
     float dist = 0;
     for (int j = i1; j < i2; j ++) {
       dist += distancep(curve[j], curve[j+1]);
@@ -1546,6 +1561,7 @@ void CurveMatch::curvePreprocess1(int last_curve_index) {
       // compatibility with old test cases, should not happen often :-)
       if (i > 0) { curve[i].speed = curve[i - 1].speed; } else { curve[i].speed = 1; }
     }
+    if (curve[i].speed > max_speed) { max_speed = curve[i].speed; }
   }
 
   for(int i = 0 ; i < l - 1; i ++) {
@@ -1575,6 +1591,8 @@ void CurveMatch::curvePreprocess1(int last_curve_index) {
 						  abs(curve[sharp_turn_index].turn_angle) > params.turn_threshold3);
 	wait_for_next_st = 2;
 
+	DBG("Special point[%d]=%d", sharp_turn_index, curve[sharp_turn_index].sharp_turn);
+
 	// compute "normal" vector (really lame algorithm)
 	int i1 = sharp_turn_index - 1;
 	int i2 = sharp_turn_index + 1;
@@ -1601,13 +1619,17 @@ void CurveMatch::curvePreprocess1(int last_curve_index) {
   int maxd = params.max_turn_index_gap;
   for(int i = max(maxd, 0); i < l - maxd; i ++) {
     int spd0 = curve[i].speed;
+    if (spd0 < max_speed * params.slow_down_min) { continue; }
     int ok = 0;
     for(int j = -maxd; j <= maxd; j ++) {
       int spd = curve[i + j].speed;
       if (spd < spd0 || curve[i + j].sharp_turn) { ok = 0; break; }
       if (spd > params.slow_down_ratio * spd0) { ok |= (1 << (j>0)); }
     }
-    if (ok == 3) { curve[i].sharp_turn = 3; }
+    if (ok == 3) {
+      curve[i].sharp_turn = 3;
+      DBG("Special point[%d]=3", i);
+    }
   }
 
 
@@ -1629,6 +1651,7 @@ void CurveMatch::curvePreprocess1(int last_curve_index) {
     } else {
       if (max_inf) {
 	curve[max_inf_idx].sharp_turn = 4;
+	DBG("Special point[%d]=4", max_inf_idx);
 	max_inf = 0;
       }
     }
@@ -1664,7 +1687,6 @@ void CurveMatch::addKey(Key key) {
 }
 
 void CurveMatch::clearCurve() {
-  max_speed = 0;
   curve.clear();
   done = false;
   memset(&st, 0, sizeof(st));
@@ -1672,11 +1694,34 @@ void CurveMatch::clearCurve() {
 
 void CurveMatch::addPoint(Point point, int timestamp) {
   QTime now = QTime::currentTime();
+  int ts = (timestamp >= 0)?timestamp:startTime.msecsTo(now);
+
   if (curve.isEmpty()) {
-    max_speed = 0;
     startTime = now;
+    curve_length = 0;
+  } else {
+    /* Current implementation is dependant on good spacing between points
+       (which is a design fault).
+       Last SailfishOS has introduced some "micro-lag" (unnoticeable by
+       user but it leads to "spaces" in the curve (... or maybe it's just
+       some placebo effect).
+       This is a simple workaround for this problem. */
+    CurvePoint lastPoint = curve.last();
+    float dist = distancep(lastPoint, point);
+
+    int max_length = params.max_segment_length;
+    if (dist > max_length) {
+      Point dp = point - lastPoint;
+      int n = dist / max_length;
+      for(int i = 0; i < n; i ++) {
+	float coef = (i + 1.0) / (n + 1);
+	curve << CurvePoint(lastPoint + dp * coef, lastPoint.t + coef * (ts - lastPoint.t), curve_length + coef * dist);
+      }
+    }
+
+    curve_length += dist;
   }
-  curve << CurvePoint(point, (timestamp >= 0)?timestamp:startTime.msecsTo(now));
+  curve << CurvePoint(point, ts, curve_length);
 }
 
 bool CurveMatch::loadTree(QString fileName) {
@@ -1821,11 +1866,12 @@ void CurveMatch::sortCandidates() {
   QElapsedTimer timer;
   timer.start();
 
-  scenarioFilter(candidates, 0.7, 10, 3 * params.max_candidates, true); // @todo add to parameter list
+  scenarioFilter(candidates, 0.5, 10, 3 * params.max_candidates, true); // @todo add to parameter list
 
   int n = candidates.size();
   int cls[n];
 
+  bool cls_failed = false;
   if (params.cls_enable) {
     /* classifier */
 
@@ -1924,8 +1970,11 @@ void CurveMatch::sortCandidates() {
 	       candidates[j].getScores().distance_score < best_candidate.getScores().distance_score - 0.05 /* @todo add to configuration */ ||
 	       candidates[j].getMinScores().distance_score < best_candidate.getMinScores().distance_score - 0.12 /* @todo add to configuration */)
 	    ||
+	    (candidates[j].distance() < best_candidate.distance() * 0.95)
+	    ||
 	    (candidates[j].getScore() > best_candidate.getScore())) {
 	  cls[j] = n - j;
+	  cls_failed |= (n - j > params.max_star_index);
 	}
       }
     }
@@ -1936,7 +1985,7 @@ void CurveMatch::sortCandidates() {
 
   for(int i = 0; i < n; i ++) {
     candidates[i].setClass(cls[i]); // obsolete
-    candidates[i].setStar(cls[i] > 0);
+    candidates[i].setStar((cls[i] > 0) && ! cls_failed);
   }
 
   float min_dist = 0;

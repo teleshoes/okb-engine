@@ -37,13 +37,14 @@ class Point {
 
 class CurvePoint : public Point {
  public:
-  CurvePoint(Point p, int msec);
+  CurvePoint(Point p, int msec, int length = 0);
   int t;
   int speed;
   int sharp_turn; // points with significant direction change -> they show user intention and must be correlated with a letter in a word
   int turn_angle;
   int turn_smooth;
   float normalx, normaly;
+  int length;
 };
 
 /* just a key */
@@ -173,7 +174,7 @@ class Scenario {
   float score_inflection(int index, bool st1, bool st2);
   Point computed_curve_tangent(int index);
   Point actual_curve_tangent(int i);
-  float get_next_key_match(unsigned char letter, int index, QList<int> &new_index, bool &overflow);
+  float get_next_key_match(unsigned char letter, int index, QList<int> &new_index, bool incremental, bool &overflow);
   float evalScore();
   void copy_from(const Scenario &from);
 
@@ -194,7 +195,7 @@ class Scenario {
   float getScore() const;
   bool postProcess();
   float getTempScore() const;
-  float getCount();
+  float getCount() const;
   bool forkLast();
   int getCurveIndex();
   void getDetailedScores(score_t &avg, score_t &min) const;
@@ -235,7 +236,7 @@ class CurveMatch {
   int id;
   bool debug;
   bool done;
-  int max_speed;
+  int curve_length;
 
   stats_t st;
 

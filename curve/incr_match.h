@@ -51,7 +51,6 @@ class IncrementalMatch : public CurveMatch {
 
   QList<DelayedScenario> delayed_scenarios; 
   int cumulative_length;
-  QList<int> index2distance;
   int next_iteration_length;
   int last_curve_index;
   int next_iteration_index;
