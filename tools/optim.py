@@ -19,78 +19,13 @@ import getopt
 from multiprocessing.pool import ThreadPool
 import multiprocessing
 import configparser as ConfigParser
+import params
 
 CLI = "../cli/build/cli"
 TRE_DIR = "../db"
 TEST_DIR = "../test"
 LOG = None  # "/tmp/optim.log"
 OUT = "optim.log"
-
-defparams = [
-    [ "anisotropy_ratio", float, 1, 2 ],
-    [ "cls_enable", int ],
-    [ "coef_distance", float, 0.01, 1 ],
-    [ "coef_error", float ],  # more is better (at the moment ... unless i have better test cases)
-    [ "cos_max_gap", int, 20, 150 ],
-    [ "curve_dist_threshold", int, 30, 200 ],
-    [ "curve_score_min_dist", int, 20, 100 ],
-    [ "curve_surface_coef", float, 1, 50 ],
-    [ "dist_max_next", int, 0, 150 ],
-    [ "dist_max_start", int, 0, 150 ],
-    [ "error_correct", int ],
-    [ "error_correct_gap", int, 2, 10 ],
-    [ "incremental_index_gap", int ],
-    [ "incremental_length_lag", int ],  # no optimization
-    [ "inf_max", int, 40, 180 ],
-    [ "inf_min", int, 5, 40 ],
-    [ "length_penalty", float, -0.1, 0.1 ],
-    [ "match_wait", int, 4, 12 ],
-    [ "max_active_scenarios", int ],  # no optimization, larger is always better
-    [ "max_angle", int, 10, 90 ],
-    [ "max_candidates", int ],  # idem
-    [ "max_segment_length", int ],
-    [ "max_star_index", int, 3, 20 ],
-    [ "max_turn_error1", int, 10, 60 ],
-    [ "max_turn_error2", int, 20, 90 ],
-    [ "max_turn_error3", int, 10, 60 ],
-    [ "max_turn_index_gap", int, 2, 10],
-    [ "min_turn_index_gap", int, 1, 5],
-    [ "same_point_max_angle", int, 45, 179 ],
-    [ "same_point_score", float, 0, 1 ],
-    [ "score_pow", float, 0.1, 10 ],
-    [ "sharp_turn_penalty", float, 0, 1 ],
-    [ "slow_down_ratio", float, 1, 2 ],
-    [ "slow_down_min", float, 0, 1],
-    [ "small_segment_min_score", float, 0.01, 0.9 ],
-    [ "speed_max_index_gap", int, 1, 6 ],
-    [ "speed_min_angle", int, 1, 45 ],
-    [ "speed_penalty", float, 0.01, 1 ],
-    [ "st2_max", int, 120, 179 ],
-    [ "st2_min", int, 70, 160 ],
-    [ "tgt_coef", float, 0, 1 ],
-    [ "tgt_coef_invert", float, 0, 1 ],
-    [ "tgt_max_angle", int, 0, 90 ],
-    [ "tgt_min_angle", int, 0, 90 ],
-    [ "tip_small_segment", float, 0, .5 ],
-    [ "turn_distance_ratio", float, 0, 2 ],
-    [ "turn_distance_score", float, 0, 2 ],
-    [ "turn_distance_threshold", int, 10, 150 ],
-    [ "turn_max_angle", int, 10, 80 ],
-    [ "turn_min_angle", int, 1, 45 ],
-    [ "turn_optim", int, 20, 150 ],
-    [ "turn_separation", int, 30, 300 ],
-    [ "turn_threshold", int, 10, 85 ],
-    [ "turn_threshold2", int, 120, 179 ],
-    [ "turn_threshold3", int, 90, 145 ],
-    [ "weight_cos", float, 0.1, 10 ],
-    [ "weight_curve", float, 0.1, 10 ],
-    [ "weight_distance", float ],  # reference (=1)
-    [ "weight_length", float, 0.1, 10 ],
-    [ "weight_misc", float, 0.1, 10 ],
-    [ "weight_turn", float, 0.1, 10 ],
-    [ "cat_window", int ],  # no optim, larger is better (and slower)
-]
-
 
 def get_params(fname):
     cp = ConfigParser.SafeConfigParser()
@@ -101,6 +36,7 @@ def get_params(fname):
             params[key] = value
     return params
 
+defparams = params.defparams
 params = dict()
 for p in defparams:
     if len(p) > 2:
@@ -211,7 +147,7 @@ def score1(json_str, expected, typ):
             coef = 10 if typ == "max2" else 1
             score = - coef * sum([ c["score"] - score_ref for c in js["candidates"] if c["score"] > score_ref ])
 
-    else: raise Exception("unknown score type: $typ")
+    else: raise Exception("unknown score type: %d", typ)
 
     return score
 
@@ -335,39 +271,7 @@ def load_tests():
     tests.sort(key = lambda x: x[0])
     return tests
 
-if __name__ == "__main__":
-    start = time.time()
-
-    p_include = p_exclude = None
-
-    opts, args =  getopt.getopt(sys.argv[1:], 'l:p:i:x:')
-    listpara = None
-    for o, a in opts:
-        if o == "-l":
-            LOG = a
-        elif o == "-p":
-            listpara = a.split(',')
-        elif o == "-i":
-            p_include = a
-        elif o == "-x":
-            p_exclude = a
-        else:
-            print("Bad option: %s", o)
-            exit(1)
-
-    if len(args) < 1:
-        print("usage:", os.path.basename(sys.argv[0]), " [<options>] <score type>")
-        print("options:")
-        print(" -p <list> : only optimize this parameters (comma separated)")
-        print(" -l <file> : verbose log file")
-        print(" -i <regexp> : only update parameters with matching names")
-        print(" -x <regexp> : don't update parameters with matching names")
-        exit(1)
-
-    typ = args[0]
-
-    os.chdir(os.path.dirname(sys.argv[0]))
-    print('Parameters: ' + params2str(params))
+def run_optim(params, typ, listpara, p_include, p_exclude):
     params0 = copy.deepcopy(params)
 
     # load test suite
@@ -403,11 +307,9 @@ if __name__ == "__main__":
             print("Current(%.3f): %s" % (score, params2str(params)))
             print("Best   (%.3f): %s" % (max_score, params2str(max_params)))
 
-    param_change_txt = '\n'.join([ "Parameter change: %s: %.3f -> %.3f" % (p, params0[p]["value"], v["value"])
+    result_txt = '\n'.join([ "Parameter change: %s: %.3f -> %.3f" % (p, params0[p]["value"], v["value"])
                                    for p, v in sorted(max_params.items())
-                                   if params0[p] != v ])
-    print(param_change_txt)
-    print("Score: %.3f -> %.3f" % (score0, max_score))
+                                   if params0[p] != v ] + [ "Score: %.3f -> %.3f" % (score0, max_score) ])
 
     with open(OUT, "a") as f:
         detail_max = dict()
@@ -419,4 +321,55 @@ if __name__ == "__main__":
         f.write(" -> %s\n\n" % cleanup_detail(detail0))
         f.write("Best   (%.3f): %s\n" % (max_score, params2str(max_params)))
         f.write(" -> %s\n\n" % cleanup_detail(detail_max))
-        f.write("%s\n\n" % param_change_txt)
+        f.write("%s\n\n" % result_txt)
+
+    return result_txt
+
+if __name__ == "__main__":
+    start = time.time()
+
+    p_include = p_exclude = None
+
+    opts, args =  getopt.getopt(sys.argv[1:], 'l:p:i:x:')
+    listpara = None
+    for o, a in opts:
+        if o == "-l":
+            LOG = a
+        elif o == "-p":
+            listpara = a.split(',')
+        elif o == "-i":
+            p_include = a
+        elif o == "-x":
+            p_exclude = a
+        else:
+            print("Bad option: %s", o)
+            exit(1)
+
+    if len(args) < 1:
+        print("usage:", os.path.basename(sys.argv[0]), " [<options>] <score type>")
+        print("options:")
+        print(" -p <list> : only optimize this parameters (comma separated)")
+        print(" -l <file> : verbose log file")
+        print(" -i <regexp> : only update parameters with matching names")
+        print(" -x <regexp> : don't update parameters with matching names")
+        exit(1)
+
+    typ = args[0]
+
+    os.chdir(os.path.dirname(sys.argv[0]))
+    print('Parameters: ' + params2str(params))
+
+    if typ == "all":
+        typ_list = [ "max", "max2", "stddev", "cls" ]
+    else:
+        typ_list = [ typ ]
+
+    results = dict()
+    for typ in typ_list:
+        result = run_optim(copy.deepcopy(params), typ, listpara, p_include, p_exclude)
+        results[typ] = result
+
+    for typ, result in results.items():
+        print("===== %s =====" % typ)
+        print(result)
+        print()

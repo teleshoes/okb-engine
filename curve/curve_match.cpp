@@ -13,6 +13,8 @@
 #define PARAMS_IMPL
 #include "params.h"
 
+#include "kb_distort.h"
+
 #define BUILD_TS (char*) (__DATE__ " " __TIME__)
 
 using namespace std;
@@ -117,8 +119,13 @@ QuickKeys::QuickKeys(QHash<unsigned char, Key> &keys) {
 
 void QuickKeys::setKeys(QHash<unsigned char, Key> &keys) {
   foreach(unsigned char letter, keys.keys()) {
-    points[letter].x = keys[letter].x;
-    points[letter].y = keys[letter].y;
+    if (keys[letter].corrected_x == -1) {
+      points[letter].x = keys[letter].x;
+      points[letter].y = keys[letter].y;
+    } else {
+      points[letter].x = keys[letter].corrected_x;
+      points[letter].y = keys[letter].corrected_y;
+    }
     dim[letter].x = keys[letter].height;
     dim[letter].y = keys[letter].width;
   }
@@ -176,6 +183,7 @@ Key::Key(int x, int y, int width, int height, char label) {
   this -> width = width;
   this -> height = height;
   this -> label = label;
+  this -> corrected_x = this -> corrected_y = -1;
 }
 
 Key::Key() {
@@ -188,6 +196,10 @@ void Key::toJson(QJsonObject &json) const {
   json["w"] = width;
   json["h"] = height;
   json["k"] = QString(label);
+  if (corrected_x != -1) {
+    json["corrected_x"] = corrected_x;
+    json["corrected_y"] = corrected_y;
+  }
 }
 
 Key Key::fromJson(const QJsonObject &json) {
@@ -197,6 +209,7 @@ Key Key::fromJson(const QJsonObject &json) {
   key.width = json["w"].toDouble();
   key.height = json["h"].toDouble();
   key.label = QSTRING2PCHAR(json["k"].toString())[0];
+  key.corrected_x = key.corrected_y = -1;
   return key;
 }
 
@@ -901,7 +914,7 @@ void Scenario::calc_turn_score_all() {
     float expected = anglep(k2 - k1, k3 - k2) * 180 / M_PI;
 
     if (a_same[i - 1] &&
-	(abs(a_expected[i - 1]) > 175 || abs(expected) > 175) &&
+	(abs(a_expected[i - 1]) > 165 || abs(expected) > 165) &&
     	(abs(a_expected[i - 1]) < 80 || abs(expected) < 80) && // @todo set as parameters
 	curve->getSharpTurn(index_history[i - 1])) {
       expected += a_expected[i - 1];
@@ -1156,12 +1169,23 @@ void Scenario::calc_turn_score_all() {
 	}
       }
 
+      int length = 0;
+      for (int k = d->start_index; k < d->index; k++) {
+	int i1 = index_history[k];
+	int i2 = index_history[k + 1];
+	length += distancep(curve->point(i1), curve->point(i2));
+      }
+      d->length = length;
+
       float actual = d -> corrected;
       float expected = d -> expected;
       float score = 1;
       float scale = -1;
-      if (abs(expected) < 181) {
-	float t = (abs(expected) < 90)?t3:t1;
+      if (((d->start_index == 1) && (d->length_before < params->turn_tip_min_distance)) ||
+	  ((d->index == count - 2) && (d->length_after < params->turn_tip_min_distance))) {
+	score = 1; // for very small begin/end segments, tip angle is not that mush important
+      } else if (abs(expected) < 181) {
+	float t = (abs(expected) < 90)?t1:t3;
 	scale = t + (t2 - t) * sin(min(abs(actual), abs(expected)) * M_PI / 180);
 	float diff = abs(actual - expected);
 	float sc0 = diff / scale;
@@ -1172,18 +1196,10 @@ void Scenario::calc_turn_score_all() {
 
       if (score < 0) { score = 0.01; } // we can keep this scenario in case other are even worse
 
-      int length = 0;
-      for (int k = d->start_index; k < d->index; k++) {
-	int i1 = index_history[k];
-	int i2 = index_history[k + 1];
-	length += distancep(curve->point(i1), curve->point(i2));
-      }
-      d->length = length;
-
       int index = d -> index;
-      DBG("  [score turn]  turn #%d: %.2f[%.2f] / %.2f length[%d:%d] index=[%d:%d]->[%d:%d] length=%d (scale=%.2f) ---> score=%.2f",
-	  i, d->actual, d->corrected, d->expected, (int) d->length_before, (int) d->length_after, d->start_index, index,
-	  index_history[d->start_index], index_history[index], int(length), scale, score);
+      DBG("  [score turn]  turn #%d: %.2f[%.2f] / %.2f length[%d:%d:%d] index=[%d:%d]->[%d:%d] (scale=%.2f) ---> score=%.2f",
+	  i, d->actual, d->corrected, d->expected, (int) d->length_before, int(length), (int) d->length_after, d->start_index, index,
+	  index_history[d->start_index], index_history[index], scale, score);
 
       if (scores[index + 1].turn_score >= 0) { scores[index + 1].turn_score = score; }
     }
@@ -1507,6 +1523,7 @@ CurveMatch::CurveMatch() {
   params = default_params;
   debug = false;
   done = false;
+  kb_preprocess = true;
 }
 
 void CurveMatch::curvePreprocess1(int last_curve_index) {
@@ -1680,6 +1697,7 @@ void CurveMatch::clearKeys() {
 }
 
 void CurveMatch::addKey(Key key) {
+  kb_preprocess = true;
   if (key.label >= 'a' && key.label <= 'z') {
     keys[key.label] = key;
     DBG("Key: '%c' %d,%d %d,%d", key.label, key.x, key.y, key.width, key.height);
@@ -1695,6 +1713,20 @@ void CurveMatch::clearCurve() {
 void CurveMatch::addPoint(Point point, int timestamp) {
   QTime now = QTime::currentTime();
   int ts = (timestamp >= 0)?timestamp:startTime.msecsTo(now);
+
+  if (kb_preprocess && params.thumb_correction) {
+    kb_preprocess = false;
+    kb_distort(keys, params);
+    if (debug) {
+      DBG("Keys adjustments:");
+      QHashIterator<unsigned char, Key> ki(keys);
+      while (ki.hasNext()) {
+	ki.next();
+	Key key = ki.value();
+	DBG("Key '%c' %d,%d -> %d,%d", key.label, key.x, key.y, key.corrected_x, key.corrected_y);
+      }
+    }
+  }
 
   if (curve.isEmpty()) {
     startTime = now;
@@ -1966,7 +1998,7 @@ void CurveMatch::sortCandidates() {
 	int cmp = compare_score(best_candidate.getScores(), candidates[j].getScores(), false, false);
 	if ((cmp > 0)
 	    ||
-	    ! (candidates[j].getScore() < best_candidate.getScore() - /* ++ 0.03 */ 0.05 /* @todo add to configuration */ ||
+	    ! (candidates[j].getScore() < best_candidate.getScore() - /* ++ 0.03 */ 0.065 /* @todo add to configuration */ ||
 	       candidates[j].getScores().distance_score < best_candidate.getScores().distance_score - 0.05 /* @todo add to configuration */ ||
 	       candidates[j].getMinScores().distance_score < best_candidate.getMinScores().distance_score - 0.12 /* @todo add to configuration */)
 	    ||

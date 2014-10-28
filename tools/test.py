@@ -47,11 +47,19 @@ class Color:
     def save(self):
         if self.fname: pickle.dump(self.db, open(self.fname, 'wb'))
 
+def usage():
+    print("Usage: ", os.path.basename(__file__), " [-d <dump dir>] [-n] [<compare file>]")
+    exit(1)
+
 if __name__ == "__main__":
     os.chdir(os.path.dirname(sys.argv[0]))
 
     dump_dir = None
-    opts, args =  getopt.getopt(sys.argv[1:], 'd:n')
+    try:
+        opts, args =  getopt.getopt(sys.argv[1:], 'd:n')
+    except:
+        usage()
+
     listpara = None
     save = True
     for o, a in opts:
@@ -61,8 +69,7 @@ if __name__ == "__main__":
             save = False
         else:
             print("Bad option: %s", o)
-            exit(1)
-
+            usage()
 
     params = optim.params
     tests = optim.load_tests()

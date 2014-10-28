@@ -68,19 +68,21 @@ def coord(l, scale, border = 0, offset = 0):
         result.append(x)
     return tuple(result)
 
-def draw_key(draw, k, scale, key_color, text_color):
+def draw_key(draw, k, scale, key_color, text_color, draw_correction):
     draw.rectangle(coord( [ k['x'] - k['w'] / 2, k['y'] - k['h'] / 2, k['x'] + k['w'] / 2, k['y'] + k['h'] / 2], scale, border = -2),
                    fill = key_color)
     draw.text(coord( [ k['x'] - k['w'] / 2, k['y'] - k['h'] / 2 ], scale, offset = 4 ),
               k['k'],
               fill = text_color)
+    if draw_correction and "corrected_x" in k:
+        draw.line(coord( [ k['x'], k['y'], k['corrected_x'], k['corrected_y'] ], scale), fill = "#0000C0", width = 4)
 
 def mkimg(scale = 1, scenario = None):
     img = Image.new("RGB", (int(width * scale), int(height * scale)))
     draw = ImageDraw.Draw(img)
 
     for k in keys:
-        draw_key(draw, k, scale, '#80C0FF', '#000000')
+        draw_key(draw, k, scale, '#80C0FF', '#000000', not scenario)
 
     lastx, lasty = None, None
     c = 0
@@ -108,7 +110,7 @@ def mkimg(scale = 1, scenario = None):
         for step in scenario["detail"]:
             key = [ k for k in keys if k["k"] == step["letter"] ][0]
             index = step["index"]
-            (x1, y1, x2, y2) = coord([ key['x'], key['y'], curve[index]['x'], curve[index]['y'] ], scale)
+            (x1, y1, x2, y2) = coord([ key.get('corrected_x', key['x']), key.get('corrected_y', key['y']), curve[index]['x'], curve[index]['y'] ], scale)
             if lastx is not None:
                 draw.line((lastx, lasty, x1, y1), fill='#000080', width = int(3 * scale))
             if lastxc is not None:

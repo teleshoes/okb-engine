@@ -1,5 +1,5 @@
 /* this file implement the curve matching algorithm
-   for keyboard définition and curve (list of points) it produces a list of candidate ranked with score 
+   for keyboard definition and curve (list of points) it produces a list of candidate ranked with score 
    the incremental / asynchronous algorithm is implemented in incr_match.{h,cpp} */
 
 #ifndef CURVE_MATCH_H
@@ -59,6 +59,8 @@ class Key {
   int width;
   int height;
   char label;
+  int corrected_x;
+  int corrected_y;
 };
 
 /* quick curve implementation */
@@ -239,6 +241,8 @@ class CurveMatch {
   int curve_length;
 
   stats_t st;
+
+  bool kb_preprocess;
 
   void scenarioFilter(QList<Scenario> &scenarios, float score_ratio, int min_size, int max_size = -1, bool finished = false);
   void curvePreprocess1(int last_curve_index = -1);
