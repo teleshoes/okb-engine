@@ -98,6 +98,7 @@ def run1(json_str, lang):
 
 def update_json(json_str, params):
     js = json.loads(json_str)
+    if "input" in js: js = js["input"]  # case we use an "output" json file
     js["params"] = dict([ (x, y["value"]) for x, y in params.items() ])
     return json.dumps(js)
 
@@ -181,6 +182,7 @@ def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, s
         if dump:
             save(os.path.join(dump, "%s.out" % key), json_out)
             save(os.path.join(dump, "%s.err" % key), err)
+            save(os.path.join(dump, "%s.run" % key), cmd + '\n')
 
         if code != 0:
             dump_txt(inj[word])
