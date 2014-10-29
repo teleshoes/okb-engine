@@ -462,7 +462,7 @@ class Predict:
                 name, sign = ("increase", 1) if increase else ("decrease", -1)
                 gram = infonew.gram
 
-                self.coef_score_predict[gram] += sign * self.cf("score_predict_tune_increment", 0.005, float)
+                self.coef_score_predict[gram] += sign * self.cf("score_predict_tune_increment", 0.002, float)
                 self.coef_score_predict[gram] = max(0.001, min(1, self.coef_score_predict[gram]))
                 self.log("Replacement [%s -> %s] - Predict coef[%d] %s, new value: %.3f" %
                          (old, new, gram, name, self.coef_score_predict[gram]))
@@ -710,9 +710,6 @@ class Predict:
 
         lst.sort(key = lambda w: words[w].final_score, reverse = True)
 
-        if len(lst) > 5:
-            lst = lst[0:5] + [ w for w in lst[5:] if words[w].predict_proba > 0 ]
-
         for w in lst: self.log(words[w].message)
 
         self.predict_list = lst[0:self.cf('max_predict', 30, int)]
@@ -760,3 +757,10 @@ class Predict:
         if self.db:
             self.db.close()
             self.db = None
+
+    def get_version(self):
+        try:
+            with file(os.path.join(os.path.basename(__file__), "engine.version")) as f:
+                return f.read().strip()
+        except:
+            return "unknown"
