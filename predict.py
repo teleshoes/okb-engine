@@ -760,7 +760,7 @@ class Predict:
 
     def get_version(self):
         try:
-            with file(os.path.join(os.path.basename(__file__), "engine.version")) as f:
+            with open(os.path.join(os.path.dirname(__file__), "engine.version"), "r") as f:
                 return f.read().strip()
         except:
             return "unknown"
