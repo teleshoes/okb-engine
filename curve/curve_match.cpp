@@ -550,10 +550,10 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &
       last_turn_score = score;
 
       if (st == 2) {
-	if (score <= 0) { failed = 1; break; }
 	new_index_list.clear();
-	new_index_list << index;
-	if (max_score_index < index - 1) { new_index_list << max_score_index; }
+	if (score > 0) { new_index_list << index; }
+	if (max_score_index < index - 1 && max_score > 0) { new_index_list << max_score_index; }
+	if (new_index_list.size() == 0) { failed = 1; }
 	finished = true;
 	break;
       }
