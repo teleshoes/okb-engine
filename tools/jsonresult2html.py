@@ -242,7 +242,10 @@ while curve_:
     for lbl in ['x', 'y', 't', 'speed', 'turn_angle', 'sharp_turn', 'length']:
         li = t.tr(align = "center").td.font(lbl, size = "-2", bgcolor="#C0FFC0")
         for pt in curve1:
-            li.td.font(clean_value(pt[lbl]), size = "-2")
+            col = ""
+            if pt.get("dummy", 0): col = "#FFC040"
+            if lbl == "sharp_turn" and pt.get("sharp_turn"): col = "#FF8080"
+            li.td(bgcolor=col).font(clean_value(pt[lbl]), size = "-2")
 
 # overview
 if candidates:
