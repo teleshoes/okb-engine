@@ -636,12 +636,18 @@ class Predict:
         class word_score:
             def __init__(self, score, cls, star):
                 (self.score, self.cls, self.star) = (score, cls, star)
+            def __str__(self):
+                return (("%.2f" % self.score) 
+                        + ((":%d" % self.cls) if self.cls else "")
+                        + ("*" if self.star else ""))
 
         words = dict()
+        display_matches = []
         for x in matches:
             for y in x[4].split(','):
                 word = x[0] if y == '=' else y
                 words[word] = word_score(x[1], x[2], x[3])  # score, class, star
+            display_matches.append((x[0], word_score(x[1], x[2], x[3])))
 
         if not self.db:
             # in case we have no prediction DB (this case is probably useless)
@@ -657,16 +663,13 @@ class Predict:
         if not len(matches): return
 
         self.log("ID: %d - Speed: %d - Context: %s - Matches: %s" %
-                 (correlation_id, speed,  self.last_words, ','.join(words.keys())))
-
-        all_predict_proba = self._get_all_predict_scores(words.keys())  # requests all scores using bulk requests
+                 (correlation_id, speed,  self.last_words, 
+                  ','.join("%s[%s]" % x for x in reversed(display_matches))))
 
         # these settings are completely empirical (or just random guesses), and they probably depend on end user
-        # @todo they should be auto-tuned (at least coef_score_predict)
         coef_score_upper = self.cf('score_upper', 0.01, float)
         coef_score_sign = self.cf('score_sign', 0.01, float)
 
-        lst0 = sorted(words.keys(), key = lambda x: words[x].score, reverse = False)
         max_star_index = max([x.cls for x in words.values()] + [ -1 ])
 
         star_bonus = 0
@@ -675,8 +678,17 @@ class Predict:
 
         no_new_word = (max_star_index > self.cf('max_star_index_new_word', 5, int))
 
+        all_words = sorted(words.keys(),
+                           key = lambda x: words[x].score + (star_bonus if words[x].star else 0),
+                           reverse = False)
+
+        max_words = self.cf('predict_max_candidates', 25, int)
+        all_words = all_words[-max_words:]
+
+        all_predict_proba = self._get_all_predict_scores(all_words)  # requests all scores using bulk requests
+
         lst = []
-        for word in words:
+        for word in all_words:
             predict_proba, detail_predict = all_predict_proba.get(word, (0, dict()))
 
             score_predict = (math.log10(predict_proba) + 8 if predict_proba > 1E-8 else 0) / 8  # [0, 1]
@@ -693,10 +705,11 @@ class Predict:
             if words[word].star: score += star_bonus
             if no_new_word and not score_predict: score -= star_bonus
 
-            message = "score[%s]: %.3f[%d%s] + %.3f * %.3f[%s] --> %.3f" % (word,
-                                                                     words[word].score, words[word].cls,
-                                                                     "*" if words[word].star else "",
-                                                                     coef_score_predict, score_predict, detail_predict, score)
+            message = "score[%s]: %.3f[%d%s] + %.3f * %.3f[%s] --> %.3f" % (
+                word,
+                words[word].score, words[word].cls,
+                "*" if words[word].star else "",
+                coef_score_predict, score_predict, detail_predict, score)
 
             words[word].message = message
             words[word].final_score = score
