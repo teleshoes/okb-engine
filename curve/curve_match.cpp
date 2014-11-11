@@ -166,7 +166,7 @@ Point const Point::operator*(const float &other) const {
   return Point(x * other, y * other);
 }
 
-CurvePoint::CurvePoint(Point p, int t, int l) : Point(p.x, p.y) {
+CurvePoint::CurvePoint(Point p, int t, int l, bool dummy) : Point(p.x, p.y) {
   this -> t = t;
   this -> speed = 1;
   this -> sharp_turn = false;
@@ -174,6 +174,7 @@ CurvePoint::CurvePoint(Point p, int t, int l) : Point(p.x, p.y) {
   this -> turn_smooth = 0;
   this -> normalx = this -> normaly = 0;
   this -> length = l;
+  this -> dummy = dummy;
 }
 
 /* --- key --- */
@@ -1573,7 +1574,6 @@ void CurveMatch::curvePreprocess1(int last_curve_index) {
     }
     if (curve[i2].t > curve[i1].t) {
       curve[i].speed = 1000.0 * dist / (curve[i2].t - curve[i1].t);
-      if (curve[i].speed > max_speed) { max_speed = curve[i].speed; }
     } else {
       // compatibility with old test cases, should not happen often :-)
       if (i > 0) { curve[i].speed = curve[i - 1].speed; } else { curve[i].speed = 1; }
@@ -1712,9 +1712,10 @@ void CurveMatch::clearCurve() {
 
 void CurveMatch::addPoint(Point point, int timestamp) {
   QTime now = QTime::currentTime();
-  int ts = (timestamp >= 0)?timestamp:startTime.msecsTo(now);
 
   if (kb_preprocess && params.thumb_correction) {
+    // we must apply keyboard biases before feeding the curve
+    // in case of incremental processing
     kb_preprocess = false;
     kb_distort(keys, params);
     if (debug) {
@@ -1731,7 +1732,19 @@ void CurveMatch::addPoint(Point point, int timestamp) {
   if (curve.isEmpty()) {
     startTime = now;
     curve_length = 0;
-  } else {
+  }
+
+  int ts = (timestamp >= 0)?timestamp:startTime.msecsTo(now);
+
+  if (curve.size() > 0) {
+    if (ts < curve.last().t) {
+      /* This is a workaround for a bug that produced bad test cases with
+	 time going back. This should be eventually removed */
+      for(int i = 0; i < curve.size(); i++) {
+	curve[i].t = ts;
+      }
+    }
+
     /* Current implementation is dependant on good spacing between points
        (which is a design fault).
        Last SailfishOS has introduced some "micro-lag" (unnoticeable by
@@ -1747,7 +1760,7 @@ void CurveMatch::addPoint(Point point, int timestamp) {
       int n = dist / max_length;
       for(int i = 0; i < n; i ++) {
 	float coef = (i + 1.0) / (n + 1);
-	curve << CurvePoint(lastPoint + dp * coef, lastPoint.t + coef * (ts - lastPoint.t), curve_length + coef * dist);
+	curve << CurvePoint(lastPoint + dp * coef, lastPoint.t + coef * (ts - lastPoint.t), curve_length + coef * dist, true /* "dummy" point */);
       }
     }
 
@@ -2176,6 +2189,7 @@ void CurveMatch::toJson(QJsonObject &json) {
     json_point["sharp_turn"] = p.sharp_turn;
     json_point["normalx" ] = p.normalx;
     json_point["normaly" ] = p.normaly;
+    json_point["dummy"] = p.dummy?1:0;
     json_curve.append(json_point);
   }
   json["curve"] = json_curve;
@@ -2209,8 +2223,10 @@ void CurveMatch::fromJson(const QJsonObject &json) {
   curve.clear();
   foreach(QJsonValue json_point, json_curve) {
     QJsonObject o = json_point.toObject();
-    CurvePoint p = CurvePoint(Point(o["x"].toDouble(), o["y"].toDouble()), o["t"].toDouble());
-    curve.append(p);
+    if (! o["dummy"].toDouble()) {
+      CurvePoint p = CurvePoint(Point(o["x"].toDouble(), o["y"].toDouble()), o["t"].toDouble());
+      curve.append(p);
+    }
   }
 }
 

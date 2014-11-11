@@ -37,7 +37,7 @@ class Point {
 
 class CurvePoint : public Point {
  public:
-  CurvePoint(Point p, int msec, int length = 0);
+  CurvePoint(Point p, int msec, int length = 0, bool dummy = false);
   int t;
   int speed;
   int sharp_turn; // points with significant direction change -> they show user intention and must be correlated with a letter in a word
@@ -45,6 +45,7 @@ class CurvePoint : public Point {
   int turn_smooth;
   float normalx, normaly;
   int length;
+  bool dummy;
 };
 
 /* just a key */
