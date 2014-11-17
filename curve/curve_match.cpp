@@ -407,7 +407,7 @@ float Scenario::calc_curve_score(unsigned char prev_letter, unsigned char letter
 }
 
 
-float Scenario::calc_distance_score(unsigned char letter, int index, int count) {
+float Scenario::calc_distance_score(unsigned char letter, int index, int count, float *return_distance) {
   /* score based on distance to from curve to key */
 
   float ratio = (count > 0)?params->dist_max_next:params->dist_max_start;
@@ -463,7 +463,13 @@ float Scenario::calc_distance_score(unsigned char letter, int index, int count) 
     }
   }
 
+  /* score based on distance to from curve to key */
   float score = 1 - dist;
+
+  /* return corrected distance */
+  if (return_distance) {
+    *return_distance = params->dist_max_next * dist;
+  }
 
   // @todo add a "more verbose" debug option
   //DBG("    distance_score[%c:%d] offset=%d:%d direction=%d:%d u=%.3f v=%.3f coefs=%.2f:%.2f dist=%.3f score=%.3f",
@@ -486,6 +492,8 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &
      - 1: Sharp turns -> shortest distance to key must be near this point
      - 2: U-Turns --> mush exactly match a key
      - 3: Slow-down points --> treated as 1, but has les priority than type 1 & 2
+     - 4: inflection points 
+     - 5: Small turn -> optimally matches a key
   */
 
   float score = -99999;
@@ -737,6 +745,11 @@ bool Scenario::childScenario(LetterNode &childNode, bool endScenario, QList<Scen
       // compute distance
       int dx = key.x - pt.x;
       int dy = key.y - pt.y;
+      /* @todo try with corrected distance
+      float distance;
+      calc_distance_score(letter, new_index, count, &distance); // ignore result, we only need distance
+      new_scenario.dist_sqr += distance * distance;
+      */
       new_scenario.dist_sqr += dx * dx + dy * dy;
       new_scenario.dist = sqrt(new_scenario.dist_sqr);
 
@@ -838,6 +851,7 @@ bool Scenario::forkLast() {
 
 typedef struct {
   char direction;
+  char corrected_direction;
   float expected;
   float actual;
   float corrected;
@@ -1198,8 +1212,9 @@ void Scenario::calc_turn_score_all() {
       if (score < 0) { score = 0.01; } // we can keep this scenario in case other are even worse
 
       int index = d -> index;
-      DBG("  [score turn]  turn #%d: %.2f[%.2f] / %.2f length[%d:%d:%d] index=[%d:%d]->[%d:%d] (scale=%.2f) ---> score=%.2f",
+      DBG("  [score turn]  turn #%d: %.2f[%.2f] / %.2f length[%d:%d:%d] index=[%d:%d]->[%c:%c]->[%d:%d] (scale=%.2f) ---> score=%.2f",
 	  i, d->actual, d->corrected, d->expected, (int) d->length_before, int(length), (int) d->length_after, d->start_index, index,
+	  letter_history[d->start_index], letter_history[index],
 	  index_history[d->start_index], index_history[index], scale, score);
 
       if (scores[index + 1].turn_score >= 0) { scores[index + 1].turn_score = score; }
@@ -1252,6 +1267,80 @@ void Scenario::calc_turn_score_all() {
     }
   }
 
+  // "reverse turn score" check the actual curve turn rates match the theoretical turns computed above  
+  if (! turn_count) {
+    check_reverse_turn(0, count - 1, 0, 0);
+  } else {
+    for(int i = 0; i < turn_count; i++) {
+      turn_t *d = &(turn_detail[i]);
+
+      // corrected_direction takes loops into account
+      d->corrected_direction = d->direction;
+
+      if ((abs(d->actual) > 140 || abs(d->expected) > 140) && d->start_index == d->index) { // @todo set as parameter
+	int t = curve->getTurnSmooth(index_history[d->index]);
+	d->corrected_direction = (t>0) - (t<0);
+      }	
+    }
+    for(int i = 0; i < turn_count; i++) {
+      turn_t *d1 = &(turn_detail[i]);
+      if (i == 0) {
+	check_reverse_turn(0, d1->start_index, 0, d1->corrected_direction);
+      }
+
+      if (d1->index > d1->start_index) {
+	check_reverse_turn(d1->start_index, d1->index, d1->corrected_direction, d1->corrected_direction);
+      }
+
+      if (i < turn_count - 1) {
+	turn_t *d2 = &(turn_detail[i + 1]);
+	check_reverse_turn(d1->index, d2->start_index, d1->corrected_direction, d2->corrected_direction);
+      } else {
+	check_reverse_turn(d1->index, this->count - 1, d1->corrected_direction, 0);
+      }
+    }
+  }
+}
+
+void Scenario::check_reverse_turn(int index1, int index2, int direction1, int direction2) {
+  int i1 = index_history[index1];
+  int i2 = index_history[index2];
+
+  int threshold = params->rt_turn_threshold;
+  int total_threshold = params->rt_total_threshold;
+  float coef_score = params->rt_score_coef;
+  int tip_gap = params->rt_tip_gaps;
+
+  int direction = direction1;
+  int bad = 0;
+  
+  if (curve->getSharpTurn(i1) == 2 || curve->getSharpTurn(i2) == 2) { 
+    DBG(" [check_reverse_turn] [%d:%d]->[%d:%d] direction=%d:%d --> skipped due to ST=2 point", index1, index2, i1, i2, direction1, direction2);
+    return;
+  }
+
+  int total = 0;
+  for(int i = max(tip_gap, i1); i <= min(i2, curve->size() - 1 - tip_gap); i++) {
+    int turn = int(0.5 * curve->getTurnSmooth(i) + 0.25 * curve->getTurnSmooth(i - 1) + 0.25 * curve->getTurnSmooth(i));
+    
+    total += turn;
+
+    if ((abs(turn) > threshold) && (turn * direction < 0 || ! direction)) {
+      if (direction2 != direction1 && direction == direction1 && turn * direction2 >= 0) { direction = direction2; i --; continue; }
+      // DBG("     --> BAD #%d turn=%d dir=%d[%d->%d]", i, turn, direction, direction1, direction2);
+      bad ++;
+    } else if ((abs(total) > total_threshold) && (total * direction < 0 || ! direction)) {
+      if (direction2 != direction1 && direction == direction1 && total * direction2 >= 0) { direction = direction2; i --; continue; }
+      // DBG("     --> BAD #%d total=%d dir=%d[%d->%d]", i, total, direction, direction1, direction2);
+      bad ++;
+    }
+  }
+
+  float score = 1.0 * bad / (i2 - i1 + 1);
+  for(int i = index1; i <= index2; i ++) {
+    scores[i].misc_score -= coef_score * score / (index2 - index1 + 1);
+  }
+  DBG(" [check_reverse_turn] [%d:%d]->[%d:%d] direction=%d:%d --> score=%.2f", index1, index2, i1, i2, direction1, direction2, score);
 }
 
 #define ALIGN(a) (min(abs(a), abs(abs(a) - 180)))
@@ -1303,9 +1392,10 @@ float Scenario::calc_score_misc(int i) {
 	float v = (px * dy - py * dx) / d;
 
 	int threshold = params->turn_distance_threshold;
-	float sc0 = params->turn_distance_score * max(0, (abs(v) + max(0, u * params->turn_distance_ratio)) / threshold - 1);
-	DBG("  [score misc] %s[%d:%c] turn distance u=%.2f v=%.2f score=%.3f",getNameCharPtr(), i, letter_history[i], u, v, sc0);
-	score -= sc0;
+	float sc0 = -params->turn_distance_score * max(0, (abs(v) + max(0, u * params->turn_distance_ratio)) / threshold - 1);
+	float sc1 = -params->lazy_loop_bias * u / params->turn_distance_threshold; // this is just intended as a small bias when i've got close choices
+	DBG("  [score misc] %s[%d:%c] turn distance u=%.2f v=%.2f score=%.3f/%.3f",getNameCharPtr(), i, letter_history[i], u, v, sc0, sc1);
+	score += sc0 + sc1;
       }
 
 
@@ -1327,62 +1417,31 @@ float Scenario::calc_score_misc(int i) {
     }
   }
 
-  /* tip tangent */
-  int id = 0;
-  if (i == 0 || i == count - 1) {
-    id = i?-1:1;
-    if (index_history[i] == index_history[i + id]) {
-      if (count > 3) { id *= 2; } else { id = 0; /* we cant' do this test */ }
-    }
-  }
+  /* optional turn matching (positive bias if matched) 
+     (this is better than trying to guestimate near tips turns using tangent direction) */
+  int l = curve->size();
+  if (i > 0 && i < count - 1) {
+    for(int j = 0; j < l; j++) {
+      if (curve->getSpecialPoint(j) == 5) {
+	int max_turn_distance = params->max_turn_index_gap;
+	int st = curve->getSpecialPoint(index_history[i]);
 
-  if (id) {
-    Point tgt = actual_curve_tangent(index_history[i]) * (id);
-    Point d1 = curve->point(index_history[i + id]) - curve->point(index_history[i]);
-    float angle = anglep(d1, tgt) * 180 / M_PI;
-
-    float turn2 = 0;
-    if (count > 2) {
-      Point d2 = curve->point(index_history[i + 2 * id]) - curve->point(index_history[i + id]);
-      float real_turn = anglep(d1, d2) * 180 / M_PI;
-
-      if (curve->getSharpTurn(index_history[i + id]) == 2) {
-	Point normal = curve->getNormal(index_history[i + id]);
-	turn2 = anglep(d1, normal) * 180 / M_PI;
-
-	if (real_turn * angle > 0 && distancep(Point(), d1) > params->turn_separation && abs(angle) > params->tgt_min_angle) {
-	  DBG("  [score misc] inverted tip tangent with near sharp turn (ST=2): index=%d", i);
-	  score -= 0.01;
+	if (abs(index_history[i] - j) <= max_turn_distance && st != 1 && st != 2) {
+	  DBG("  [score misc] optional turn matched: index=%d -> key #%d:'%c'", j, i, letter_history[i]);
+	  score += params->st5_score;
 	}
-
-      } else {
-	turn2 = real_turn;
       }
     }
-
-    float sc0 = 0;
-    if (abs(turn2) > 165) {
-      // the first turn is a near u-turn -> not evaluated
-    } else if (abs(turn2) < params->tgt_max_angle) {
-      sc0 = params->tgt_coef * max(0, abs(angle) / params->tgt_max_angle - 1);
-    } else if (abs(angle) > params->tgt_min_angle && angle * turn2 > 0) {
-      sc0 = params->tgt_coef_invert;
-    }
-
-    DBG("  [score misc] tip tangent (%s): angle=%d turn2=%d score=%.2f",
-	i?"end":"begin", (int) angle, (int) turn2, sc0);
-
-    score -= sc0;
   }
 
   return score;
 }
 
 bool Scenario::postProcess() {
-  calc_turn_score_all();
   for(int i = 0; i < count; i++) {
     scores[i].misc_score = calc_score_misc(i);
   }
+  calc_turn_score_all();
 
   return (evalScore() > 0);
 }
@@ -1527,7 +1586,7 @@ CurveMatch::CurveMatch() {
   kb_preprocess = true;
 }
 
-void CurveMatch::curvePreprocess1(int last_curve_index) {
+void CurveMatch::curvePreprocess1(int /* unused parmeter for the moment */) {
   /* curve preprocessing that can be evaluated incrementally :
      - evaluate turn rate
      - find sharp turns
@@ -1537,26 +1596,34 @@ void CurveMatch::curvePreprocess1(int last_curve_index) {
   if (l < 8) {
     return; // too small, probably a simple 2-letter words
   }
-  if (last_curve_index < 8) { last_curve_index = 0; }
 
   for (int i = 1; i < l - 1; i ++) {
     curve[i].turn_angle = (int) int(angle(curve[i].x - curve[i-1].x,
 					  curve[i].y - curve[i-1].y,
 					  curve[i+1].x - curve[i].x,
 					  curve[i+1].y - curve[i].y) * 180 / M_PI + 0.5); // degrees
+
+    
   }
   // avoid some side effects on curve_score (because there is often a delay before the second point)
-  if (last_curve_index == 0) { curve[0].turn_angle = curve[1].turn_angle; }
-  curve[l-1].turn_angle = curve[l-2].turn_angle;
+  curve[0].turn_angle = 0;
+  curve[l-1].turn_angle = 0;
+
+  for (int i = 1; i < l - 1 ; i ++) {
+    int t1 = curve[i-1].turn_angle;
+    int t2 = curve[i].turn_angle;
+    int t3 = curve[i+1].turn_angle;
+
+    if (abs(t2) > 160 && t1 * t2 < 0 && t2 * t3 < 0) {
+      curve[i].turn_angle += 360 * ((t2 < 0) - (t2 > 0));
+    }
+  }
 
   for (int i = 1; i < l - 1 ; i ++) {
     curve[i].turn_smooth = int(0.5 * curve[i].turn_angle + 0.25 * curve[i-1].turn_angle + 0.25 * curve[i+1].turn_angle);
   }
-  if (last_curve_index == 0) { curve[0].turn_smooth = curve[1].turn_smooth; }
-  curve[l-1].turn_smooth = curve[l-2].turn_smooth;
-
-  int sharp_turn_index = -1;
-  int last_total_turn = -1;
+  curve[0].turn_smooth = curve[1].turn_angle / 4;
+  curve[l-1].turn_smooth = curve[l-2].turn_angle / 4;
 
   // speed evaluation
   int max_speed = 0;
@@ -1581,56 +1648,128 @@ void CurveMatch::curvePreprocess1(int last_curve_index) {
     if (curve[i].speed > max_speed) { max_speed = curve[i].speed; }
   }
 
-  for(int i = 0 ; i < l - 1; i ++) {
+  for(int i = 0 ; i < l; i ++) {
     curve[i].sharp_turn = 0;
   }
 
   /* rotation / turning points */
-  int wait_for_next_st = 0;
+  int sharp_turn_index = -1;
+  int last_total_turn = -1;
+  int last_turn_index = -1;
+  int range = 1;
   for(int i = 2 ; i < l - 2; i ++) {
     float total = 0;
     float t_index = 0;
-    for(int j = i - 1; j <= i + 1; j ++) {
+    for(int j = i - range; j <= i + range; j ++) {
       total += curve[j].turn_angle;
       t_index += curve[j].turn_angle * j;
     }
-
-    if (abs(total) < last_total_turn && last_total_turn > params.turn_threshold && wait_for_next_st < 0) {
+  
+    if (abs(total) < last_total_turn && last_total_turn > params.turn_threshold) {
       if (sharp_turn_index >= 2 && sharp_turn_index < l - 2) {
+  
+  	for(int j = i - range; j <= i + range; j ++) {
+  	  if (abs(curve[j].turn_angle) > params.turn_threshold2) {
+  	    sharp_turn_index = j;
+  	  }
+  	}
+  
+  	int diff = sharp_turn_index - last_turn_index;
+  	if (diff <= 1) {
+  	  sharp_turn_index = -1;
+  	} else if (diff == 2) {
+  	  sharp_turn_index --;
+  	  curve[sharp_turn_index - 1].sharp_turn = 0;
+  	}
+  
+  	if (sharp_turn_index >= 0) {
+  	  curve[sharp_turn_index].sharp_turn = 1 + (last_total_turn > params.turn_threshold2 ||
+  						    abs(curve[sharp_turn_index].turn_angle) > params.turn_threshold3);
+  	  last_turn_index = sharp_turn_index;
+  	
+  	  DBG("Special point[%d]=%d", sharp_turn_index, curve[sharp_turn_index].sharp_turn);
 
-	for(int j = i - 1; j <= i + 1; j ++) {
-	  if (abs(curve[j].turn_angle) > params.turn_threshold2) {
-	    sharp_turn_index = j;
-	  }
-	}
-
-	curve[sharp_turn_index].sharp_turn = 1 + (last_total_turn > params.turn_threshold2 ||
-						  abs(curve[sharp_turn_index].turn_angle) > params.turn_threshold3);
-	wait_for_next_st = 2;
-
-	DBG("Special point[%d]=%d", sharp_turn_index, curve[sharp_turn_index].sharp_turn);
-
-	// compute "normal" vector (really lame algorithm)
-	int i1 = sharp_turn_index - 1;
-	int i2 = sharp_turn_index + 1;
-	float x1 = curve[i1].x - curve[i1 - 1].x;
-	float y1 = curve[i1].y - curve[i1 - 1].y;
-	float x2 = curve[i2 + 1].x - curve[i2].x;
-	float y2 = curve[i2 + 1].y - curve[i2].y;
-	float l1 = sqrt(x1 * x1 + y1 * y1);
-	float l2 = sqrt(x2 * x2 + y2 * y2);
-	curve[sharp_turn_index].normalx = 100 * (x1 / l1 - x2 / l2); // integer vs. float snafu -> don't loose too much precision
-	curve[sharp_turn_index].normaly = 100 * (y1 / l1 - y2 / l2);
+	  sharp_turn_index = -1;
+  	}
       }
     }
-
+  
     if (abs(total) > params.turn_threshold) {
       sharp_turn_index = int(0.5 + abs(t_index / total));
     }
-
+  
     last_total_turn = abs(total);
-    wait_for_next_st --;
   }
+
+  // alternate way of finding turning points
+  int cur = 0;
+  int total, start_index, max_turn, max_index;
+  int threshold = params.atp_threshold;
+  int min_angle1 = params.atp_min_angle1;
+  int min_turn1 = params.atp_min_turn1;
+  int max_pts = params.atp_max_pts;
+  int tip_gap = 0;
+  int opt_gap = params.atp_opt_gap;
+  bool st_found = false;
+  for(int i = tip_gap; i < l - tip_gap; i ++) {
+    int turn = curve[i].turn_smooth; // take care of jagged curves
+    if (cur) {
+      st_found |= (curve[i].sharp_turn != 0);
+      if (abs(turn) >= threshold && cur * turn > 0 && i < l - 1 - tip_gap) {
+	// turn continues
+	total += turn;
+	if (abs(turn) > abs(max_turn)) {
+	  max_turn = turn;
+	  max_index = i;
+	}
+      } else {
+	// turn end
+	int end_index = i;
+	if (i == l - 1 - tip_gap) { total += turn; }
+	for(int j = 1; j <= 2; j ++) {
+	  if (start_index - j > 0) { st_found |= (curve[start_index - j].sharp_turn != 0); }
+	  if (end_index + j < l) { st_found |= (curve[end_index + j].sharp_turn != 0); }
+	}
+	DBG("New turn %d->%d total=%d max_index=%d st_found=%d", start_index, end_index, total, max_index, st_found);
+	if (abs(total) > min_angle1 && 
+	    abs(curve[max_index].turn_smooth) >= min_turn1 &&
+	    end_index - start_index <= max_pts &&
+	    ! st_found) {
+	  int value = 1;
+	  if (start_index <= opt_gap || end_index >= l - opt_gap) { value = 5; }
+	  DBG("Special point[%d]=%d", max_index, value);
+	  curve[max_index].sharp_turn = value;
+	}
+	cur = 0;
+      }
+    } else if (abs(turn) > threshold) {
+      cur = (turn > 0) - (turn < 0);
+      total = turn;
+      start_index = i;
+      max_index = i;
+      max_turn = turn;
+      st_found = (curve[i].sharp_turn != 0);
+    }
+  }
+  
+  // compute "normal" vector for turns (really lame algorithm)
+  for(int i = 2; i < l - 2; i ++) {
+    if (curve[i].sharp_turn) {
+      int sharp_turn_index = i;
+
+      int i1 = sharp_turn_index - 1;
+      int i2 = sharp_turn_index + 1;
+      float x1 = curve[i1].x - curve[i1 - 1].x;
+      float y1 = curve[i1].y - curve[i1 - 1].y;
+      float x2 = curve[i2 + 1].x - curve[i2].x;
+      float y2 = curve[i2 + 1].y - curve[i2].y;
+      float l1 = sqrt(x1 * x1 + y1 * y1);
+      float l2 = sqrt(x2 * x2 + y2 * y2);
+      curve[sharp_turn_index].normalx = 100 * (x1 / l1 - x2 / l2); // integer vs. float snafu -> don't loose too much precision
+      curve[sharp_turn_index].normaly = 100 * (y1 / l1 - y2 / l2);
+    }
+  }
+
 
   // slow down point search
   int maxd = params.max_turn_index_gap;

@@ -7,6 +7,11 @@ class Params {
  public:
   /* BEGIN DECL */
   float anisotropy_ratio;
+  int atp_max_pts;
+  int atp_min_angle1;
+  int atp_min_turn1;
+  int atp_opt_gap;
+  int atp_threshold;
   int cat_window;
   int cls_enable;
   float coef_distance;
@@ -27,6 +32,7 @@ class Params {
   int incremental_length_lag;
   int inf_max;
   int inf_min;
+  float lazy_loop_bias;
   float length_penalty;
   int match_wait;
   int max_active_scenarios;
@@ -39,6 +45,10 @@ class Params {
   int max_turn_error3;
   int max_turn_index_gap;
   int min_turn_index_gap;
+  float rt_score_coef;
+  int rt_tip_gaps;
+  int rt_total_threshold;
+  int rt_turn_threshold;
   int same_point_max_angle;
   float same_point_score;
   float score_pow;
@@ -51,10 +61,7 @@ class Params {
   float speed_penalty;
   int st2_max;
   int st2_min;
-  float tgt_coef;
-  float tgt_coef_invert;
-  int tgt_max_angle;
-  int tgt_min_angle;
+  float st5_score;
   int thumb_correction;
   float tip_small_segment;
   float turn_distance_ratio;
@@ -87,6 +94,11 @@ class Params {
 static Params default_params = {
   /* BEGIN DEFAULT */
   1.5, // anisotropy_ratio
+  8, // atp_max_pts
+  30, // atp_min_angle1
+  12, // atp_min_turn1
+  4, // atp_opt_gap
+  4, // atp_threshold
   12, // cat_window
   1, // cls_enable
   0.1, // coef_distance
@@ -107,6 +119,7 @@ static Params default_params = {
   100, // incremental_length_lag
   120, // inf_max
   20, // inf_min
+  0.01, // lazy_loop_bias
   0.001, // length_penalty
   7, // match_wait
   350, // max_active_scenarios
@@ -119,6 +132,10 @@ static Params default_params = {
   50, // max_turn_error3
   6, // max_turn_index_gap
   2, // min_turn_index_gap
+  1.0, // rt_score_coef
+  3, // rt_tip_gaps
+  20, // rt_total_threshold
+  5, // rt_turn_threshold
   120, // same_point_max_angle
   0.1, // same_point_score
   1.0, // score_pow
@@ -131,10 +148,7 @@ static Params default_params = {
   0.5, // speed_penalty
   170, // st2_max
   130, // st2_min
-  0.1, // tgt_coef
-  0.2, // tgt_coef_invert
-  15, // tgt_max_angle
-  23, // tgt_min_angle
+  0.01, // st5_score
   1, // thumb_correction
   0.05, // tip_small_segment
   0.65, // turn_distance_ratio
@@ -161,6 +175,11 @@ static Params default_params = {
 void Params::toJson(QJsonObject &json) const {
   /* BEGIN TOJSON */
   json["anisotropy_ratio"] = anisotropy_ratio;
+  json["atp_max_pts"] = atp_max_pts;
+  json["atp_min_angle1"] = atp_min_angle1;
+  json["atp_min_turn1"] = atp_min_turn1;
+  json["atp_opt_gap"] = atp_opt_gap;
+  json["atp_threshold"] = atp_threshold;
   json["cat_window"] = cat_window;
   json["cls_enable"] = cls_enable;
   json["coef_distance"] = coef_distance;
@@ -181,6 +200,7 @@ void Params::toJson(QJsonObject &json) const {
   json["incremental_length_lag"] = incremental_length_lag;
   json["inf_max"] = inf_max;
   json["inf_min"] = inf_min;
+  json["lazy_loop_bias"] = lazy_loop_bias;
   json["length_penalty"] = length_penalty;
   json["match_wait"] = match_wait;
   json["max_active_scenarios"] = max_active_scenarios;
@@ -193,6 +213,10 @@ void Params::toJson(QJsonObject &json) const {
   json["max_turn_error3"] = max_turn_error3;
   json["max_turn_index_gap"] = max_turn_index_gap;
   json["min_turn_index_gap"] = min_turn_index_gap;
+  json["rt_score_coef"] = rt_score_coef;
+  json["rt_tip_gaps"] = rt_tip_gaps;
+  json["rt_total_threshold"] = rt_total_threshold;
+  json["rt_turn_threshold"] = rt_turn_threshold;
   json["same_point_max_angle"] = same_point_max_angle;
   json["same_point_score"] = same_point_score;
   json["score_pow"] = score_pow;
@@ -205,10 +229,7 @@ void Params::toJson(QJsonObject &json) const {
   json["speed_penalty"] = speed_penalty;
   json["st2_max"] = st2_max;
   json["st2_min"] = st2_min;
-  json["tgt_coef"] = tgt_coef;
-  json["tgt_coef_invert"] = tgt_coef_invert;
-  json["tgt_max_angle"] = tgt_max_angle;
-  json["tgt_min_angle"] = tgt_min_angle;
+  json["st5_score"] = st5_score;
   json["thumb_correction"] = thumb_correction;
   json["tip_small_segment"] = tip_small_segment;
   json["turn_distance_ratio"] = turn_distance_ratio;
@@ -237,6 +258,11 @@ Params Params::fromJson(const QJsonObject &json) {
 
   /* BEGIN FROMJSON */
   p.anisotropy_ratio = json["anisotropy_ratio"].toDouble();
+  p.atp_max_pts = json["atp_max_pts"].toDouble();
+  p.atp_min_angle1 = json["atp_min_angle1"].toDouble();
+  p.atp_min_turn1 = json["atp_min_turn1"].toDouble();
+  p.atp_opt_gap = json["atp_opt_gap"].toDouble();
+  p.atp_threshold = json["atp_threshold"].toDouble();
   p.cat_window = json["cat_window"].toDouble();
   p.cls_enable = json["cls_enable"].toDouble();
   p.coef_distance = json["coef_distance"].toDouble();
@@ -257,6 +283,7 @@ Params Params::fromJson(const QJsonObject &json) {
   p.incremental_length_lag = json["incremental_length_lag"].toDouble();
   p.inf_max = json["inf_max"].toDouble();
   p.inf_min = json["inf_min"].toDouble();
+  p.lazy_loop_bias = json["lazy_loop_bias"].toDouble();
   p.length_penalty = json["length_penalty"].toDouble();
   p.match_wait = json["match_wait"].toDouble();
   p.max_active_scenarios = json["max_active_scenarios"].toDouble();
@@ -269,6 +296,10 @@ Params Params::fromJson(const QJsonObject &json) {
   p.max_turn_error3 = json["max_turn_error3"].toDouble();
   p.max_turn_index_gap = json["max_turn_index_gap"].toDouble();
   p.min_turn_index_gap = json["min_turn_index_gap"].toDouble();
+  p.rt_score_coef = json["rt_score_coef"].toDouble();
+  p.rt_tip_gaps = json["rt_tip_gaps"].toDouble();
+  p.rt_total_threshold = json["rt_total_threshold"].toDouble();
+  p.rt_turn_threshold = json["rt_turn_threshold"].toDouble();
   p.same_point_max_angle = json["same_point_max_angle"].toDouble();
   p.same_point_score = json["same_point_score"].toDouble();
   p.score_pow = json["score_pow"].toDouble();
@@ -281,10 +312,7 @@ Params Params::fromJson(const QJsonObject &json) {
   p.speed_penalty = json["speed_penalty"].toDouble();
   p.st2_max = json["st2_max"].toDouble();
   p.st2_min = json["st2_min"].toDouble();
-  p.tgt_coef = json["tgt_coef"].toDouble();
-  p.tgt_coef_invert = json["tgt_coef_invert"].toDouble();
-  p.tgt_max_angle = json["tgt_max_angle"].toDouble();
-  p.tgt_min_angle = json["tgt_min_angle"].toDouble();
+  p.st5_score = json["st5_score"].toDouble();
   p.thumb_correction = json["thumb_correction"].toDouble();
   p.tip_small_segment = json["tip_small_segment"].toDouble();
   p.turn_distance_ratio = json["turn_distance_ratio"].toDouble();
