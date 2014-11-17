@@ -109,10 +109,10 @@ static Params default_params = {
   20.0, // curve_surface_coef
   100, // dist_max_next
   75, // dist_max_start
-  20, // dst_x_add
-  150, // dst_x_max
-  30, // dst_y_add
-  150, // dst_y_max
+  30, // dst_x_add
+  70, // dst_x_max
+  40, // dst_y_add
+  120, // dst_y_max
   1, // error_correct
   4, // error_correct_gap
   5, // incremental_index_gap
