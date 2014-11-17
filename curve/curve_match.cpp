@@ -492,7 +492,7 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &
      - 1: Sharp turns -> shortest distance to key must be near this point
      - 2: U-Turns --> mush exactly match a key
      - 3: Slow-down points --> treated as 1, but has les priority than type 1 & 2
-     - 4: inflection points 
+     - 4: inflection points (*removed* this has proven useless or duplicating other checks)
      - 5: Small turn -> optimally matches a key
   */
 
@@ -1785,31 +1785,6 @@ void CurveMatch::curvePreprocess1(int /* unused parmeter for the moment */) {
     if (ok == 3) {
       curve[i].sharp_turn = 3;
       DBG("Special point[%d]=3", i);
-    }
-  }
-
-
-  // lookup inflection points
-  int max_inf = 0;
-  int max_inf_idx = 0;
-  for(int i = 3; i < l - 3; i ++) {
-    int s1 = curve[i - 3].turn_angle + curve[i - 2].turn_angle + curve[i - 1].turn_angle;
-    int s2 = curve[i + 2].turn_angle + curve[i + 1].turn_angle + curve[i].turn_angle;
-    bool st = false;
-    for (int j = i - 3; j < i + 3; j++) { st |= (curve[j].sharp_turn != 0); }
-    if (s1 * s2 < 0 && abs(s1) < params.inf_max && abs(s2) < params.inf_max &&
-	abs(s1) > params.inf_min && abs(s2) > params.inf_min) {
-      int cur = -s1 * s2;
-      if (cur > max_inf) {
-	max_inf = cur;
-	max_inf_idx = i - (abs(s2) > abs(s1));
-      }
-    } else {
-      if (max_inf) {
-	curve[max_inf_idx].sharp_turn = 4;
-	DBG("Special point[%d]=4", max_inf_idx);
-	max_inf = 0;
-      }
     }
   }
 
