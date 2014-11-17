@@ -354,6 +354,7 @@ if __name__ == "__main__":
         print(" -l <file> : verbose log file")
         print(" -i <regexp> : only update parameters with matching names")
         print(" -x <regexp> : don't update parameters with matching names")
+        print("score type can be 'all' or a comma separated list")
         exit(1)
 
     typ = args[0]
@@ -363,6 +364,8 @@ if __name__ == "__main__":
 
     if typ == "all":
         typ_list = [ "max", "max2", "stddev", "cls" ]
+    elif typ.find(',') > -1:
+        typ_list = typ.split(',')
     else:
         typ_list = [ typ ]
 

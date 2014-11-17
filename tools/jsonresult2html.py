@@ -239,7 +239,7 @@ while curve_:
     for i in range(0, len(curve1)):
         li.td(bgcolor="#E0E0E0").font(str(c), size = "-2")
         c += 1
-    for lbl in ['x', 'y', 't', 'speed', 'turn_angle', 'sharp_turn', 'length']:
+    for lbl in ['x', 'y', 't', 'speed', 'turn_angle', 'turn_smooth', 'sharp_turn', 'length']:
         li = t.tr(align = "center").td.font(lbl, size = "-2", bgcolor="#C0FFC0")
         for pt in curve1:
             col = ""
