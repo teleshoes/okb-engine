@@ -172,6 +172,7 @@ class Scenario {
   float calc_cos_score(unsigned char prev_letter, unsigned char letter, int index, int new_index);
   float calc_curve_score(unsigned char prev_letter, unsigned char letter, int index, int new_index);
   void calc_turn_score_all();
+  int get_turn_kind(int index);
   void check_reverse_turn(int index1, int index2, int direction1, int direction2);
   float calc_score_misc(int i);
   float begin_end_angle_score(bool end);
@@ -217,6 +218,7 @@ class Scenario {
   float getScoreOrig() const { return final_score; }
 
   void toJson(QJsonObject &json);
+  QString toString(bool indent = false);
 };
 
 typedef struct {
@@ -250,6 +252,8 @@ class CurveMatch {
   void curvePreprocess1(int last_curve_index = -1);
   void curvePreprocess2();
   void sortCandidates();
+
+  int compare_scenario(Scenario *s1, Scenario *s2, bool reverse = false);
 
  public:
   CurveMatch();

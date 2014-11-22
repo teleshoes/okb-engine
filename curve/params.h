@@ -13,6 +13,7 @@ class Params {
   int atp_opt_gap;
   int atp_threshold;
   int cat_window;
+  float cls_distance_max_ratio;
   int cls_enable;
   float coef_distance;
   float coef_error;
@@ -75,6 +76,10 @@ class Params {
   int turn_threshold2;
   int turn_threshold3;
   int turn_tip_min_distance;
+  float ut_coef;
+  float ut_score;
+  int ut_total;
+  int ut_turn;
   float weight_cos;
   float weight_curve;
   float weight_distance;
@@ -100,6 +105,7 @@ static Params default_params = {
   4, // atp_opt_gap
   4, // atp_threshold
   12, // cat_window
+  0.8, // cls_distance_max_ratio
   1, // cls_enable
   0.1, // coef_distance
   0.1, // coef_error
@@ -119,7 +125,7 @@ static Params default_params = {
   100, // incremental_length_lag
   120, // inf_max
   20, // inf_min
-  0.01, // lazy_loop_bias
+  0.005, // lazy_loop_bias
   0.001, // length_penalty
   7, // match_wait
   350, // max_active_scenarios
@@ -147,7 +153,7 @@ static Params default_params = {
   15, // speed_min_angle
   0.5, // speed_penalty
   170, // st2_max
-  130, // st2_min
+  125, // st2_min
   0.01, // st5_score
   1, // thumb_correction
   0.05, // tip_small_segment
@@ -162,6 +168,10 @@ static Params default_params = {
   140, // turn_threshold2
   115, // turn_threshold3
   30, // turn_tip_min_distance
+  0.45, // ut_coef
+  0.5, // ut_score
+  80, // ut_total
+  15, // ut_turn
   2.0, // weight_cos
   3.0, // weight_curve
   2.0, // weight_distance
@@ -181,6 +191,7 @@ void Params::toJson(QJsonObject &json) const {
   json["atp_opt_gap"] = atp_opt_gap;
   json["atp_threshold"] = atp_threshold;
   json["cat_window"] = cat_window;
+  json["cls_distance_max_ratio"] = cls_distance_max_ratio;
   json["cls_enable"] = cls_enable;
   json["coef_distance"] = coef_distance;
   json["coef_error"] = coef_error;
@@ -243,6 +254,10 @@ void Params::toJson(QJsonObject &json) const {
   json["turn_threshold2"] = turn_threshold2;
   json["turn_threshold3"] = turn_threshold3;
   json["turn_tip_min_distance"] = turn_tip_min_distance;
+  json["ut_coef"] = ut_coef;
+  json["ut_score"] = ut_score;
+  json["ut_total"] = ut_total;
+  json["ut_turn"] = ut_turn;
   json["weight_cos"] = weight_cos;
   json["weight_curve"] = weight_curve;
   json["weight_distance"] = weight_distance;
@@ -264,6 +279,7 @@ Params Params::fromJson(const QJsonObject &json) {
   p.atp_opt_gap = json["atp_opt_gap"].toDouble();
   p.atp_threshold = json["atp_threshold"].toDouble();
   p.cat_window = json["cat_window"].toDouble();
+  p.cls_distance_max_ratio = json["cls_distance_max_ratio"].toDouble();
   p.cls_enable = json["cls_enable"].toDouble();
   p.coef_distance = json["coef_distance"].toDouble();
   p.coef_error = json["coef_error"].toDouble();
@@ -326,6 +342,10 @@ Params Params::fromJson(const QJsonObject &json) {
   p.turn_threshold2 = json["turn_threshold2"].toDouble();
   p.turn_threshold3 = json["turn_threshold3"].toDouble();
   p.turn_tip_min_distance = json["turn_tip_min_distance"].toDouble();
+  p.ut_coef = json["ut_coef"].toDouble();
+  p.ut_score = json["ut_score"].toDouble();
+  p.ut_total = json["ut_total"].toDouble();
+  p.ut_turn = json["ut_turn"].toDouble();
   p.weight_cos = json["weight_cos"].toDouble();
   p.weight_curve = json["weight_curve"].toDouble();
   p.weight_distance = json["weight_distance"].toDouble();

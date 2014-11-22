@@ -11,6 +11,7 @@ defparams = [
     [ "atp_opt_gap", int, 1, 6],
     [ "atp_threshold", int, 1, 20],
     [ "cat_window", int ],  # no optim, larger is better (and slower)
+    [ "cls_distance_max_ratio", float, 0, 2 ],
     [ "cls_enable", int ],
     [ "coef_distance", float, 0.01, 1 ],
     [ "coef_error", float ],  # more is better (at the moment ... unless i have better test cases)
@@ -73,6 +74,10 @@ defparams = [
     [ "turn_threshold2", int, 120, 179 ],
     [ "turn_threshold3", int, 90, 145 ],
     [ "turn_tip_min_distance", int, 10, 200 ],
+    [ "ut_coef", float, 0.1, 0.9 ],
+    [ "ut_score", float, 0, 1 ],
+    [ "ut_total", int, 20, 90 ],
+    [ "ut_turn", int, 5, 45 ],
     [ "weight_cos", float, 0.1, 10 ],
     [ "weight_curve", float, 0.1, 10 ],
     [ "weight_distance", float ],  # reference (=1)
