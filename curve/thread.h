@@ -13,6 +13,8 @@
 #include <QDebug>
 
 
+#define AUTO_UNLOAD_DELAY 120
+
 #include "incr_match.h"
 
 class ThreadCallBack {

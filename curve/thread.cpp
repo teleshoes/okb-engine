@@ -92,6 +92,7 @@ void CurveThread::run() {
   QList<CurvePoint> inProgress;
   bool started = false;
   bool tre_ok = false;
+  bool tre_loaded = false;
 
   /* bool try_aggressive_match = false; */
 
@@ -101,6 +102,7 @@ void CurveThread::run() {
   struct rusage ru_matched;
   QTime t_completed;
   QTime t_matched;
+  QTime last_activity;
 
   forever {
     inProgress.clear();
@@ -110,7 +112,7 @@ void CurveThread::run() {
     if ((curvePending.size() == 0) /* && (! try_aggressive_match) */){
       waiting = true;
       setIdle(! started);
-      pointsAvailable.wait(&mutex); 
+      pointsAvailable.wait(&mutex, tre_loaded?(1000 * AUTO_UNLOAD_DELAY + 5000):ULONG_MAX);
     }
     waiting = false;
     setIdle(false);
@@ -123,6 +125,16 @@ void CurveThread::run() {
     mutex.unlock();
     /* critical section end */
 
+    QTime now = QTime::currentTime();
+
+    if (inProgress.size() == 0 && last_activity.secsTo(now) >= (AUTO_UNLOAD_DELAY) && tre_loaded && ! started) {
+      logdebug("unloading tree ...");
+      matcher->loadTree(QString());
+      tre_loaded = false;
+    } else if (inProgress.size() > 0) {
+      last_activity = now;
+    }
+
     /*
     if (inProgress.size() == 0 && try_aggressive_match) {
       // we are waiting for user points, so lets burn a few cpu cycle with the aggressive match (less efficient, but may get results sooner)
@@ -134,7 +146,7 @@ void CurveThread::run() {
     /* curve points processing */
     foreach(CurvePoint point, inProgress) {
       /* try_aggressive_match = true; */
-      if (point.x == CMD_LOAD_TRE) {
+      if (point.x == CMD_LOAD_TRE || ! tre_loaded) {
 	mutex.lock();
 	QString file = treFile;
 	mutex.unlock();
@@ -143,6 +155,11 @@ void CurveThread::run() {
 	tre_ok = matcher->loadTree(file); // status ignored for now
 	matcher->clearCurve();
 	started = false; // don't block the thread with a non-idle condition :-)
+	tre_loaded = true;
+      }
+
+      if (point.x == CMD_LOAD_TRE) {
+	// already loaded
 
       } else if (! tre_ok) {
 	// if .tre file is not loaded, none of the following will work, so just skip them

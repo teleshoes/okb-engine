@@ -27,6 +27,10 @@ bool LetterTree::loadFromFile(QString fileName) {
     data = NULL;
   }
 
+  if (fileName.isEmpty()) {
+    return true;
+  }
+
   QFile file(fileName);
   if (file.open(QFile::ReadOnly)) {
     int len = file.size();
