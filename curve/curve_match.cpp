@@ -561,7 +561,7 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &
       if (st == 2) {
 	new_index_list.clear();
 	if (score > 0) { new_index_list << index; }
-	if (max_score_index < index - 1 && max_score > 0) { new_index_list << max_score_index; }
+	if (max_score_index < index && max_score > 0) { new_index_list << max_score_index; }
 	if (new_index_list.size() == 0) { failed = 1; }
 	finished = true;
 	break;
@@ -1267,7 +1267,7 @@ void Scenario::calc_turn_score_all() {
     }
   }
 
-  // "reverse turn score" check the actual curve turn rates match the theoretical turns computed above  
+  // "reverse turn score" check the actual curve turn rates match the theoretical turns computed above
   if (! turn_count) {
     check_reverse_turn(0, count - 1, 0, 0);
   } else {
@@ -1280,7 +1280,7 @@ void Scenario::calc_turn_score_all() {
       if ((abs(d->actual) > 140 || abs(d->expected) > 140) && d->start_index == d->index) { // @todo set as parameter
 	int t = curve->getTurnSmooth(index_history[d->index]);
 	d->corrected_direction = (t>0) - (t<0);
-      }	
+      }
     }
     for(int i = 0; i < turn_count; i++) {
       turn_t *d1 = &(turn_detail[i]);
@@ -1310,7 +1310,7 @@ int Scenario::get_turn_kind(int index) {
 
   int i = index_history[index];
 
-  if (abs(curve->getTurn(i)) > 120 || 
+  if (abs(curve->getTurn(i)) > 120 ||
       (abs(curve->getTurn(i - 1) + curve->getTurn(i) + curve->getTurn(i + 1)) > 150)) {
     return 0;
   }
@@ -1336,7 +1336,7 @@ void Scenario::check_reverse_turn(int index1, int index2, int direction1, int di
 
   int direction = direction1;
   int bad = 0;
-  
+
   int kind1 = 0, kind2 = 0;
   if (curve->getSharpTurn(i1) == 2) {
     kind1 = get_turn_kind(index1);
@@ -1358,7 +1358,7 @@ void Scenario::check_reverse_turn(int index1, int index2, int direction1, int di
   int total = 0;
   for(int i = max(tip_gap, i1); i <= min(i2, curve->size() - 1 - tip_gap); i++) {
     int turn = int(0.5 * curve->getTurnSmooth(i) + 0.25 * curve->getTurnSmooth(i - 1) + 0.25 * curve->getTurnSmooth(i));
-    
+
     total += turn;
 
     if ((abs(turn) > threshold) && (turn * direction < 0 || ! direction)) {
@@ -1451,7 +1451,7 @@ float Scenario::calc_score_misc(int i) {
     }
   }
 
-  /* optional turn matching (positive bias if matched) 
+  /* optional turn matching (positive bias if matched)
      (this is better than trying to guestimate near tips turns using tangent direction) */
   int l = curve->size();
   if (i > 0 && i < count - 1) {
@@ -1485,14 +1485,17 @@ float Scenario::calc_score_misc(int i) {
 	  char found = 0;
 	  int total = curve->getTurn(i0);
 	  for(int k = 1; k <= 3; k ++) {
-	    total += curve->getTurn(i0 - k) + curve->getTurn(i0 + k);
-	    if (abs(curve->getTurnSmooth(i0 - k)) < max_turn * params->ut_coef) { found |= 1; }
-	    if (abs(curve->getTurnSmooth(i0 + k)) < max_turn * params->ut_coef) { found |= 2; }
+	    total += curve->getTurnSmooth(i0 - k) + curve->getTurnSmooth(i0 + k);
+
+	    int a1 = max(abs(curve->getTurn(i0 - k)), abs(curve->getTurn(i0 - k - 1)));
+	    int a2 = max(abs(curve->getTurn(i0 + k)), abs(curve->getTurn(i0 - k + 1)));
+	    if (a1 < max_turn * params->ut_coef) { found |= 1; }
+	    if (a2 < max_turn * params->ut_coef) { found |= 2; }
 	  }
 	  if (abs(total) > params->ut_total) {
 	    if (found == 3) {
-	      DBG("  [score misc] suspect turn rate maxima [%d:%d] index=%d max_turn=%d", i, i + 1, i0, max_turn);
-	      score -= params->ut_score; 
+	      DBG("  [score misc] suspect turn rate maxima [%d:%d] index=%d max_turn=%d total=%d", i, i + 1, i0, max_turn, abs(total));
+	      score -= params->ut_score;
 	    }
 	  }
 	}
@@ -1677,7 +1680,7 @@ void CurveMatch::curvePreprocess1(int /* unused parmeter for the moment */) {
 					  curve[i+1].x - curve[i].x,
 					  curve[i+1].y - curve[i].y) * 180 / M_PI + 0.5); // degrees
 
-    
+
   }
   // avoid some side effects on curve_score (because there is often a delay before the second point)
   curve[0].turn_angle = 0;
@@ -1729,7 +1732,7 @@ void CurveMatch::curvePreprocess1(int /* unused parmeter for the moment */) {
   /* rotation / turning points */
   int sharp_turn_index = -1;
   int last_total_turn = -1;
-  int last_turn_index = -1;
+  int last_turn_index = -100;
   int range = 1;
   for(int i = 2 ; i < l - 2; i ++) {
     float total = 0;
@@ -1738,40 +1741,59 @@ void CurveMatch::curvePreprocess1(int /* unused parmeter for the moment */) {
       total += curve[j].turn_angle;
       t_index += curve[j].turn_angle * j;
     }
-  
+
     if (abs(total) < last_total_turn && last_total_turn > params.turn_threshold) {
       if (sharp_turn_index >= 2 && sharp_turn_index < l - 2) {
-  
+
   	for(int j = i - range; j <= i + range; j ++) {
   	  if (abs(curve[j].turn_angle) > params.turn_threshold2) {
   	    sharp_turn_index = j;
   	  }
   	}
-  
+
+	int st_value = 1 + (last_total_turn > params.turn_threshold2 ||
+			    abs(curve[sharp_turn_index].turn_angle) > params.turn_threshold3);
+
   	int diff = sharp_turn_index - last_turn_index;
   	if (diff <= 1) {
   	  sharp_turn_index = -1;
   	} else if (diff == 2) {
   	  sharp_turn_index --;
   	  curve[sharp_turn_index - 1].sharp_turn = 0;
-  	}
-  
+  	} else if (diff <= 4) {
+	  bool remove_old = false, remove_new = false;
+	  int old_value = curve[last_turn_index].sharp_turn;
+
+	  if (old_value < st_value) { remove_old = true; }
+	  else if (old_value > st_value) { remove_new = true; }
+	  else if (st_value == 1) {
+	    remove_new = (abs(curve[sharp_turn_index].turn_smooth) < abs(curve[last_turn_index].turn_smooth));
+	    remove_old = ! remove_new;
+	  }
+
+	  DBG("Sharp-turns too close: %d[%d] -> %d[%d] ---> remove_old=%d remove_new=%d",
+	      last_turn_index, old_value, sharp_turn_index, st_value, remove_old, remove_new);
+
+	  if (remove_old) { curve[last_turn_index].sharp_turn = 0; }
+	  if (remove_new) { sharp_turn_index = -1; }
+	}
+
   	if (sharp_turn_index >= 0) {
-  	  curve[sharp_turn_index].sharp_turn = 1 + (last_total_turn > params.turn_threshold2 ||
-  						    abs(curve[sharp_turn_index].turn_angle) > params.turn_threshold3);
+  	  curve[sharp_turn_index].sharp_turn = st_value;
+
   	  last_turn_index = sharp_turn_index;
-  	
+
   	  DBG("Special point[%d]=%d", sharp_turn_index, curve[sharp_turn_index].sharp_turn);
 
 	  sharp_turn_index = -1;
   	}
       }
     }
-  
+
     if (abs(total) > params.turn_threshold) {
       sharp_turn_index = int(0.5 + abs(t_index / total));
     }
-  
+
     last_total_turn = abs(total);
   }
 
@@ -1805,13 +1827,13 @@ void CurveMatch::curvePreprocess1(int /* unused parmeter for the moment */) {
 	  if (end_index + j < l) { st_found |= (curve[end_index + j].sharp_turn != 0); }
 	}
 	DBG("New turn %d->%d total=%d max_index=%d st_found=%d", start_index, end_index, total, max_index, st_found);
-	if (abs(total) > min_angle1 && 
+	if (abs(total) > min_angle1 &&
 	    abs(curve[max_index].turn_smooth) >= min_turn1 &&
 	    end_index - start_index <= max_pts &&
 	    ! st_found) {
 	  int value = 1;
 	  if (start_index <= opt_gap || end_index >= l - opt_gap) { value = 5; }
-	  DBG("Special point[%d]=%d", max_index, value);
+	  DBG("Special point[%d]=%d (try 2)", max_index, value);
 	  curve[max_index].sharp_turn = value;
 	}
 	cur = 0;
@@ -1825,7 +1847,7 @@ void CurveMatch::curvePreprocess1(int /* unused parmeter for the moment */) {
       st_found = (curve[i].sharp_turn != 0);
     }
   }
-  
+
   // compute "normal" vector for turns (really lame algorithm)
   for(int i = 2; i < l - 2; i ++) {
     if (curve[i].sharp_turn) {
@@ -2060,16 +2082,16 @@ int CurveMatch::compare_scenario(Scenario *s1, Scenario *s2, bool reverse) {
   score_t avg1, min1, avg2, min2;
   s1->getDetailedScores(avg1, min1);
   s2->getDetailedScores(avg2, min2);
-  
+
   // check if s1 must be eliminated
   int result1 = 0;
   if (reverse) {
     result1 = - compare_scenario(s2, s1, false);
   }
-  
+
   // check if s2 must be eliminated
   int result = 0;
-  
+
   float d1 = s1->distance(), d2 = s2 -> distance();
   float ratio = (d2 - d1) / min(50, (d1 + d2) / 2);
 
@@ -2077,14 +2099,14 @@ int CurveMatch::compare_scenario(Scenario *s1, Scenario *s2, bool reverse) {
   int sc = int((avg1.curve_score - avg2.curve_score + min1.curve_score - min2.curve_score) / 0.03);
   int sm = int((avg1.misc_score - avg2.misc_score + min1.misc_score - min2.misc_score) / 0.01);
 
-  DBG("           %s-->%s (%.2f-->%.2f) st=%d sc=%d sm=%d", s1->getNameCharPtr(), s2->getNameCharPtr(), s1->getScoreOrig(), s2->getScoreOrig(), st, sc, sm); 
+  DBG("           %s-->%s (%.2f-->%.2f) st=%d sc=%d sm=%d", s1->getNameCharPtr(), s2->getNameCharPtr(), s1->getScoreOrig(), s2->getScoreOrig(), st, sc, sm);
 
   if (ratio > params.cls_distance_max_ratio) {
     result = 10;
   } else if (ratio > 0) {
     result = 1;
   } else if ((sm >= 0) ||
-	     (min(sm, min(st, sc)) >= -1) || 
+	     (min(sm, min(st, sc)) >= -1) ||
 	     (st + sc > 5) ||
 	     (st + sc + sm >= -3) ||
 	     (s1->getScoreOrig() - s2->getScoreOrig() > -0.02)) {
@@ -2143,7 +2165,7 @@ void CurveMatch::sortCandidates() {
     bool done = false;
     for(int j = i + 1; j < n; j ++) {
       Scenario *s2 = &candidates[j];
-      if (cls[j] < 0) { continue; }      
+      if (cls[j] < 0) { continue; }
       if (done) { cls[j] = -50; continue; }
 
       int result = cmp[j] = compare_scenario(s1, s2, true);
@@ -2153,7 +2175,7 @@ void CurveMatch::sortCandidates() {
 	cls[j] = -50;
 	continue;
       }
-      
+
       if (result < 0) {
 	remove = max(remove, -result);
       }
@@ -2165,14 +2187,14 @@ void CurveMatch::sortCandidates() {
 
     for(int j = i + 1; j < n; j ++) {
       if (cls[j] < 0) { continue; }
-      
+
       if (cmp[j] > 0) {
 	cls[j] = -cmp[j];
       }
     }
 
   } /* for i */
-  
+
   for(int i = 0; i < n; i ++) {
     candidates[i].setClass(cls[i]); // obsolete
     candidates[i].setStar((cls[i] >= 0));
