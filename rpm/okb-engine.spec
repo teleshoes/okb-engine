@@ -1,6 +1,6 @@
 Name:       okb-engine
 Summary:    OKboard engine
-Version:    0.1
+Version:    0.3
 Release:    1
 Group:      System/GUI/Other
 License:    LGPLv2.1
@@ -44,6 +44,7 @@ French files for OKboard (dictionnary & prediction data)
 %build
 qmake
 make -j 3
+echo "%{version}-%{release} build: "`date` > engine.version
 
 %install
 rm -rf %{buildroot}
@@ -51,6 +52,7 @@ rm -rf %{buildroot}
 mkdir -p %{buildroot}/%{qml_maliit_dir} %{buildroot}/%{share_dir}
 cp -p curve/build/libcurveplugin.so %{buildroot}/%{qml_maliit_dir}
 cp predict.py %{buildroot}/%{qml_maliit_dir}
+cp engine.version %{buildroot}/%{qml_maliit_dir}
 cp okboard.cf %{buildroot}/%{share_dir}
 
 tar xvfj %{SOURCE1}
@@ -62,10 +64,11 @@ for lang in fr en ; do
 done
 
 %files
-%doc README LICENSE
+%doc README.md LICENSE
 %defattr(-,root,root,-)
 %{qml_maliit_dir}/libcurveplugin.so
 %{qml_maliit_dir}/predict.py*
+%{qml_maliit_dir}/engine.version
 %{share_dir}/okboard.cf
 
 %files -n okb-lang-fr
