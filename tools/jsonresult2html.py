@@ -7,7 +7,10 @@ import json
 import sys
 import re
 from html import HTML  # https://pypi.python.org/pypi/html (it's great!)
-import Image, ImageDraw
+try:
+    from PIL import Image, ImageDraw
+except:
+    import Image, ImageDraw
 import base64
 import StringIO
 import math
