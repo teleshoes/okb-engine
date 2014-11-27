@@ -604,7 +604,15 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &
 	  new_index_list << max_score_index;
 	}
       }
-      if (curve->getSharpTurn(last_turn_point) < 3) { use_st_score = true; }
+      int st = curve->getSharpTurn(last_turn_point);
+
+      /* particular case: simple turn (ST=1) shared between two keys */
+      if (st == 1 && (start_index < last_turn_point && 
+		      start_index >= last_turn_point - max_turn_distance && 
+		      max_score_index <= last_turn_point + max_turn_distance)) {
+	DBG("  [get_next_key_match] shared ST=1 point !");
+      } else /* default case */ if (st < 3) { use_st_score = true; }
+
     } else { // max_score_index > last_turn_point + max_turn_distance --> turn point was not matched
       failed = 20;
     }
@@ -1512,6 +1520,21 @@ bool Scenario::postProcess() {
     scores[i].misc_score = calc_score_misc(i);
   }
   calc_turn_score_all();
+
+  /* particular case: simple turn (ST=1) shared between two keys
+     this is an ugly workaround: curve_score works really badly in this case
+     fortunately, this is very rare
+  */
+  int gap = params->max_turn_index_gap;
+  for(int i = 0; i < count - 1; i++) {
+    int i1 = index_history[i], i2 = index_history[i + 1];
+    for(int j = i1 + 1; j < i2 - 1; j ++) {
+      if (curve->getSharpTurn(j) == 1 && j - i1 <= gap && i2 - j <= gap) {
+	scores[i + 1].curve_score = 1;
+	DBG("  workaround: %s shared turn point (ST=1) %c:%c", getNameCharPtr(), letter_history[i], letter_history[i + 1]);
+      }
+    }
+  }
 
   return (evalScore() > 0);
 }
