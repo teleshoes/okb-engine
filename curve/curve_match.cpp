@@ -1308,6 +1308,7 @@ void Scenario::calc_turn_score_all() {
       }
     }
   }
+
 }
 
 int Scenario::get_turn_kind(int index) {
@@ -1326,7 +1327,7 @@ int Scenario::get_turn_kind(int index) {
   Point tg_expected = computed_curve_tangent(index);
   Point tg_actual = actual_curve_tangent(i);
 
-  if (tg_expected.x * tg_expected.x + tg_actual.y * tg_actual.y < 0) {
+  if (tg_expected.x * tg_actual.x + tg_expected.y * tg_actual.y < 0) {
     return -1;
   } else {
     return 1;
