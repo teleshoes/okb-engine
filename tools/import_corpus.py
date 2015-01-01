@@ -24,7 +24,7 @@ for o, a in opts:
         exit(1)
 
 if len(args) < 1:
-    print("Usage: [-d] ", os.path.basename(__file__), " <dictionary file>")
+    print("Usage: ", os.path.basename(__file__), " [<opts>] <dictionary file>")
     print(" corpus data is read from stdin (normal text file)")
     print(" words not included in dictionary file are ignored (text file, one word per line)")
     print(" result is written as semicolon separated CSV to stdout")
