@@ -62,6 +62,8 @@ class CorpusImporter:
 
         first_word = True
         while line:
+            line = line.strip()
+
             # consume non word characters
             mo = re.match(r'^[^\w\'\-]+', line)
             if mo:
@@ -71,19 +73,37 @@ class CorpusImporter:
 
             if not line: break
 
+            # find acronyms with dots and skip them
+            # (in this case a dot does not mean a new sentence)
+            # ok this thing may eat one letter words at the end of sentences
+            # but word prediction for one letter words is not important
+            line = line.strip()
+            mo = re.match(r'^([A-Z]\.\-{,1})+', line)  # i've got things like A.-B. in my text samples
+            if mo:
+                line = line[mo.end(0):]
+                if re.match(r'^[A-Z]\b', line): line = line[1:]  # last letter without "."
+                self.next_sentence()
+                self.sentence.append('#ERR')
+                continue
+
             # read next word
-            mo = re.match(r'[\w\'\-]+', line)
+            line = line.strip()
+            mo = re.match(r'^[\w\'\-]+', line)
             word = mo.group(0)
             line = line[mo.end(0):]
 
             if word in self.words:
                 self.sentence.append(word)
+                first_word = False
                 continue
 
             if word.lower() in self.words:
                 if first_word: self.next_sentence()
                 self.sentence.append(word.lower())
+                first_word = False
                 continue
+
+            first_word = False
 
             # english "'s"
             mo1 = re.match(r'^([a-zA-Z]+)\'[a-z]$', word)
@@ -92,9 +112,13 @@ class CorpusImporter:
                 continue
 
             # in word hyphen
+            # @todo: we should find a way to "auto-hyphen" when typing (n-grams tagging?)
             l = word.split('-')
             if not [ w for w in l if w not in self.words ]:
                 self.sentence.extend(l)
+                continue
+            if not [ w for w in l if w.lower() not in self.words ]:
+                self.sentence.extend([w.lower() for w in l])
                 continue
 
             # unknown word
@@ -105,12 +129,13 @@ class CorpusImporter:
         if not self.sentence: return
         sentence = self.sentence
         txt = ' '.join(sentence)
-        if self.debug: print("WORDS:", sentence)
         if self.clean and sentence != [ '#ERR' ]: print(txt)
         self.sentence = [ ]
 
         if txt in self.dejavu: return
         self.dejavu.add(txt)
+
+        if self.debug: print("WORDS:", sentence)
 
         roll = [ '#START' ] * 3
         if sentence[0] == '#ERR':
