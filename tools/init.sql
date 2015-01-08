@@ -1,4 +1,5 @@
 DROP INDEX IF EXISTS words_idx;
+DROP INDEX IF EXISTS words_idx2;
 DROP INDEX IF EXISTS grams_idx;
 DROP TABLE IF EXISTS grams;
 DROP TABLE IF EXISTS words;
@@ -19,10 +20,12 @@ CREATE INDEX grams_idx ON grams (id1, id2, id3);
 
 CREATE TABLE words (
    id INT PRIMARY KEY NOT NULL,
-   word TEXT NOT NULL
+   word TEXT NOT NULL,
+   cluster_id INT
 );
 
 CREATE INDEX words_idx ON words (word);
+CREATE INDEX words_idx2 ON words (id);
 
 CREATE TABLE params (
     key TEXT NOT NULL,
