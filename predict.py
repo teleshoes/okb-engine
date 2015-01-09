@@ -9,6 +9,11 @@ import time
 import re
 import math
 
+class Wordinfo:
+    def __init__(self, id, cluster_id):
+        self.id = id
+        self.cluster_id = cluster_id
+
 class SqliteBackend:
     """ this class implement read/write access to prediction database
         as no python/dbm is working on Sailfish (or i missed it), sqlite is used """
@@ -18,9 +23,9 @@ class SqliteBackend:
         self.clear_stats()
         self.cache = dict()
 
-        self.cache['#TOTAL'] = -2
-        self.cache['#NA'] = -1
-        self.cache['#START'] = -3
+        self.cache['#TOTAL'] = Wordinfo(-2, -2)
+        self.cache['#NA'] = Wordinfo(-1, -1)
+        self.cache['#START'] = Wordinfo(-3, -3)
 
         # fetch parameters
         self.params = dict()
@@ -121,7 +126,7 @@ class SqliteBackend:
 
         result = dict()
 
-        sql = 'SELECT word, id FROM words WHERE '
+        sql = 'SELECT word, id, cluster_id FROM words WHERE '
         params = []
         first = True
         for word in words:
@@ -138,7 +143,7 @@ class SqliteBackend:
             curs.execute(sql, tuple(params))
 
             for row in curs.fetchall():
-                result[row[0]] = row[1]
+                result[row[0]] = Wordinfo(row[1], row[2])
 
         self.timer += time.time() - _start
 
@@ -153,8 +158,8 @@ class SqliteBackend:
                     if lword in result_lower:
                         result[word] = result_lower[lword]
 
-        for word, id in result.items():
-            self.cache[word] = id
+        for word, info in result.items():
+            self.cache[word] = info
 
         for word in [ w for w in words if w not in result ]: self.cache[word] = None  # negative caching
 
@@ -235,7 +240,7 @@ class Predict:
                     if "predict_coef_%d" % n in self.db.params:
                         self.coef_score_predict[n] = self.db.params["predict_coef_%d" % n]
                     else:
-                        self.coef_score_predict[n] = self.cf('default_score_predict_%d' %n, 0.4 - 0.125 * (3 - n), float)
+                        self.coef_score_predict[n] = self.cf('default_score_predict_%d' % n, 0.4 - 0.125 * (3 - n), float)
 
             else:
                 self.log("DB not found:", self.dbfile)
@@ -268,7 +273,7 @@ class Predict:
             item = self.learn_history[key]
             for word in item[1]:
                 word_set.add(word)
-        word2id = self.db.get_words(word_set)
+        word2id = dict([ (w, i.id) for (w,i) in self.db.get_words(words_set).items() ])
 
         # list all n-grams lines to update
         na_id = word2id['#NA']
@@ -495,7 +500,7 @@ class Predict:
         words = reversed(re.split(r'[^\w\'\-]+', text_before))
         words = [ x for x in words if len(x) > 0 ]
 
-        words = (words + [ '#START' ] + [ '#NA' ] * (count - 2))[0:count]
+        words = (words + [ '#START' ] * count)[0:count]
         return words
 
 
@@ -515,10 +520,11 @@ class Predict:
 
         # get id for previous words
         last_wids = []
+        last_cids = []
         for word in self.last_words:
             if word not in word2id: break  # unknown word -> only use smaller n-grams
-            last_wids.append(word2id[word])
-            if word == '#START': break  # no need to get a larger n-gram
+            last_wids.append(word2id[word].id)
+            last_cids.append(word2id[word].cluster_id)
 
         # prepare scores request
         def add(word, todo, ids_list, score_id, lst):
@@ -537,13 +543,19 @@ class Predict:
             result[word] = (0, dict())
             if word not in word2id:  # unknown word -> dummy scoring
                 continue
-            wid = word2id[word]
+            wid, cid = word2id[word].id, word2id[word].cluster_id
 
             add(word, todo, ids_list, "s1", [wid])
+
             if len(last_wids) >= 1:
                 add(word, todo, ids_list, "s2", [wid, last_wids[0]])
+                if cid and last_cids[0] != 0:
+                    add(word, todo, ids_list, "c2", [cid, last_cids[0]])
+
             if len(last_wids) >= 2:
                 add(word, todo, ids_list, "s3", [wid] + last_wids[0:2])
+                if cid and last_cids[0] != 0 and last_cids[1] != 0:
+                    add(word, todo, ids_list, "c3", [cid] + last_cids[0:2])
 
         # request
         sqlresult = self.db.get_grams(ids_list)
@@ -579,7 +591,7 @@ class Predict:
 
                 # final score for current N value
                 if (user_count or user_replace) and total_user_count \
-                and global_user_count and learning_master_switch:
+                   and global_user_count and learning_master_switch:
                     # use information learned from user
 
                     # usage of this context compared to the whole corpus
@@ -613,10 +625,10 @@ class Predict:
             # use linear interpolation between probabilities for each N value (cf. Jurasky & Martin §4.6: interpolation)
             final_score, n = None, 0
             if "s3" in score:
-                final_score = lambda1 * score.get("s1",0) + lambda2 * score.get("s2", 0) + lambda3 * score["s3"]
+                final_score = lambda1 * score.get("s1", 0) + lambda2 * score.get("s2", 0) + lambda3 * score["s3"]
                 n = 3
             elif "s2" in score:  # context size is 2 (e.g. first word in a sentence)
-                final_score = (lambda1 * score.get("s1",0) + lambda2 * score["s2"]) / (lambda1 + lambda2)
+                final_score = (lambda1 * score.get("s1", 0) + lambda2 * score["s2"]) / (lambda1 + lambda2)
                 n = 2
             elif "s1" in score:  # context size in 1 (e.g. first word after an unknown word)
                 final_score = score["s1"]
@@ -636,8 +648,9 @@ class Predict:
         class word_score:
             def __init__(self, score, cls, star):
                 (self.score, self.cls, self.star) = (score, cls, star)
+
             def __str__(self):
-                return (("%.2f" % self.score) 
+                return (("%.2f" % self.score)
                         + ((":%d" % self.cls) if self.cls else "")
                         + ("*" if self.star else ""))
 
@@ -663,7 +676,7 @@ class Predict:
         if not len(matches): return
 
         self.log("ID: %d - Speed: %d - Context: %s - Matches: %s" %
-                 (correlation_id, speed,  self.last_words, 
+                 (correlation_id, speed,  self.last_words,
                   ','.join("%s[%s]" % x for x in reversed(display_matches))))
 
         # these settings are completely empirical (or just random guesses), and they probably depend on end user
