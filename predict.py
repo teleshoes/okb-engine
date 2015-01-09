@@ -273,7 +273,7 @@ class Predict:
             item = self.learn_history[key]
             for word in item[1]:
                 word_set.add(word)
-        word2id = dict([ (w, i.id) for (w,i) in self.db.get_words(words_set).items() ])
+        word2id = dict([ (w, i.id) for (w,i) in self.db.get_words(word_set).items() ])
 
         # list all n-grams lines to update
         na_id = word2id['#NA']
@@ -527,7 +527,7 @@ class Predict:
             last_cids.append(word2id[word].cluster_id)
 
         # prepare scores request
-        def add(word, todo, ids_list, score_id, lst):
+        def add(word, todo, ids_list, score_name, lst, cluster = None):
             lst = [ str(x) for x in lst ]
             while len(lst) < 3: lst.append('-1')  # N/A
             num = ':'.join(lst)
@@ -535,7 +535,7 @@ class Predict:
             ids_list.add(num)
             ids_list.add(den)
             if word not in todo: todo[word] = dict()
-            todo[word][score_id] = (num, den)
+            todo[word][score_name] = (num, den, cluster)
 
         todo = dict()
         ids_list = set(["-2:-1:-1"])
@@ -546,16 +546,18 @@ class Predict:
             wid, cid = word2id[word].id, word2id[word].cluster_id
 
             add(word, todo, ids_list, "s1", [wid])
+            if cid:
+                add(word, todo, ids_list, "c1", [cid], True)  # used only for P(Wi|Ci)
 
             if len(last_wids) >= 1:
                 add(word, todo, ids_list, "s2", [wid, last_wids[0]])
                 if cid and last_cids[0] != 0:
-                    add(word, todo, ids_list, "c2", [cid, last_cids[0]])
+                    add(word, todo, ids_list, "c2", [cid, last_cids[0]], True)
 
             if len(last_wids) >= 2:
                 add(word, todo, ids_list, "s3", [wid] + last_wids[0:2])
                 if cid and last_cids[0] != 0 and last_cids[1] != 0:
-                    add(word, todo, ids_list, "c3", [cid] + last_cids[0:2])
+                    add(word, todo, ids_list, "c3", [cid] + last_cids[0:2], True)
 
         # request
         sqlresult = self.db.get_grams(ids_list)
@@ -573,21 +575,40 @@ class Predict:
         learning_count_min = self.cf('learning_count_min', 10, int)
         learning_master_switch = self.cf('learning_enable', True, bool)
 
+        # evaluate score components
         for word in todo:
+
+            # compute P(Wi|Ci) term for cluster n-grams
+            coef_wc = None
+            if "s1" in todo[word] and "c1" in todo[word]:
+                numw_id = todo[word]["s1"][0]
+                numc_id = todo[word]["c1"][0]
+                num_w = sqlresult.get(numw_id, None)[0]
+                num_c = sqlresult.get(numc_id, None)[0]
+                if num_w and num_c: coef_wc = 1.0 * num_w / num_c
+            
             score = dict()
             detail = dict()
-            for score_id in todo[word]:
-                num_id, den_id = todo[word][score_id]
+            for score_name in todo[word]:
+                num_id, den_id, cluster = todo[word][score_name]
                 num = sqlresult.get(num_id, None)
                 if not num: continue
                 den = sqlresult.get(den_id, None)
                 if not den: continue
                 detail_append = ""
 
+                # add P(Wi|Ci) term for cluster n-grams
+                coef = 1.0
+                if cluster:
+                    # this is a "c*" score (cluster)
+                    if not coef_wc: continue
+                    coef = coef_wc
+                    detail_append += " coef=%.2f" % coef
+                
                 # stock stats
                 (stock_count, user_count, user_replace, last_time) = num
                 (total_stock_count, total_user_count, dummy1, dummy2) = den
-                stock_proba = 1.0 * stock_count / total_stock_count if total_stock_count > 0 else 0
+                stock_proba = 1.0 * coef * stock_count / total_stock_count if total_stock_count > 0 else 0
 
                 # final score for current N value
                 if (user_count or user_replace) and total_user_count \
@@ -610,17 +631,17 @@ class Predict:
                              / (total_stock_count + c * total_user_count + learning_count))
                     # ^^^ learning count in denominator is for smoothing in case of word not in stock
 
-                    detail_append = (" user=[%d-%d/%d] age=%d [learn: ctx=%.2e coef=%.2e proba=%.2e->%.2e]" %
+                    detail_append += (" user=[%d-%d/%d] age=%d [learn: ctx=%.2e coef=%.2e proba=%.2e->%.2e]" %
                                      (user_count, user_replace, total_user_count, current_day - last_time, context_usage, coef_user, stock_proba, proba))
 
                 else:
                     # only use stock information
                     proba = stock_proba
 
-                score[score_id] = max(0, proba)  # make sure user_replace does not lead to negative result
+                score[score_name] = max(0, proba)  # make sure user_replace does not lead to negative result
 
                 # only for logging
-                detail[score_id] = "stock=%.2e[%d/%d]%s" % (stock_proba, stock_count, total_stock_count, detail_append)
+                detail[score_name] = "stock=%.2e[%d/%d]%s" % (stock_proba, stock_count, total_stock_count, detail_append)
 
             # use linear interpolation between probabilities for each N value (cf. Jurasky & Martin §4.6: interpolation)
             final_score, n = None, 0
