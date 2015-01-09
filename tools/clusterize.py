@@ -12,21 +12,26 @@ import sys, os
 
 import getopt
 
-opts, args =  getopt.getopt(sys.argv[1:], 'c:w:')
+opts, args =  getopt.getopt(sys.argv[1:], 'c:w:l:')
 
 if len(args) < 1:
-    print("Usage: ", os.path.basename(__file__), " [-c <max cluster n-grams>] [-w <max word n-grams>] <cluster file>")
+    print("Usage: ", os.path.basename(__file__), " [<options>] <cluster file>")
+    print(" -c <count> : max cluster n-grams")
+    print(" -w <count> : max word n-grams")
+    print(" -l <len>   : max cluster name length (relates to binary tree depth")
     print(" CSV data is read from stdin, clusterized data sent to stdout")
     exit(255)
 
 clusterfile = args[0]
 
-max_word = max_cluster = False
+max_word = max_cluster = max_depth = None
 for o, a in opts:
     if o == "-c":
         max_word = int(a)
     elif o == "-w":
         max_cluster = int(a)
+    elif o == "-l":
+        max_depth = int(a)
     else:
         print("Bad option: %s" % o)
         exit(1)
@@ -39,6 +44,7 @@ with open(clusterfile, "r") as f:
         line = line.strip()
         if not line: continue
         (cluster, word) = (line.split(';'))[0:2]
+        if max_depth: cluster = cluster[0:max_depth]
         if cluster[0] != '@': cluster = '@' + cluster
         word2cluster[word] = cluster
 
