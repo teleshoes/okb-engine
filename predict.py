@@ -23,9 +23,10 @@ class SqliteBackend:
         self.clear_stats()
         self.cache = dict()
 
-        self.cache['#TOTAL'] = Wordinfo(-2, -2)
+        self.cache['#TOTAL'] = Wordinfo(-2, -4)
         self.cache['#NA'] = Wordinfo(-1, -1)
         self.cache['#START'] = Wordinfo(-3, -3)
+        self.cache['#CTOTAL'] = Wordinfo(-4, -4)
 
         # fetch parameters
         self.params = dict()
@@ -38,8 +39,8 @@ class SqliteBackend:
     def refresh(self):
         # dummy request to load some blocks from filesystem and reduce
         # latency later when user is waiting for an answer
-        self.get_words(['#TOTAL', '#NA', '#START'], use_cache = False)
-        self.get_grams(["-2:-1:-1", "-2:-3:-1" ], use_cache = False)
+        self.get_words(['#CTOTAL', '#TOTAL', '#NA', '#START'], use_cache = False)
+        self.get_grams(["-2:-1:-1", "-2:-3:-3", "-4:-1:-1", "-4:-3:-3"], use_cache = False)
 
     def set_param(self, key, value):
         if key in self.params:
@@ -531,7 +532,7 @@ class Predict:
             lst = [ str(x) for x in lst ]
             while len(lst) < 3: lst.append('-1')  # N/A
             num = ':'.join(lst)
-            den = ':'.join([ '-2' ] + lst[1:])
+            den = ':'.join([ '-2' if not cluster else '-4' ] + lst[1:])
             ids_list.add(num)
             ids_list.add(den)
             if word not in todo: todo[word] = dict()
@@ -575,6 +576,9 @@ class Predict:
         learning_count_min = self.cf('learning_count_min', 10, int)
         learning_master_switch = self.cf('learning_enable', True, bool)
 
+        print("QQQ todo", todo)
+        print("QQQ sql", sqlresult)
+        
         # evaluate score components
         for word in todo:
 
@@ -583,9 +587,11 @@ class Predict:
             if "s1" in todo[word] and "c1" in todo[word]:
                 numw_id = todo[word]["s1"][0]
                 numc_id = todo[word]["c1"][0]
-                num_w = sqlresult.get(numw_id, None)[0]
-                num_c = sqlresult.get(numc_id, None)[0]
-                if num_w and num_c: coef_wc = 1.0 * num_w / num_c
+                num_w = sqlresult.get(numw_id, None)
+                num_c = sqlresult.get(numc_id, None)
+                if num_w and num_c and num_c[0] and num_w[0]:
+                    coef_wc = 1.0 * num_w[0] / num_c[0]
+                    print("QQQ coef_wc", coef_wc)
             
             score = dict()
             detail = dict()

@@ -33,9 +33,10 @@ conn.commit()
 # 2) import corpus as CSV
 print("Import CSV corpus data ...")
 words = dict()
-words['#TOTAL'] = [ -2, -2 ]
+words['#TOTAL'] = [ -2, -4 ]  # #TOTAL -> #CTOTAL
 words['#NA'] = [ -1, -1 ]
 words['#START'] = [ -3, -3 ]
+words['#CTOTAL'] = [ -4, -4 ]
 
 word_id = 1
 cluster_id = -10

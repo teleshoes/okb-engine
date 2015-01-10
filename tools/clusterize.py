@@ -50,13 +50,9 @@ with open(clusterfile, "r") as f:
 
 
 # 2) import corpus as CSV
-words = dict()
-words['#TOTAL'] = -2
-words['#NA'] = -1
-words['#START'] = -3
-
-for w in ['#TOTAL', '#NA', '#START']:
-    word2cluster[w] = w
+word2cluster['#NA'] = '#NA'
+word2cluster['#START'] = '#START'
+word2cluster['#TOTAL'] = '#CTOTAL'
 
 grams = dict()
 
@@ -102,8 +98,8 @@ for line in sys.stdin.readlines():
 
     c1, c2, c3 = word2cluster.get(w1, None), word2cluster.get(w2, None), word2cluster.get(w3, None)
     if c1 is not None and c2 is not None and c3 is not None:
-        add_gram([c1, c2, c3], count)
-        add_gram([c1, c2, '#TOTAL'], count)
+        add_gram([c1, c2, c3], count, True)
+        add_gram([c1, c2, '#CTOTAL'], count, True)  # use separate total n-grams for words and clusters
 
     n += 1
     if n % 500000 == 0:
@@ -112,7 +108,8 @@ for line in sys.stdin.readlines():
 
 # 3) dump clusterized n-grams
 for word, cluster in word2cluster.items():
-    print("CLUSTER;%s;%s" % (cluster, word))
+    if not word.startswith('#'):
+        print("CLUSTER;%s;%s" % (cluster, word))
 
 truncate()
 
