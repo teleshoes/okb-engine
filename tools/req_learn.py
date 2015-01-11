@@ -36,13 +36,14 @@ curs = conn.cursor()
 curs.execute(query)
 
 lines = dict()
-for row in curs.fetchall():
+rows = curs.fetchall()
+for row in rows:
     key = ':'.join(row[0:3])
     lines[key] = row
 
 current_day = int(time.time() / 86400)
 
-for row in lines.values():
+for row in rows:
     (w1, w2, w3, stock_count, user_count, user_replace, last_time) = row
     if w1 == '#TOTAL': continue
 

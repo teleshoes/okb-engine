@@ -19,7 +19,7 @@ CREATE TABLE grams (
 CREATE INDEX grams_idx ON grams (id1, id2, id3);
 
 CREATE TABLE words (
-   id INT PRIMARY KEY NOT NULL,
+   id INTEGER PRIMARY KEY NOT NULL, /* we get autoincrement for free */
    word TEXT NOT NULL,
    cluster_id INT
 );

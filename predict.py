@@ -120,6 +120,23 @@ class SqliteBackend:
         self.conn.commit()
         self.timer += time.time() - _start
 
+    def add_word(self, word, use_cache = True):
+        self.count += 1
+        _start = time.time()
+
+        sql = 'INSERT INTO words (word, cluster_id) VALUES (?, 0)'  # sqlite will assign a new primary key
+        curs = self.conn.cursor()
+        curs.execute(sql, (word,))
+
+        self.conn.commit()
+        self.timer += time.time() - _start
+        self.cache.pop(word, None)  # remove negative caching for this word
+
+        # get ID and update cache
+        result = self.get_words([word], try_lower_case = False, use_cache = use_cache)
+        return result[word].id
+
+
     def get_words(self, words, try_lower_case = True, use_cache = True):
         self.count += 1
         _start = time.time()
@@ -293,6 +310,15 @@ class Predict:
             (action, words, ts) = self.learn_history[key]
             while words:
                 wids = [ word2id.get(x, na_id) for x in words ]
+
+                if wids[0] == na_id: # typed word is unknown
+                    new_word = words[0]
+                    if len(words) == 1 or words[1] == '#START':
+                        # first word, let's un-capitalize it (which may be wrong!)
+                        if new_word[0].isupper() and new_word[1:].islower():
+                            new_word = new_word.lower()
+                    self.log("Learning new word: %s" % new_word)
+                    word2id[new_word] = wids[0] = self.db.add_word(new_word)
 
                 try:  # manage unknown words
                     pos = wids.index(na_id)
