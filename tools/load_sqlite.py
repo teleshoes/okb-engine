@@ -49,6 +49,7 @@ def w2id(word):
     return word_id
 
 last = start = time.time()
+wordcount = dict()
 for line in sys.stdin.readlines():
     line = line.strip()
     if not line: continue
@@ -70,13 +71,25 @@ for line in sys.stdin.readlines():
 
     else:
         (count, id3, id2, id1) = cols  # normal order in CSV files but reversed in DB
+        count = int(count)
+        if id3 != -1 and id1 != -2 and id1 != -4:  # only 3-grams (and not total)
+            if id1 not in wordcount: wordcount[id1] = 0
+            wordcount[id1] += count
         curs.execute('INSERT INTO grams (id1, id2, id3, stock_count) values (?, ?, ?, ?)', (w2id(id1), w2id(id2), w2id(id3), count))
 
 # 4) dump words to database
 print("Dump words to database ...")
 curs = conn.cursor()
 for word, info in words.items():
-    curs.execute('INSERT INTO words (id, word, cluster_id) values (?, ?, ?)', (info[0], word, info[1]))
+    id, cid = info
+
+    # embed cluster information in their name to provide nice verbose output for debugging
+    if cid == 0:
+        words_in_cluster = [ w for w in words.keys() if words[w][1] == id ]  # all words in cluster
+        words_in_cluster.sort(key = lambda x: wordcount.get(x, 0), reverse = True)  # sort by count
+        word = "%s:%d:%d:%s" % (word, wordcount.get(word, 0), len(words_in_cluster), ','.join(words_in_cluster[:5]))
+
+    curs.execute('INSERT INTO words (id, word, cluster_id) values (?, ?, ?)', (id, word, cid))
 
 conn.commit()
 conn.close()

@@ -37,6 +37,10 @@ p.update_preedit("")
 p._update_last_words()
 print("Context:", p.last_words)
 
-score = p._get_all_predict_scores([last_word])
+score, details = p._get_all_predict_scores([last_word])[last_word]
 
-print("Score:", score)
+print("Score:", score, details)
+
+if "clusters" in details:
+    for word, cluster in reversed(list(zip(reversed(words + [last_word]), details["clusters"]))):
+        print(word, p.db.get_word_by_id(cluster))

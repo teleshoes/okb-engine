@@ -120,7 +120,6 @@ class SqliteBackend:
         self.conn.commit()
         self.timer += time.time() - _start
 
-
     def get_words(self, words, try_lower_case = True, use_cache = True):
         self.count += 1
         _start = time.time()
@@ -165,6 +164,15 @@ class SqliteBackend:
         for word in [ w for w in words if w not in result ]: self.cache[word] = None  # negative caching
 
         return result
+
+    def get_word_by_id(self, id):
+        # used only for testing. no caching
+        sql = 'SELECT word FROM words WHERE id = ?'
+        curs = self.conn.cursor()
+        curs.execute(sql, (id,))
+        row = curs.fetchone()
+        if not row: return None
+        return row[0]
 
     def close(self):
         self.conn.close()
@@ -540,6 +548,7 @@ class Predict:
 
         todo = dict()
         ids_list = set(["-2:-1:-1"])
+        word2cid = dict()
         for word in words:
             result[word] = (0, dict())
             if word not in word2id:  # unknown word -> dummy scoring
@@ -548,6 +557,7 @@ class Predict:
 
             add(word, todo, ids_list, "s1", [wid])
             if cid:
+                word2cid[word] = cid
                 add(word, todo, ids_list, "c1", [cid], True)  # used only for P(Wi|Ci)
 
             if len(last_wids) >= 1:
@@ -576,11 +586,13 @@ class Predict:
         learning_count_min = self.cf('learning_count_min', 10, int)
         learning_master_switch = self.cf('learning_enable', True, bool)
 
-        print("QQQ todo", todo)
-        print("QQQ sql", sqlresult)
-        
         # evaluate score components
         for word in todo:
+            score = dict()
+            detail = dict()
+
+            if word in word2cid:
+                detail["clusters"] = [ word2cid[word] ] + last_cids[0:2]
 
             # compute P(Wi|Ci) term for cluster n-grams
             coef_wc = None
@@ -591,11 +603,10 @@ class Predict:
                 num_c = sqlresult.get(numc_id, None)
                 if num_w and num_c and num_c[0] and num_w[0]:
                     coef_wc = 1.0 * num_w[0] / num_c[0]
-                    print("QQQ coef_wc", coef_wc)
-            
-            score = dict()
-            detail = dict()
+
             for score_name in todo[word]:
+                if score_name == "c1": continue  # useless
+
                 num_id, den_id, cluster = todo[word][score_name]
                 num = sqlresult.get(num_id, None)
                 if not num: continue
@@ -609,8 +620,8 @@ class Predict:
                     # this is a "c*" score (cluster)
                     if not coef_wc: continue
                     coef = coef_wc
-                    detail_append += " coef=%.2f" % coef
-                
+                    detail_append += " coef=%.5f" % coef
+
                 # stock stats
                 (stock_count, user_count, user_replace, last_time) = num
                 (total_stock_count, total_user_count, dummy1, dummy2) = den
