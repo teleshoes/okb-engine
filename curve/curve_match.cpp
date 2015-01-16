@@ -715,7 +715,7 @@ bool Scenario::childScenario(LetterNode &childNode, bool endScenario, QList<Scen
        be good enough solutions. This is especially useful for long (and boring!) words
        warning: this is known to increase CPU usage by more than 50% ! */
     bool error_ignore = false;
-    if (params->error_correct && !ok && count > 2 && ! endScenario
+    if (params->error_correct && !ok && count >= 2 && ! endScenario
 	&& error_count < 1 + (count - 1) / params->error_correct_gap) {
       if (score.distance_score > -0.45) {
 	if (score.cos_score >= 0 || score.curve_score >= 0) {
@@ -724,7 +724,7 @@ bool Scenario::childScenario(LetterNode &childNode, bool endScenario, QList<Scen
       }
     }
 
-    DBG("debug [%s:%c] %s%s %d:%d %s [%.2f, %.2f, %.2f, %.2f, %.2f]",
+    DBG("debug [%s:%c] %s%s %d:%d %s [d=%.2f c=%.2f a=%.2f l=%.2f t=%.2f]",
 	getNameCharPtr(), letter, endScenario?"*":" ", first?"":" <FORK>", count, new_index, error_ignore?"ERROR[ignored]":(ok?"=OK=":"*FAIL*"),
 	score.distance_score, score.curve_score, score.cos_score, score.length_score, score.turn_score);
 
@@ -1309,6 +1309,25 @@ void Scenario::calc_turn_score_all() {
     }
   }
 
+  // check for inverted turns (which mean loops)
+  /*
+  for(int i = 0; i <turn_count; i ++) {
+    turn_t *d = &(turn_detail[i]);
+    bool inverted = false;
+    // bool st2 = false;
+    for (int j = d->start_index; j <= d->index; j++) {
+      int tk = get_turn_kind(j);
+      if (tk == -1) { inverted = true; }
+      // st2 |= (curve->getSharpTurn(index_history[j]) == 2);
+    }
+    // if (st2) { continue; }
+    if (! inverted) { continue; }
+
+    DBG("Inverted turn: #%d", i);    
+    scores[d->index].misc_score -= 0.5;
+    // @todo finish this :-)
+  }
+  */
 }
 
 int Scenario::get_turn_kind(int index) {
@@ -1639,6 +1658,7 @@ void Scenario::toJson(QJsonObject &json) {
   json["min_total"] = min_total;
   json["error"] = error_count;
   json["good"] = good_count;
+  json["words"] = getWordList();
 
   QJsonArray json_score_array;
   for(int i = 0; i < count; i ++) {

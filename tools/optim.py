@@ -86,10 +86,10 @@ def log1(txt):
         f.write(txt)
         f.write("\n")
 
-def run1(json_str, lang):
+def run1(json_str, lang, full = True):
     opts = re.split('\s+', os.getenv('CLI_OPTS', ""))
     opts = [ x for x in opts if x ]
-    cmd = [ CLI ] + opts + [ os.path.join(TRE_DIR, "%s-full.tre" % lang) ]
+    cmd = [ CLI ] + opts + [ os.path.join(TRE_DIR, "%s%s.tre" % (lang, "-full" if full else "")) ]
 
     sp = subprocess.Popen(cmd, stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
 

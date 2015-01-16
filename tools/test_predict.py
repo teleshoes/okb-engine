@@ -26,7 +26,7 @@ for o, a in opts:
     elif o == "-a":
         all = True
     else:
-        print("Bad option: %s", o)
+        print("Bad option: %s" % o)
         exit(1)
 
 p = predict.Predict()
