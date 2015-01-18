@@ -675,7 +675,7 @@ class Predict:
                     # ^^^ learning count in denominator is for smoothing in case of word not in stock
 
                     detail_append += (" user=[%d-%d/%d] age=%d [learn: ctx=%.2e coef=%.2e proba=%.2e->%.2e]" %
-                                     (user_count, user_replace, total_user_count, current_day - last_time, context_usage, coef_user, stock_proba, proba))
+                                      (user_count, user_replace, total_user_count, current_day - last_time, context_usage, coef_user, stock_proba, proba))
 
                 else:
                     # only use stock information
@@ -700,6 +700,7 @@ class Predict:
 
             if final_score:
                 if n: detail["gram"] = n
+                detail["scores"] = score
                 result[word] = (final_score, detail)  # we need smoothing
 
         self.recent_contexts = self.recent_contexts[1:10] + [ (word, list(self.last_words)) ]

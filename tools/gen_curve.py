@@ -58,6 +58,7 @@ def v_length(v):
 
 def v_angle(v1, v2):
     cos_angle = np.dot(v1, v2) / v_length(v1) / v_length(v2)
+    if abs(cos_angle) > 1: cos_angle = math.copysign(1, cos_angle)  # avoid NaN on rounding error
     angle = np.arccos(cos_angle) * 180 / np.pi
     if np.cross([0] + v1.tolist(), [0] + v2.tolist())[0] < 0:
         angle = -angle
@@ -74,10 +75,16 @@ def dist(p1, p2):
     return math.sqrt(x * x + y * y)
 # --- /vector utils
 
-def gen_curve(word, js, error = 0, plot = False, curviness = 150, lang = "en", retry = 10, out_file = None):
+def word2keys(word):
     letters = ''.join(c for c in unicodedata.normalize('NFD', word) if unicodedata.category(c) != 'Mn')
     letters = re.sub(r'[^a-z]', '', letters.lower())
     letters = re.sub(r'(.)\1+', lambda m: m.group(1), letters)
+    return letters
+
+def gen_curve(word, js, error = 0, plot = False, curviness = 150, lang = "en", retry = 10, out_file = None, verbose = True):
+    if verbose: print("=== [%s] curviness=%d error=%d lang=%s" % (word, curviness, error, lang))
+
+    letters = word2keys(word)
 
     keys = js["keys"]
 
@@ -157,32 +164,49 @@ def gen_curve(word, js, error = 0, plot = False, curviness = 150, lang = "en", r
         js["curve"] = curve
         js["params"] = dict([ (x, y["value"]) for x, y in optim.params.items() ])
 
+        js["params"]["thumb_correction"] = 0  # this code has no thumb :-)
+
         if out_file:
             open(out_file, "w").write(json.dumps(js))
 
         (json_out, err, code, cmd) = optim.run1(json.dumps(js), lang, full = False)
+
+        if code: raise Exception("Curve plugin crashed!")
 
         json_out = json_out.decode(encoding = 'UTF-8')
         i = json_out.find('Result: {')
         if i > -1: json_out = json_out[i + 8:]
         result = json.loads(json_out)
 
-        candidates = result["candidates"]
+        candidates = []
+        for c in result["candidates"]:
+            allwords = c["words"].split(',')
+            for w in allwords:
+                c1 = dict(c)
+                c1["word"] = c["name"] if w == '=' else w
+                candidates.append(c1)
+
         candidates.sort(key = lambda x: x["score"], reverse = True)
 
-        if plot or word in [ c["name"] for c in candidates ] or not retry: break
+        if plot or word in [ c["word"] for c in candidates ] or not retry: break
 
-        sys.stderr.write("Retry: %d\n" % retry)
+        if verbose: print("Retry: %d\n" % retry)
+
         retry -= 1
         if retry == 0: raise Exception("Retry count exceeded")
+        if retry < 10:
+            curviness = int(curviness * 0.8)
+            error = int(error * 0.8)
 
-
-    for c in candidates:
-        print(c["name"], c["score"], c["star"], c["class"], c["words"])
+    if verbose:
+        for c in candidates:
+            print(c["word"], c["name"], c["score"], c["star"], c["class"], c["words"])
 
     if plot:
         plt.plot([ p.pt[0] for p in points], [ p.pt[1] for p in points], "ro")
         plt.show()
+
+    return candidates
 
 if __name__ == "__main__":
     error = 0
