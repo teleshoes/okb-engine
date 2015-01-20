@@ -27,7 +27,7 @@ error = 50
 curviness = 150
 lang = "en"
 verbose = False
-min_count = 20
+min_count = 10
 
 opts, args =  getopt.getopt(sys.argv[1:], 'e:c:l:m:v')
 for o, a in opts:
@@ -74,7 +74,7 @@ for line in sys.stdin.readlines():
     # make sure we have curve sample for this word
     letters = gen_curve.word2keys(w3)
 
-    if len(letters) < 2: continue
+    if len(letters) < 3: continue  # two-letter words are boring too :-)
 
     if letters in curves: continue
 
@@ -92,7 +92,7 @@ for line in sys.stdin.readlines():
         continue
 
     # run curve plugin
-    nb_samples = max(1, min(10, int(float(wordcount[w3]) / 100)))
+    nb_samples = max(1, min(10, int(float(wordcount[w3]) / 50)))
 
     sys.stderr.write("Generating curves for %s (count=%d)\n" % (w3, nb_samples))
 
@@ -109,8 +109,16 @@ for line in sys.stdin.readlines():
     pickle.dump(curve_results, open(cache_file + ".tmp", 'wb'))
     os.rename(cache_file + ".tmp", cache_file)
 
+
 # run prediction engine
-p = predict.Predict()
+class Tools():
+    def log(self, *args, **kwargs):
+        sys.stderr.write("%s\n" % (' '.join(map(str, args))))
+
+    def cf(self, key, default_value, cast = None):
+        return default_value
+
+p = predict.Predict(tools = Tools())
 
 db_file = os.path.join(mydir, "../db/predict-%s.db" % lang)
 p.set_dbfile(db_file)
