@@ -48,7 +48,7 @@ def run(words):
     p.update_surrounding(tmp, len(tmp))
     p.update_preedit("")
     p._update_last_words()
-    print("Context:", p.last_words)
+    print("Context:", p.last_words, p.sentence_pos)
 
     score, details = p._get_all_predict_scores([last_word])[last_word]
 

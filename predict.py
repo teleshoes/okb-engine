@@ -10,9 +10,10 @@ import re
 import math
 
 class Wordinfo:
-    def __init__(self, id, cluster_id):
+    def __init__(self, id, cluster_id, real_word = None):
         self.id = id
         self.cluster_id = cluster_id
+        self.real_word = real_word
 
 class SqliteBackend:
     """ this class implement read/write access to prediction database
@@ -137,7 +138,7 @@ class SqliteBackend:
         return result[word].id
 
 
-    def get_words(self, words, try_lower_case = True, use_cache = True):
+    def get_words(self, words, try_lower_case = True, use_cache = True, lower_first_words = None):
         self.count += 1
         _start = time.time()
 
@@ -145,8 +146,15 @@ class SqliteBackend:
 
         sql = 'SELECT word, id, cluster_id FROM words WHERE '
         params = []
+
+        if lower_first_words is None: lower_first_words = set()
+
+        in_word = dict()
         first = True
         for word in words:
+            if word in lower_first_words and word != word.lower():
+                in_word[word.lower()] = word
+                word = word.lower()
             if word in self.cache and use_cache:
                 if self.cache[word]: result[word] = self.cache[word]  # negative caching use None value and must not be returned
             else:
@@ -160,25 +168,31 @@ class SqliteBackend:
             curs.execute(sql, tuple(params))
 
             for row in curs.fetchall():
-                result[row[0]] = Wordinfo(row[1], row[2])
+                key = in_word.get(row[0], row[0])
+                result[key] = Wordinfo(row[1], row[2], real_word = row[0])
 
         self.timer += time.time() - _start
 
         if try_lower_case:
-            not_found_try_lower = [ w for w in words if w not in result and w != w.lower() ]
+            not_found_try_lower = [ w for w in words if w not in result and w != w.lower() and w not in lower_first_words ]
+            not_found_try_normal = [ w for w in words if w not in result and w != w.lower() and w in lower_first_words ]
 
-            if not_found_try_lower:
-                # (ugly recursive trick)
-                result_lower = self.get_words([ w.lower() for w in not_found_try_lower ], try_lower_case = False)
+            if not_found_try_lower or not_found_try_normal:
+                # we try lower-case version of words not found (ugly recursive trick)
+                # also try "normal" version of words that have been tried lowercase first (those in lower_first_words set)
+                result_lower = self.get_words([ w.lower() for w in not_found_try_lower ] +
+                                              [ w for w in not_found_try_normal ],
+                                              try_lower_case = False)
                 for word in not_found_try_lower:
                     lword = word.lower()
                     if lword in result_lower:
                         result[word] = result_lower[lword]
 
         for word, info in result.items():
-            self.cache[word] = info
+            self.cache[info.real_word or word] = info
 
-        for word in [ w for w in words if w not in result ]: self.cache[word] = None  # negative caching
+        if not try_lower_case:  # we require an exact match
+            for word in [ w for w in words if w not in result ]: self.cache[word] = None  # negative caching
 
         return result
 
@@ -205,6 +219,7 @@ class Predict:
         self.last_surrounding_text = ""
         self.cursor_pos = -1
         self.last_words = []
+        self.sentence_pos = -1
         self.last_guess = None
         self.recent_contexts = []
         self.learn_history = dict()
@@ -295,11 +310,17 @@ class Predict:
 
         # lookup all words from DB
         word_set = set(['#TOTAL', '#NA', '#START'])
+        lower_first = set([])
         for key in learn:
-            item = self.learn_history[key]
-            for word in item[1]:
+            (action, wordl, ts, pos) = self.learn_history[key]
+            for i in range(0, len(wordl)):
+                word = wordl[i]
                 word_set.add(word)
-        word2id = dict([ (w, i.id) for (w,i) in self.db.get_words(word_set).items() ])
+                if i == pos:
+                    lower_first.add(word)
+
+        word2id = self.db.get_words(word_set, lower_first_words = lower_first)
+        word2id = dict([ (w, i.id) for (w, i) in word2id.items() ])
 
         # list all n-grams lines to update
         na_id = word2id['#NA']
@@ -307,11 +328,11 @@ class Predict:
         todo = dict()
         for key in set(learn):
             # action == True -> new occurrence / action == False -> error corrected
-            (action, words, ts) = self.learn_history[key]
+            (action, words, ts, pos) = self.learn_history[key]
             while words:
                 wids = [ word2id.get(x, na_id) for x in words ]
 
-                if wids[0] == na_id: # typed word is unknown
+                if wids[0] == na_id:  # typed word is unknown
                     new_word = words[0]
                     if len(words) == 1 or words[1] == '#START':
                         # first word, let's un-capitalize it (which may be wrong!)
@@ -376,10 +397,11 @@ class Predict:
 
         now = int(time.time())
 
+        pos = -1
         try:
             pos = context.index('#START')
             context = context[0:pos + 1]
-        except:
+        except ValueError:
             pass  # #START not found, this is not an error
 
         wordl = [ word ] + context
@@ -390,10 +412,10 @@ class Predict:
         wordl = wordl[0:3]
         key = '_'.join(wordl)
         if add:
-            self.learn_history[key] = (True, wordl, now)  # add occurence
+            self.learn_history[key] = (True, wordl, now, pos)  # add occurence
             if replaces and replaces.upper() != word.upper():  # ignore replacement by the same word
                 key2 = '_'.join(([ replaces ] + context)[0:3])
-                self.learn_history[key2] = (False, [ replaces ] + context, now)  # add replacement occurence (failed prediction)
+                self.learn_history[key2] = (False, [ replaces ] + context, now, pos)  # add replacement occurence (failed prediction)
         else:
             if key in self.learn_history and not self.learn_history[key][0]:
                 pass  # don't remove word replacements
@@ -520,13 +542,13 @@ class Predict:
         return 1
 
     def _update_last_words(self):
-        self.last_words = self._get_last_words(2)
+        self.last_words, self.sentence_pos = self._get_last_words(2)
 
     def _get_last_words(self, count, include_preedit = True):
         """ internal method : compute list of last words for n-gram scoring """
 
         # if no context available, handle this as isolated words instead of the beginning of a new sentence (so no #START)
-        if self.cursor_pos == -1: return []
+        if self.cursor_pos == -1: return [], -1
 
         text_before = self.surrounding_text[0:self.cursor_pos] + (" " + self.preedit) if include_preedit else ""
         pos = text_before.find('.')
@@ -535,8 +557,9 @@ class Predict:
         words = reversed(re.split(r'[^\w\'\-]+', text_before))
         words = [ x for x in words if len(x) > 0 ]
 
+        pos = len(words)
         words = (words + [ '#START' ] * count)[0:count]
-        return words
+        return words, pos
 
 
     def _get_all_predict_scores(self, words):
@@ -550,8 +573,17 @@ class Predict:
         for word in self.last_words: words_set.add(word)
         words_set.add('#START')
 
+        # idenfity words that would need to be looked-up lowercase first (first words in sentences)
+        try_lower_first = None
+        if self.sentence_pos == 0:
+            try_lower_first = set(words)  # first word -> all candidates
+        elif self.sentence_pos == 1 and len(self.last_words) >= 1:
+            try_lower_first = set([self.last_words[0]])
+        elif self.sentence_pos == 2 and len(self.last_words) >= 2:
+            try_lower_first = set([self.last_words[1]])
+
         # lookup all words from DB or cache (surrounding & candidates)
-        word2id = self.db.get_words(words_set)
+        word2id = self.db.get_words(words_set, lower_first_words = try_lower_first)
 
         # get id for previous words
         last_wids = []
