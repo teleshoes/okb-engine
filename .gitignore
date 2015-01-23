@@ -1,6 +1,6 @@
 Makefile
 .UNISON*
-build*
+build
 .ropeproject
 __pycache__
 *.pyc

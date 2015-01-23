@@ -11,8 +11,8 @@ getconf = $(shell grep '^'$(2)'=' $(1) | sed 's/^.*=//' | head -n 1)
 
 .SECONDARY:
 
-all-%: predict-%.db
-	true
+all-%: predict-%.db %.tre
+	@echo OK $*
 
 %-learn.txt.bz2: $(CORPUS_DIR)/corpus-%.txt.bz2
 	$(eval lang=$*)
