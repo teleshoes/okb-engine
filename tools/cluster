@@ -3,4 +3,4 @@
 CL_DIR=`dirname "$0"`/../cluster
 
 ( cd $CL_DIR && make )
-exec $CL_DIR/build/cluster
+exec $CL_DIR/build/cluster "$@"

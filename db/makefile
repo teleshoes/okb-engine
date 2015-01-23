@@ -36,7 +36,7 @@ grams-%-full.csv.bz2: %-full.dict %-learn.txt.bz2
 	$(eval words=$(call getconf,lang-$(lang).cf,predict_words))
 	$(eval filter=$(call getconf,lang-$(lang).cf,filter_words))
 	set -o pipefail ; lbzip2 -d < $< | grep ';#NA;#NA;' | cut -f '1,4' -d';' \
-	 | grep -v '#TOTAL' | sort -rn | cut -d';' -f 2 | egrep -v $(filter) \
+	 | grep -v '#TOTAL' | sort -rn | cut -d';' -f 2 | egrep -v '$(filter)' | tee words-$(lang).txt \
          | sed -n "1,$(words) p" > $(lang)-predict.dict.tmp  # ok i've re-implemented "head" with sed to avoid ugly sigpipes (which hurt with -o pipefail)
 	mv -f $(lang)-predict.dict.tmp $@
 
@@ -60,7 +60,7 @@ clusters-%.txt: grams-%-learn.csv.bz2
 	@echo "Computing clusters for language $(lang). Please make some coffee ..."
 	@echo " (logs can be found in clusters-$(lang).log)"
 	set -o pipefail ; lbzip2 -d < $< | sort -rn | sed -n "1,13500000 p" \
-	 | $(TOOLS_DIR)/cluster -n 10 -o cluster-$(lang).tmp > clusters-$(lang).log 2>&1
+	 | $(TOOLS_DIR)/cluster -n 10 -o clusters-$(lang).tmp > clusters-$(lang).log 2>&1
 	mv -f clusters-$(lang).tmp $@
 
 predict-%.db: clusters-%.txt grams-%-learn.csv.bz2 lang-%.cf
