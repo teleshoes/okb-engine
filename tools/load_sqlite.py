@@ -89,7 +89,7 @@ for word, info in words.items():
         words_in_cluster.sort(key = lambda x: wordcount.get(x, 0), reverse = True)  # sort by count
         word = "%s:%d:%d:%s" % (word, wordcount.get(word, 0), len(words_in_cluster), ','.join(words_in_cluster[:5]))
 
-    curs.execute('INSERT INTO words (id, word, cluster_id) values (?, ?, ?)', (id, word, cid))
+    curs.execute('INSERT INTO words (id, word, cluster_id, word_lc) values (?, ?, ?, ?)', (id, word, cid, word.lower()))
 
 conn.commit()
 conn.close()

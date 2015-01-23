@@ -21,11 +21,13 @@ CREATE INDEX grams_idx ON grams (id1, id2, id3);
 CREATE TABLE words (
    id INTEGER PRIMARY KEY NOT NULL, /* we get autoincrement for free */
    word TEXT NOT NULL,
-   cluster_id INT
+   cluster_id INT,
+   word_lc TEXT NOT NULL
 );
 
 CREATE INDEX words_idx ON words (word);
 CREATE INDEX words_idx2 ON words (id);
+CREATE INDEX words_idx3 ON words (word_lc);
 
 CREATE TABLE params (
     key TEXT NOT NULL,

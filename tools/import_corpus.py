@@ -47,20 +47,22 @@ class CorpusImporter:
     def load_words(self, words):
         id = 2
         self.words = set()
+        self.islower = dict()
         for word in words:
             id += 1
             word = word.strip()  # .decode('utf-8')
             self.words.add(word)
+            if word.lower() != word:
+                self.islower[word.lower()] = word
 
     def parse_line(self, line):
         if self.debug: print(line)
         self.size += len(line)
         line = line.strip()
-        if re.match(r'^\s+$', line):
+        if re.match(r'^\s*$', line):
             self.next_sentence()
             return
 
-        first_word = True
         while line:
             line = line.strip()
 
@@ -69,7 +71,6 @@ class CorpusImporter:
             if mo:
                 if re.match(r'[\.:;\!\?]', mo.group(0)): self.next_sentence()
                 line = line[mo.end(0):]
-                first_word = True
 
             if not line: break
 
@@ -92,18 +93,25 @@ class CorpusImporter:
             word = mo.group(0)
             line = line[mo.end(0):]
 
+            # capitalized word at the beginning of a sentence
+            if word.lower() in self.words and not self.sentence and word[0].isupper() and word[1:].islower():
+                self.sentence.append(word.lower())
+                continue
+
+            # unchanged word
             if word in self.words:
                 self.sentence.append(word)
-                first_word = False
                 continue
 
+            # other capitalized
             if word.lower() in self.words:
-                if first_word: self.next_sentence()
                 self.sentence.append(word.lower())
-                first_word = False
                 continue
 
-            first_word = False
+            # lowercase version of a proper noun
+            if word in self.islower:
+                self.sentence.append(self.islower[word])
+                continue
 
             # english "'s"
             mo1 = re.match(r'^([a-zA-Z]+)\'[a-z]$', word)
