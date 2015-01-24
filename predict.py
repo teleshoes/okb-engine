@@ -144,7 +144,7 @@ class SqliteBackend:
 
         result = dict()
 
-        sql = 'SELECT word, id, cluster_id FROM words WHERE '
+        sql = 'SELECT word, id, cluster_id, word_lc FROM words WHERE '
         params = []
 
         if lower_first_words is None: lower_first_words = set()
@@ -152,47 +152,40 @@ class SqliteBackend:
         in_word = dict()
         first = True
         for word in words:
-            if word in lower_first_words and word != word.lower():
-                in_word[word.lower()] = word
-                word = word.lower()
             if word in self.cache and use_cache:
                 if self.cache[word]: result[word] = self.cache[word]  # negative caching use None value and must not be returned
             else:
+                lword = word.lower()
+                in_word[lword] = word
                 if not first: sql += ' OR '
                 first = False
-                sql += "(word = ?)"
-                params.append(word)
+                sql += "(word_lc = ?)"
+                params.append(lword)
 
         if params:
             curs = self.conn.cursor()
             curs.execute(sql, tuple(params))
 
+            tmp = dict()
             for row in curs.fetchall():
-                key = in_word.get(row[0], row[0])
-                result[key] = Wordinfo(row[1], row[2], real_word = row[0])
+                key = in_word.get(row[3])
+                if key not in tmp: tmp[key] = dict()
+                tmp[key][row[0]] = Wordinfo(row[1], row[2], real_word = row[0])
+
+            for key, wordhash in tmp.items():
+                words = list(wordhash.keys())
+                word = words[0]
+                if len(words) > 1:
+                    for w in words:
+                        if w.islower() == bool(lower_first_words): word = w
+                result[key] = tmp[key][word]
 
         self.timer += time.time() - _start
-
-        if try_lower_case:
-            not_found_try_lower = [ w for w in words if w not in result and w != w.lower() and w not in lower_first_words ]
-            not_found_try_normal = [ w for w in words if w not in result and w != w.lower() and w in lower_first_words ]
-
-            if not_found_try_lower or not_found_try_normal:
-                # we try lower-case version of words not found (ugly recursive trick)
-                # also try "normal" version of words that have been tried lowercase first (those in lower_first_words set)
-                result_lower = self.get_words([ w.lower() for w in not_found_try_lower ] +
-                                              [ w for w in not_found_try_normal ],
-                                              try_lower_case = False)
-                for word in not_found_try_lower:
-                    lword = word.lower()
-                    if lword in result_lower:
-                        result[word] = result_lower[lword]
 
         for word, info in result.items():
             self.cache[info.real_word or word] = info
 
-        if not try_lower_case:  # we require an exact match
-            for word in [ w for w in words if w not in result ]: self.cache[word] = None  # negative caching
+        for word in [ w for w in words if w not in result ]: self.cache[word] = None  # negative caching
 
         return result
 
