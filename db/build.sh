@@ -22,15 +22,11 @@ die() { echo "DIE: $*"; exit 1; }
 cd `dirname "$0"`
 mydir=`pwd`
 
-targets=
-for cf in `echo lang-*cf` ; do
-    lang=`basename $cf .cf | cut -c 6-`
-    targets="${targets}all-${lang} "
-done
-
 cp -vauf $mydir/lang-*.cf $WORK_DIR/
 
 cd $WORK_DIR
-make -j -f $mydir/makefile CORPUS_DIR=${CORPUS_DIR} TOOLS_DIR=$mydir/../tools $targets
+for target in depend all ; do
+    make -j -f $mydir/makefile CORPUS_DIR=${CORPUS_DIR} TOOLS_DIR=$mydir/../tools $target
+done
 
 cp -vauf *.tre *.db $mydir/

@@ -7,12 +7,22 @@ TOOLS_DIR ?= ../tools
 CORPUS_DIR ?= /tmp
 DEST_DIR ?= .
 
+mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
+
 getconf = $(shell grep '^'$(2)'=' $(1) | sed 's/^.*=//' | head -n 1)
 
-.SECONDARY:
+include $(patsubst lang-%.cf,.depend-%,$(wildcard lang-*.cf))
+
+all: $(patsubst lang-%.cf,all-%,$(wildcard lang-*.cf))
 
 all-%: predict-%.db %.tre grams-%-test.csv.bz2
 	@echo OK $*
+
+depend: $(patsubst lang-%.cf,.depend-%,$(wildcard lang-*.cf))
+
+.depend-%:
+	$(eval lang=$*)
+	cat $(mkfile_path) | egrep '^[a-z0-9\.\%\-]+:.*%' | sed 's/%/$(lang)/g' > .depend-$(lang)
 
 # split input corpus between learning and test
 %-learn.txt.bz2: $(CORPUS_DIR)/corpus-%.txt.bz2
@@ -40,7 +50,7 @@ grams-%-full.csv.bz2: %-full.dict %-learn.txt.bz2
 	$(eval words=$(call getconf,lang-$(lang).cf,predict_words))
 	$(eval filter=$(call getconf,lang-$(lang).cf,filter_words))
 	set -o pipefail ; lbzip2 -d < $< | grep ';#NA;#NA;' | cut -f '1,4' -d';' \
-	 | grep -v '#TOTAL' | sort -rn | cut -d';' -f 2 | egrep -v '$(filter)' | tee words-$(lang).txt \
+	 | grep -v '#TOTAL' | sort -rn | cut -d';' -f 2 | egrep -v '^$(filter)$$' | tee words-$(lang).txt \
          | sed -n "1,$(words) p" > $(lang)-predict.dict.tmp  # ok i've re-implemented "head" with sed to avoid ugly sigpipes (which hurt with -o pipefail)
 	mv -f $(lang)-predict.dict.tmp $@
 
