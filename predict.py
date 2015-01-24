@@ -125,22 +125,26 @@ class SqliteBackend:
         self.count += 1
         _start = time.time()
 
-        sql = 'INSERT INTO words (word, cluster_id) VALUES (?, 0)'  # sqlite will assign a new primary key
+        sql = 'INSERT INTO words (word, cluster_id, word_lc) VALUES (?, 0, ?)'  # sqlite will assign a new primary key
         curs = self.conn.cursor()
-        curs.execute(sql, (word,))
+        curs.execute(sql, (word, word.lower()))
 
         self.conn.commit()
         self.timer += time.time() - _start
-        self.cache.pop(word, None)  # remove negative caching for this word
+        for w in [ word, word[0].upper() + word[1:] ]:
+            for suf in [ "", "*" ]:
+                self.cache.pop(w + suf, None)  # remove negative caching for this word
 
         # get ID and update cache
-        result = self.get_words([word], try_lower_case = False, use_cache = use_cache)
+        result = self.get_words([word], use_cache = use_cache)
         return result[word].id
 
 
-    def get_words(self, words, try_lower_case = True, use_cache = True, lower_first_words = None):
+    def get_words(self, words, use_cache = True, lower_first_words = None):
         self.count += 1
         _start = time.time()
+
+        cache_key_suffix = "*" if lower_first_words else ""
 
         result = dict()
 
@@ -152,11 +156,16 @@ class SqliteBackend:
         in_word = dict()
         first = True
         for word in words:
-            if word in self.cache and use_cache:
-                if self.cache[word]: result[word] = self.cache[word]  # negative caching use None value and must not be returned
+            cache_key = word + cache_key_suffix
+            if cache_key in self.cache and use_cache:
+                if self.cache[cache_key]: result[word] = self.cache[cache_key]  # negative caching use None value and must not be returned
             else:
                 lword = word.lower()
-                in_word[lword] = word
+                if lword in in_word:
+                    in_word[lword].add(word)
+                    continue
+
+                in_word[lword] = set([word])
                 if not first: sql += ' OR '
                 first = False
                 sql += "(word_lc = ?)"
@@ -166,26 +175,36 @@ class SqliteBackend:
             curs = self.conn.cursor()
             curs.execute(sql, tuple(params))
 
-            tmp = dict()
+            found = dict()
             for row in curs.fetchall():
-                key = in_word.get(row[3])
-                if key not in tmp: tmp[key] = dict()
-                tmp[key][row[0]] = Wordinfo(row[1], row[2], real_word = row[0])
+                lword = row[3]
+                if lword not in found: found[lword] = dict()
+                found[lword][row[0]] = Wordinfo(row[1], row[2], real_word = row[0])
 
-            for key, wordhash in tmp.items():
-                words = list(wordhash.keys())
-                word = words[0]
-                if len(words) > 1:
-                    for w in words:
-                        if w.islower() == bool(lower_first_words): word = w
-                result[key] = tmp[key][word]
+            for lword, found1 in found.items():
+                lower_first = (len([ x for x in in_word[lword] if x in lower_first_words ]) > 0)
+
+                for word in in_word[lword]:
+                    if lower_first and word[1:].islower() and lword in found1 and lword not in in_word[lword]:
+                        # lowercase version not requested but found --> choose this one (first word only)
+                        result[word] = found1[lword]
+                    elif word in found1:
+                        # else return word with exact capitalization if found
+                        result[word] = found1[word]
+                    elif lword not in in_word[lword] and lword in found1:
+                        # fallback to lowercase word
+                        result[word] = found1[lword]
+                    else:  # at last resort, match word with other capitalization (e.g. this is used for English "I")
+                        other_words = [ w for w in found1.keys() if w not in in_word[lword] ]
+                        if other_words:
+                            result[word] = found1[other_words[0]]  # can't do better than random choice
 
         self.timer += time.time() - _start
 
         for word, info in result.items():
-            self.cache[info.real_word or word] = info
+            self.cache[word + cache_key_suffix] = info
 
-        for word in [ w for w in words if w not in result ]: self.cache[word] = None  # negative caching
+        for word in [ w for w in words if w not in result ]: self.cache[word + cache_key_suffix] = None  # negative caching
 
         return result
 
@@ -665,6 +684,8 @@ class Predict:
                 if not den: continue
                 detail_append = ""
 
+                detail["n_%s" % score_name] = num
+
                 # add P(Wi|Ci) term for cluster n-grams
                 coef = 1.0
                 if cluster:
@@ -808,7 +829,7 @@ class Predict:
             if words[word].star: score += star_bonus
             if no_new_word and not score_predict: score -= star_bonus
 
-            message = "score[%s]: %.3f[%d%s] + %.3f * %.3f[%s] --> %.3f" % (
+            message = "===== %s ===== %.3f[%d%s] + %.3f * %.3f[%s] --> %.3f" % (
                 word,
                 words[word].score, words[word].cls,
                 "*" if words[word].star else "",
