@@ -1,7 +1,7 @@
 #! /usr/bin/python3
 # -*- coding: utf-8 -*-
 
-""" Simple prediction algorithm based on N-grams """
+""" Simple prediction algorithm based on N-grams and word clustering """
 
 import sqlite3
 import os
@@ -238,7 +238,7 @@ class Predict:
         self.first_word = None
         self.mock_time = None
         self.guess_history = dict()
-        self.coef_score_predict = dict()
+        self.coef_score_predict = None
 
         self.mod_ts = time.ctime(os.stat(__file__).st_mtime)
 
@@ -251,7 +251,9 @@ class Predict:
 
     def cf(self, key, default_value, cast = None):
         """ "mockable" configuration """
-        if self.tools:
+        if self.db and key in self.db.params:
+            ret = db.params[key]  # per language DB parameter values
+        elif self.tools:
             ret = self.tools.cf(key, default_value, cast)
         elif self.cf:
             ret = self.cfvalues.get(key, default_value)
@@ -289,11 +291,7 @@ class Predict:
                 self.log("DB open OK:", self.dbfile)
                 self.refresh_db()
 
-                for n in [1, 2, 3]:
-                    if "predict_coef_%d" % n in self.db.params:
-                        self.coef_score_predict[n] = self.db.params["predict_coef_%d" % n]
-                    else:
-                        self.coef_score_predict[n] = self.cf('default_score_predict_%d' % n, 0.4 - 0.125 * (3 - n), float)
+                self.coef_score_predict = self.cf("predict_coef", 1, float)
 
             else:
                 self.log("DB not found:", self.dbfile)
@@ -532,16 +530,14 @@ class Predict:
             if infoguess.score_no_predict < infonew.score_no_predict:
                 decrease = True
 
-            if increase != decrease and infonew.gram:
+            if increase != decrease:
                 name, sign = ("increase", 1) if increase else ("decrease", -1)
-                gram = infonew.gram
+                self.coef_score_predict += sign * self.cf("score_predict_tune_increment", 0.005, float)
+                self.coef_score_predict = max(0.2, min(5, self.coef_score_predict))
+                self.log("Replacement [%s -> %s] - Predict coef %s, new value: %.3f" %
+                         (old, new, name, self.coef_score_predict))
 
-                self.coef_score_predict[gram] += sign * self.cf("score_predict_tune_increment", 0.002, float)
-                self.coef_score_predict[gram] = max(0.001, min(1, self.coef_score_predict[gram]))
-                self.log("Replacement [%s -> %s] - Predict coef[%d] %s, new value: %.3f" %
-                         (old, new, gram, name, self.coef_score_predict[gram]))
-
-                self.db.set_param("predict_coef_%d" % gram, self.coef_score_predict[gram])
+                self.db.set_param("predict_coef", self.coef_score_predict)
 
 
     def get_predict_words(self):
@@ -610,7 +606,7 @@ class Predict:
             lst = [ str(x) for x in lst ]
             while len(lst) < 3: lst.append('-1')  # N/A
             num = ':'.join(lst)
-            den = ':'.join([ '-2' if not cluster else '-4' ] + lst[1:])
+            den = ':'.join([ '-2' if not cluster else '-4' ] + lst[1:])  # #TOTAL for words, #CTOTAL for clusters
             ids_list.add(num)
             ids_list.add(den)
             if word not in todo: todo[word] = dict()
@@ -644,22 +640,21 @@ class Predict:
         sqlresult = self.db.get_grams(ids_list)
 
         # initialize parameters
-        lambda1 = self.db.params.get('lambda1', self.cf('default_lambda1', 0.05, float))
-        lambda2 = self.db.params.get('lambda2', self.cf('default_lambda2', 0.5, float))
-        lambda3 = 1 - lambda1 - lambda2
+        score_parts = dict(s3 = 0.8, c3 = 0.4, s2 = 0.3, c2 = 0.03, s1 = 0.2)  # default values, per language override can be set in DB parameters
+        score_coef = dict()
+        for part, default_coef in score_parts.items():
+            score_coef[part] = self.db.params.get("coef_predict_%s" % part, default_coef)
 
         # process request result & compute scores
         current_day = int(self._now() / 86400)
 
         (global_stock_count, global_user_count) = sqlresult["-2:-1:-1"][0:2]  # grand total #NA:#NA:#TOTAL
-        learning_count = self.cf('learning_count', 5000, int)
-        learning_count_min = self.cf('learning_count_min', 10, int)
-        learning_master_switch = self.cf('learning_enable', True, bool)
 
         # evaluate score components
         for word in todo:
             score = dict()
             detail = dict()
+            final_score = 0
 
             if word in word2cid:
                 detail["clusters"] = [ word2cid[word] ] + last_cids[0:2]
@@ -684,8 +679,6 @@ class Predict:
                 if not den: continue
                 detail_append = ""
 
-                detail["n_%s" % score_name] = num
-
                 # add P(Wi|Ci) term for cluster n-grams
                 coef = 1.0
                 if cluster:
@@ -697,57 +690,18 @@ class Predict:
                 # stock stats
                 (stock_count, user_count, user_replace, last_time) = num
                 (total_stock_count, total_user_count, dummy1, dummy2) = den
-                stock_proba = 1.0 * coef * stock_count / total_stock_count if total_stock_count > 0 else 0
 
-                # final score for current N value
-                if (user_count or user_replace) and total_user_count \
-                   and global_user_count and learning_master_switch:
-                    # use information learned from user
+                stock_proba = proba = 1.0 * coef * stock_count / total_stock_count if total_stock_count > 0 else 0
 
-                    # usage of this context compared to the whole corpus
-                    # for 1-grams it's always 1, <= 1 otherwise
-                    context_usage = (total_user_count / global_user_count)
-                    if global_stock_count and total_stock_count:
-                        context_usage = math.sqrt(context_usage * (total_stock_count / global_stock_count))
 
-                    # user text input is way smaller than stock corpus (predict.db) and
-                    coef_user = 1 - math.exp(-0.7 * total_user_count / max(learning_count_min, learning_count * context_usage))
-
-                    c = max(1, 1.0 * total_stock_count / total_user_count) * coef_user
-                    if not total_stock_count: c = 1.0
-
-                    proba = ((stock_count + c * user_count * user_count / (user_count + user_replace))
-                             / (total_stock_count + c * total_user_count + learning_count))
-                    # ^^^ learning count in denominator is for smoothing in case of word not in stock
-
-                    detail_append += (" user=[%d-%d/%d] age=%d [learn: ctx=%.2e coef=%.2e proba=%.2e->%.2e]" %
-                                      (user_count, user_replace, total_user_count, current_day - last_time, context_usage, coef_user, stock_proba, proba))
-
-                else:
-                    # only use stock information
-                    proba = stock_proba
-
-                score[score_name] = max(0, proba)  # make sure user_replace does not lead to negative result
+                score1 = score_coef[score_name] * (math.log10(proba) + 8 if proba > 1E-8 else 0) / 8  # [0, 1]
+                final_score = max(final_score, score1)
 
                 # only for logging
-                detail[score_name] = "stock=%.2e[%d/%d]%s" % (stock_proba, stock_count, total_stock_count, detail_append)
-
-            # use linear interpolation between probabilities for each N value (cf. Jurasky & Martin §4.6: interpolation)
-            final_score, n = None, 0
-            if "s3" in score:
-                final_score = lambda1 * score.get("s1", 0) + lambda2 * score.get("s2", 0) + lambda3 * score["s3"]
-                n = 3
-            elif "s2" in score:  # context size is 2 (e.g. first word in a sentence)
-                final_score = (lambda1 * score.get("s1", 0) + lambda2 * score["s2"]) / (lambda1 + lambda2)
-                n = 2
-            elif "s1" in score:  # context size in 1 (e.g. first word after an unknown word)
-                final_score = score["s1"]
-                n = 1
+                detail[score_name] = "%.2e ~ stock=%.2e[%d]%s" % (score1, proba, stock_count, detail_append)
 
             if final_score:
-                if n: detail["gram"] = n
-                detail["scores"] = score
-                result[word] = (final_score, detail)  # we need smoothing
+                result[word] = (final_score, detail)
 
         self.recent_contexts = self.recent_contexts[1:10] + [ (word, list(self.last_words)) ]
 
@@ -806,22 +760,22 @@ class Predict:
                            key = lambda x: words[x].score + (star_bonus if words[x].star else 0),
                            reverse = False)
 
+        max_score_pow = self.cf('max_score_pow', 1, int)
+        max_score = max([ i.score for w, i in words.items() ])
+
         max_words = self.cf('predict_max_candidates', 25, int)
         all_words = all_words[-max_words:]
 
-        all_predict_proba = self._get_all_predict_scores(all_words)  # requests all scores using bulk requests
+        all_predict_scores = self._get_all_predict_scores(all_words)  # requests all scores using bulk requests
 
         lst = []
         for word in all_words:
-            predict_proba, detail_predict = all_predict_proba.get(word, (0, dict()))
-
-            score_predict = (math.log10(predict_proba) + 8 if predict_proba > 1E-8 else 0) / 8  # [0, 1]
+            score_predict, predict_detail = all_predict_scores.get(word, (0, dict()))
+            coef_score_predict = self.coef_score_predict
 
             # overall score
-            gram = detail_predict.get("gram", None)
-            score = words[word].score
-            coef_score_predict = self.coef_score_predict.get(gram, 0)
-            score += coef_score_predict * score_predict
+            score = words[word].score * (max_score ** max_score_pow) + coef_score_predict * score_predict
+
             if word[0].isupper(): score -= coef_score_upper
             if word.find("'") > -1 or word.find("-") >  1: score -= coef_score_sign
 
@@ -829,20 +783,18 @@ class Predict:
             if words[word].star: score += star_bonus
             if no_new_word and not score_predict: score -= star_bonus
 
-            message = "===== %s ===== %.3f[%d%s] + %.3f * %.3f[%s] --> %.3f" % (
-                word,
+            message = "%15s : %.3f = %.3f[%3d%s] + %.3f * %.3f[%s]" % (
+                word, score,
                 words[word].score, words[word].cls,
-                "*" if words[word].star else "",
-                coef_score_predict, score_predict, detail_predict, score)
+                "*" if words[word].star else " ",
+                coef_score_predict, score_predict, predict_detail)
 
             words[word].message = message
             words[word].final_score = score
-            words[word].predict_proba = predict_proba
             words[word].word = word
             words[word].score_predict = score_predict
             words[word].coef_score_predict = coef_score_predict
             words[word].score_no_predict = score - coef_score_predict * score_predict
-            words[word].gram = gram
             lst.append(word)
 
         lst.sort(key = lambda w: words[w].final_score, reverse = True)
