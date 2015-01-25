@@ -71,13 +71,16 @@ sub score1 {
 
     my $score = $wi->{'score'} * ($max_score ** $params->{'max_pow'});
 
+    my ($predict_score, $max_predict_score);
     foreach my $p ("s3", "c3", "s2", "c2", "s1") {
-	my $score1 = score_log($wi->{$p});
-	$score += $score1 * $params->{$p};
+	my $score1 = score_log($wi->{$p}) * $params->{$p};
+	$predict_score += $score1;
+	$max_predict_score = max($max_predict_score, $score1);
 	last if $score1 && $params->{'backoff'};
     }
 
-    return $score;
+    $predict_score = $max_predict_score if $params->{'max'};
+    return $score + $predict_score;
 }
 
 sub eval1 {
