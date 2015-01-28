@@ -104,7 +104,8 @@ for line in sys.stdin.readlines():
         candidates = gen_curve.gen_curve(w3, js,
                                          error = error if i != 2 else 0,
                                          curviness = curviness if i != 1 else 1,
-                                         lang = lang, retry = 30, verbose = verbose)
+                                         lang = lang, retry = 30, verbose = verbose,
+                                         max_err = max_err)
         curve_results.append(candidates)
 
     curves[letters] = curve_results
