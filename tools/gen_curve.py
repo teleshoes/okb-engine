@@ -81,7 +81,7 @@ def word2keys(word):
     letters = re.sub(r'(.)\1+', lambda m: m.group(1), letters)
     return letters
 
-def gen_curve(word, js, error = 0, plot = False, curviness = 150, lang = "en", retry = 10, out_file = None, verbose = True):
+def gen_curve(word, js, error = 0, plot = False, curviness = 150, lang = "en", retry = 10, out_file = None, verbose = True, max_err = None):
     if verbose: print("=== [%s] curviness=%d error=%d lang=%s" % (word, curviness, error, lang))
 
     letters = word2keys(word)
@@ -188,7 +188,10 @@ def gen_curve(word, js, error = 0, plot = False, curviness = 150, lang = "en", r
 
         candidates.sort(key = lambda x: x["score"], reverse = True)
 
-        if plot or word in [ c["word"] for c in candidates ] or not retry: break
+        w2s = dict([ (c["word"], c["score"]) for c in candidates ])
+        ok = (word in w2s and (not max_err or w2s[word] >= max(w2s.values()) - max_err))
+
+        if ok or not retry: break
 
         if verbose: print("Retry: %d\n" % retry)
 
@@ -215,7 +218,8 @@ if __name__ == "__main__":
     lang = "en"
     retry = 10
     out_file = None
-    opts, args =  getopt.getopt(sys.argv[1:], 'e:pc:s:l:r:o:')
+    max_err = None
+    opts, args =  getopt.getopt(sys.argv[1:], 'e:pc:s:l:r:o:a:')
     for o, a in opts:
         if o == "-e":  # error
             error = int(a)
@@ -231,6 +235,8 @@ if __name__ == "__main__":
             retry = int(a)
         elif o == "-o":
             out_file = a
+        elif o == "-a":
+            max_err = float(a)
         else:
             print("Bad option: %s" % o)
             exit(1)
@@ -241,4 +247,4 @@ if __name__ == "__main__":
     js = json.loads(open(jsonfile, "r").read())
     os.chdir(os.path.dirname(__file__))
 
-    gen_curve(word, js, error = error, plot = plot, curviness = curviness, lang = lang, retry = retry, out_file = out_file)
+    gen_curve(word, js, error = error, plot = plot, curviness = curviness, lang = lang, retry = retry, out_file = out_file, max_err = max_err)

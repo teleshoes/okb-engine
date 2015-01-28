@@ -28,8 +28,9 @@ curviness = 150
 lang = "en"
 verbose = False
 min_count = 10
+max_err = None
 
-opts, args =  getopt.getopt(sys.argv[1:], 'e:c:l:m:v')
+opts, args =  getopt.getopt(sys.argv[1:], 'e:c:l:m:va:')
 for o, a in opts:
     if o == "-e":  # error
         error = int(a)
@@ -41,6 +42,8 @@ for o, a in opts:
         min_count = int(a)
     elif o == "-v":
         verbose = True
+    elif o == "-a":
+        max_err = float(a)
     else:
         print("Bad option: %s" % o)
         exit(1)
