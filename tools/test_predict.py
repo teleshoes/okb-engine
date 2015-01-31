@@ -42,7 +42,7 @@ def run(words):
 
     print("==> Words:", words)
 
-    last_word = words.pop(-1)
+    last_word_choices = words.pop(-1).split('+')  # allow wordA+wordB for last word
 
     tmp = ' '.join(words)
     p.update_surrounding(tmp, len(tmp))
@@ -50,22 +50,25 @@ def run(words):
     p._update_last_words()
     print("Context:", p.last_words, p.sentence_pos)
 
-    score, details = p._get_all_predict_scores([last_word])[last_word]
+    result = p._get_all_predict_scores(last_word_choices)
 
-    print("Score:", score, details)
+    for word in last_word_choices:
+        score, details = result[word]
 
-    if "clusters" in details:
-        for word, cluster in reversed(list(zip(reversed(words + [last_word]), details["clusters"]))):
-            print(word, p.db.get_word_by_id(cluster))
+        print("%15s :" % word, score, details)
+
+        if "clusters" in details:
+            for word1, cluster in reversed(list(zip(reversed(words + [word]), details["clusters"]))):
+                print(word1, p.db.get_word_by_id(cluster))
 
     if learn:
-        p._learn(True, last_word, p.last_words)
+        p._learn(True, last_word_choices[0], p.last_words)  # learn first word if multiple choices
 
     print()
 
 if args:
     line = ' '.join(args)
-    words = re.split(r'[^\w\-\']+', line)
+    words = re.split(r'[^\w\-\'\+]+', line)
     words = [ x for x in words if len(x) > 0 ]
 
     if all:

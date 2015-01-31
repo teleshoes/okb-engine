@@ -191,7 +191,7 @@ def gen_curve(word, js, error = 0, plot = False, curviness = 150, lang = "en", r
         w2s = dict([ (c["word"], c["score"]) for c in candidates ])
         ok = (word in w2s and (not max_err or w2s[word] >= max(w2s.values()) - max_err))
 
-        if ok or not retry: break
+        if plot or ok or not retry: break
 
         if verbose: print("Retry: %d\n" % retry)
 
