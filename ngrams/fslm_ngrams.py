@@ -387,14 +387,14 @@ class NGramDecoder:
         context_offset = None
         ti = 0
         count = None
-        if self.verbose: print("Search: %s" % ngram)
+        if self.verbose: print("Search: %s" % list(ngram))
         for w in ngram:
             context_offset, count = self.table_lookup(self.table[ti], w, context_offset, prefix = "    table n=%d" % ti if self.verbose else None)
             if context_offset is None: break  # not found
             ti += 1
 
         if self.verbose:
-            print("Search: %s -> %s" % (ngram, count))
+            print("Search: %s -> %s" % (list(ngram), count))
             print()
 
         return count
