@@ -126,15 +126,14 @@ class BlockCompressor():
         return self.buf
 
 class NGramTableEncoder:
-    def __init__(self, word_nbits = 22, base_bits = 1, block_size = 128, prefix = None):
-        self.word_nbits = word_nbits
+    def __init__(self, max_wid, base_bits = 1, block_size = 128, prefix = None):
         self.base_bits = base_bits
         self.nodes = []
-        self.max_wid = 2 ** word_nbits - 1
         self.wids = set()
         self.out = None
         self.block_size = block_size
         self.prefix = prefix
+        self.max_wid = max_wid + 1
 
     def add(self, wid, context_offset, count, context_key = None):
         wid = int(wid)
@@ -205,12 +204,12 @@ class NGramTableEncoder:
 
 
 class NGramEncoder:
-    def __init__(self, word_nbits, base_bits, block_size, verbose = False):
-        self.word_nbits = word_nbits
+    def __init__(self, base_bits, block_size, verbose = False):
         self.base_bits = base_bits
         self.block_size = block_size
         self.ngrams = []
         self.verbose = verbose
+        self.max_wid = 0
 
     def add_ngram(self, ngram, count):
         ngram = list(ngram)
@@ -223,6 +222,8 @@ class NGramEncoder:
             key = tuple([ int(x) for x in ngram ])
             n = len(ngram) - 1
 
+            self.max_wid = max(self.max_wid, max(key) + 1)
+
             if key in self.ngrams[n]: self.ngrams[n][key] = max(self.ngrams[n][key], count)
             else: self.ngrams[n][key] = count
 
@@ -231,13 +232,12 @@ class NGramEncoder:
 
     def get_bytes(self):
         out = bytes()
-        out += struct.pack('>HBBBBBB', self.block_size, self.word_nbits,
-                           self.base_bits, len(self.ngrams), 0, 0, 0)  # 0 for alignment
+        out += struct.pack('>HBB', self.block_size, self.base_bits, len(self.ngrams))
 
         tables = bytes()
         context2offset = None
         for n in range(0, len(self.ngrams)):
-            table_encoder = NGramTableEncoder(self.word_nbits, self.base_bits, self.block_size, prefix = "table n=%d" % n if self.verbose else None)
+            table_encoder = NGramTableEncoder(self.max_wid, self.base_bits, self.block_size, prefix = "table n=%d" % n if self.verbose else None)
             for gram, count in self.ngrams[n].items():
                 context_key = gram[0:-1]
                 table_encoder.add(gram[-1], context2offset[context_key] if context2offset else 0, count, context_key)
@@ -265,7 +265,6 @@ class BitReader:
                 self.pos = 0
                 self.idx += 1
 
-
             n = min(count, 8 - self.pos)
             value <<= n
             value += (self.content[self.idx] >> (8 - n - self.pos)) & ((1 << n) - 1)
@@ -283,8 +282,8 @@ class BitReader:
 class NGramDecoder:
     def __init__(self, content, verbose = False):
         self.bytes = content
-        (self.block_size, self.word_nbits, self.base_bits, self.table_count, dum1, dum2, dum3) = struct.unpack('>HBBBBBB', self.bytes[0:8])
-        ptr = 8
+        (self.block_size, self.base_bits, self.table_count) = struct.unpack('>HBB', self.bytes[0:4])
+        ptr = 4
         self.table = []
         for i in range(0, self.table_count):
             table_len = struct.unpack('>I', self.bytes[ptr:ptr + 4])[0]
