@@ -23,7 +23,7 @@ CREATE TABLE words (
    id INTEGER PRIMARY KEY NOT NULL, /* we get autoincrement for free */
    word TEXT NOT NULL,
    cluster_id INT,
-   word_lc TEXT NOT NULL
+   word_lc TEXT
 );
 
 CREATE INDEX words_idx ON words (word);

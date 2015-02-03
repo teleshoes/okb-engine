@@ -40,6 +40,8 @@ learning because this is a read-only structure
 """
 
 import struct
+import time
+import sys
 
 class TableLine:
     def __init__(self, wid, context_offset, count, context_key = None):
@@ -126,7 +128,7 @@ class BlockCompressor():
         return self.buf
 
 class NGramTableEncoder:
-    def __init__(self, max_wid, base_bits = 1, block_size = 128, prefix = None):
+    def __init__(self, max_wid, base_bits = 1, block_size = 128, prefix = None, progress = None):
         self.base_bits = base_bits
         self.nodes = []
         self.wids = set()
@@ -134,6 +136,7 @@ class NGramTableEncoder:
         self.block_size = block_size
         self.prefix = prefix
         self.max_wid = max_wid + 1
+        self.progress = progress
 
     def add(self, wid, context_offset, count, context_key = None):
         wid = int(wid)
@@ -158,10 +161,25 @@ class NGramTableEncoder:
         word2offset = dict()
         cur_offset = 0
 
+        lastp = time.time()
+
+        w2nodes = dict()
+        for node in sorted(self.nodes, key = lambda x: x.context_offset):
+            wid = node.wid
+            if wid not in w2nodes: w2nodes[wid] = []
+            w2nodes[wid].append(node)
+
+        i = 0
         for wid in sorted(self.wids):
+            i += 1
             begin_offset = cur_offset
-            nodes = [ n for n in self.nodes if n.wid == wid ]
-            nodes.sort(key = lambda x: x.context_offset)
+            nodes = w2nodes[wid]
+            #QQQ [ n for n in self.nodes if n.wid == wid ]
+            #QQQ nodes.sort(key = lambda x: x.context_offset)
+
+            if self.progress and time.time() > lastp + 10:
+                sys.stderr.write("%d/%d [%d]\n" % (i, len(self.wids), cur_offset))
+                lastp += 10
 
             last_context_offset = 0
 
@@ -204,12 +222,13 @@ class NGramTableEncoder:
 
 
 class NGramEncoder:
-    def __init__(self, base_bits, block_size, verbose = False):
+    def __init__(self, base_bits, block_size, verbose = False, progress = False):
         self.base_bits = base_bits
         self.block_size = block_size
         self.ngrams = []
         self.verbose = verbose
         self.max_wid = 0
+        self.progress = progress
 
     def add_ngram(self, ngram, count):
         ngram = list(ngram)
@@ -237,7 +256,9 @@ class NGramEncoder:
         tables = bytes()
         context2offset = None
         for n in range(0, len(self.ngrams)):
-            table_encoder = NGramTableEncoder(self.max_wid, self.base_bits, self.block_size, prefix = "table n=%d" % n if self.verbose else None)
+            table_encoder = NGramTableEncoder(self.max_wid, self.base_bits, self.block_size,
+                                              prefix = "table n=%d" % n if self.verbose else None,
+                                              progress = self.progress)
             for gram, count in self.ngrams[n].items():
                 context_key = gram[0:-1]
                 table_encoder.add(gram[-1], context2offset[context_key] if context2offset else 0, count, context_key)

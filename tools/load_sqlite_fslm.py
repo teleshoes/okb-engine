@@ -3,13 +3,21 @@
 
 """
 create a sqlite database for on device usage
-reads the output of import_corpus.py script
+ + separate compressed storage for stock counts
+
+read the output of import_corpus.py script
 (may be piped through clusterize.py for cluster information embedding)
 """
 
 import sys, os
 import sqlite3
 import time
+
+mydir = os.path.dirname(os.path.abspath(__file__))
+libdir = os.path.join(mydir, '../ngrams')
+sys.path.insert(0, libdir)
+
+import fslm_ngrams
 
 if len(sys.argv) < 2:
     print("Usage: ", os.path.basename(__file__), " <out sqlite db file>")
@@ -19,6 +27,10 @@ if len(sys.argv) < 2:
 dbfile = sys.argv[1]
 if os.path.exists(dbfile): os.unlink(dbfile)
 conn = sqlite3.connect(dbfile)
+
+fslm_file = dbfile
+if fslm_file[-3:] == '.db': fslm_file = fslm_file[:-3]
+fslm_file += '.fslm'
 
 
 # 1) RAZ db
@@ -32,21 +44,24 @@ conn.commit()
 
 # 2) import corpus as CSV
 print("Import CSV corpus data ...")
-words = dict()
+words = dict()  # word -> [ word_id, cluster_id ]
 words['#TOTAL'] = [ -2, -4 ]  # #TOTAL -> #CTOTAL
 words['#NA'] = [ -1, -1 ]
 words['#START'] = [ -3, -3 ]
 words['#CTOTAL'] = [ -4, -4 ]
 
-word_id = 1
-cluster_id = -10
+fslm_encoder = fslm_ngrams.NGramEncoder(base_bits = 4,
+                                        block_size = 128,
+                                        progress = True)
+
+cur_id = 10
 
 def w2id(word):
-    global words, word_id
+    global words, cur_id
     if word in words: return words[word][0]
-    word_id += 1
-    words[word] = [ word_id, 0 ]
-    return word_id
+    cur_id += 1
+    words[word] = [ cur_id, 0 ]
+    return cur_id
 
 last = start = time.time()
 wordcount = dict()
@@ -60,25 +75,40 @@ for line in sys.stdin.readlines():
         word = cols[2]
         if word[0] == '#': continue
         if word in words: raise Exception("Duplicate word: %s" % word)
-        cid = None
-        if cluster in words: cid = words[cluster][0]
-        if not cid:
-            cluster_id -= 1
-            cid = cluster_id
-            words[cluster] = [ cluster_id, 0 ]
-        word_id += 1
-        words[word] = [ word_id, cid ]
+        if cluster in words:
+            cid = words[cluster][0]
+        else:
+            cur_id += 1
+            cid = cur_id
+            words[cluster] = [ cur_id, 0 ]
+        cur_id += 1
+        words[word] = [ cur_id, cid ]
 
     else:
-        (count, id3, id2, id1) = cols  # normal order in CSV files but reversed in DB
+        (count, w1, w2, w3) = cols
         count = int(count)
-        if id3 != '#NA' and id1 != '#TOTAL' and id1 != '#CTOTAL':  # only 3-grams (and not total)
-            if id1 not in wordcount: wordcount[id1] = 0
-            wordcount[id1] += count
-        curs.execute('INSERT INTO grams (id1, id2, id3, stock_count) values (?, ?, ?, ?)', (w2id(id1), w2id(id2), w2id(id3), count))
+        gram = [ w1, w2, w3 ]
+        gram = [ w2id(w) for w in gram ]
+        if w1 != '#NA' and w3 != '#TOTAL' and w3 != '#CTOTAL':  # only 3-grams (and not total)
+            if w3 not in wordcount: wordcount[w3] = 0
+            wordcount[w3] += count
+
+        # remove #NA at the beginning (the store can handle variable length n-grams)
+        while gram[0] == -1: gram.pop(0)
+        gram = [ abs(x) for x in gram ]  # store can only handle positive identifiers
+
+        # n-grams are sent to optimized fslm database
+        # sqlite n-gram table will start as empty and will fill for learning
+        fslm_encoder.add_ngram(gram, count)
+
+# 3) write FSLM compressed DB
+print("Dumping compressed ngram file ...")
+fslm = fslm_encoder.get_bytes()
+with open(fslm_file, 'wb') as f:
+    f.write(fslm)
 
 # 4) dump words to database
-print("Dump words to database ...")
+print("Dumping words to database ...")
 curs = conn.cursor()
 for word, info in words.items():
     id, cid = info
@@ -89,7 +119,7 @@ for word, info in words.items():
         words_in_cluster.sort(key = lambda x: wordcount.get(x, 0), reverse = True)  # sort by count
         word = "%s:%d:%d:%s" % (word, wordcount.get(word, 0), len(words_in_cluster), ','.join(words_in_cluster[:5]))
 
-    curs.execute('INSERT INTO words (id, word, cluster_id, word_lc) values (?, ?, ?, ?)', (id, word, cid, word.lower()))
+    curs.execute('INSERT INTO words (id, word, cluster_id, word_lc) values (?, ?, ?, ?)', (id, word, cid, word.lower() if cid else None))
 
 conn.commit()
 conn.close()
