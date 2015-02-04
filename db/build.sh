@@ -29,4 +29,4 @@ for target in depend all ; do
     make -j -f $mydir/makefile CORPUS_DIR=${CORPUS_DIR} TOOLS_DIR=$mydir/../tools $target
 done
 
-cp -vauf *.tre *.db $mydir/
+cp -vauf *.tre *.db *.ng $mydir/

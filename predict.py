@@ -8,6 +8,7 @@ import os
 import time
 import re
 import math
+import cfslm
 
 class Wordinfo:
     def __init__(self, id, cluster_id, real_word = None):
@@ -15,19 +16,24 @@ class Wordinfo:
         self.cluster_id = cluster_id
         self.real_word = real_word
 
-class SqliteBackend:
-    """ this class implement read/write access to prediction database
-        as no python/dbm is working on Sailfish (or i missed it), sqlite is used """
+class SqliteBackendFslm:
+    """ this class implements read/write access to prediction database
+
+        updated version : stock ngram are stored in a separate optimized
+        storage. Sqlite is only used for dictionary, cluster information and
+        learnt n-grams (all of these are pre-fetched to avoid latency)
+        """
 
     def __init__(self, dbfile):
+        self.loaded = False
         self.conn = sqlite3.connect(dbfile)
-        self.clear_stats()
-        self.cache = dict()
 
-        self.cache['#TOTAL'] = Wordinfo(-2, -4)
-        self.cache['#NA'] = Wordinfo(-1, -1)
-        self.cache['#START'] = Wordinfo(-3, -3)
-        self.cache['#CTOTAL'] = Wordinfo(-4, -4)
+        fslm_file = dbfile
+        if fslm_file[-3:] == '.db': fslm_file = fslm_file[:-3]
+        fslm_file += '.ng'
+        self.fslm_file = fslm_file
+
+        self.clear_stats()
 
         # fetch parameters
         self.params = dict()
@@ -37,11 +43,46 @@ class SqliteBackend:
         for (key, value) in curs.fetchall():
             self.params[key] = float(value)
 
+    def _load(self):
+        if self.loaded: return
+
+        # load stock ngrams
+        cfslm.load(self.fslm_file)
+
+        # load words
+        self.words = dict()
+        sql = 'SELECT word, id, cluster_id, word_lc FROM words'
+        curs = self.conn.cursor()
+        curs.execute(sql)
+        for row in curs.fetchall():
+            (word, id, cluster_id, word_lc) = row
+            if word.startswith('#'): continue  # special tag
+            if word.startswith('@'): continue  # cluster, don't preload these
+
+            if word_lc not in self.words: self.words[word_lc] = dict()
+            self.words[word_lc][word] = Wordinfo(id, cluster_id)
+
+        # load user n-grams
+        self.ngrams = dict()
+        sql = 'SELECT id1, id2, id3, stock_count, user_count, user_replace, last_time FROM grams'
+        curs = self.conn.cursor()
+        curs.execute(sql)
+
+        for row in curs.fetchall():
+            (id1, id2, id3, stock_count, user_count, user_replace, last_time) = row
+            ids = ':'.join([str(id1), str(id2), str(id3)])
+            self.ngrams[ids] = (user_count, user_replace, last_time)
+        self.loaded = True
+
+
+    def _clear(self):
+        self.words = None
+        self.ngrams = None
+        cfslm.clear()
+        self.loaded = False
+
     def refresh(self):
-        # dummy request to load some blocks from filesystem and reduce
-        # latency later when user is waiting for an answer
-        self.get_words(['#CTOTAL', '#TOTAL', '#NA', '#START'], use_cache = False)
-        self.get_grams(["-2:-1:-1", "-2:-3:-3", "-4:-1:-1", "-4:-3:-3"], use_cache = False)
+        self._load()
 
     def set_param(self, key, value):
         if key in self.params:
@@ -57,38 +98,20 @@ class SqliteBackend:
     def clear_stats(self):
         self.timer =  self.count = 0
 
-    def get_grams(self, ids_list, use_cache = True):
-        self.count += 1
-        _start = time.time()
-
+    def get_grams(self, ids_list):
         result = dict()
-
-        sql = 'SELECT id1, id2, id3, stock_count, user_count, user_replace, last_time FROM grams WHERE '  # @todo add columns for automatic learning
-        params = []
-        first = True
         for ids in ids_list:
-            if ids in self.cache and use_cache:
-                if self.cache[ids]: result[ids] = self.cache[ids]  # negative caching
-            else:
-                if not first: sql += ' OR '
-                first = False
-                sql += "(id1 = ? AND id2 = ? AND id3 = ?)"
-                paramlist = ids.split(':')
-                if len(paramlist) != 3: raise Exception("Bad parameter list: %s" % ids)
-                params.extend(paramlist)
+            (id1, id2, id3) = ids.split(':')
+            ng = [ int(x) for x in [id3, id2, id1] ]
+            while ng[0] == -1: ng.pop(0)
+            stock_count = max(0, cfslm.search(ng))
+            user_count = user_replace = last_time = 0
+            if ids in self.ngrams:
+                (user_count, user_replace, last_time) = self.ngrams[ids]
 
-        if params:
-            curs = self.conn.cursor()
-            curs.execute(sql, tuple(params))
+            if not stock_count and not user_count: continue
+            result[ids] = (stock_count, user_count, user_replace, last_time)
 
-            for row in curs.fetchall():
-                (id1, id2, id3, stock_count, user_count, user_replace, last_time) = row
-                ids = ':'.join([str(id1), str(id2), str(id3)])
-                result[ids] = self.cache[ids] = (stock_count, user_count, user_replace, last_time)
-
-            for ids in [ i for i in ids_list if i not in result ]: self.cache[ids] = None  # negative caching
-
-        self.timer += time.time() - _start
         return result
 
     def set_grams(self, grams):
@@ -97,23 +120,19 @@ class SqliteBackend:
         _start = time.time()
         curs = self.conn.cursor()
         for ids, values in grams.items():
-            (stock_count, user_count, user_replace, last_time) = values  # obviously stock_count is ignored
+            (stock_count_not_used, user_count, user_replace, last_time) = values  # obviously stock_count is ignored
 
             # we can issue a request by line, because performance is not critical (asynchronous write to DB)
             # (we can use conn.executemany() if needed)
             self.count += 1
-            if ids not in self.cache:
-                raise Exception("DB inconsistency?")
-            elif self.cache[ids] is not None:
+            if ids in self.ngrams:
                 # update line
                 sql = 'UPDATE grams SET user_count = ?, user_replace = ?, last_time = ? WHERE id1 = ? AND id2 = ? AND id3 = ?'
-                stock_count = self.cache[ids][0]
             else:
                 # create new line
                 sql = 'INSERT INTO grams (stock_count, user_count, user_replace, last_time, id1, id2, id3) VALUES (0, ?, ?, ?, ?, ?, ?)'
-                stock_count = 0
 
-            self.cache[ids] = tuple([ stock_count, user_count, user_replace, last_time ])
+            self.ngrams[ids] = tuple([ user_count, user_replace, last_time ])
 
             params = [ user_count, user_replace, last_time ] + ids.split(':')
             curs.execute(sql, tuple(params))
@@ -121,7 +140,9 @@ class SqliteBackend:
         self.conn.commit()
         self.timer += time.time() - _start
 
-    def add_word(self, word, use_cache = True):
+    def add_word(self, word):
+        self._load()
+
         self.count += 1
         _start = time.time()
 
@@ -130,81 +151,57 @@ class SqliteBackend:
         curs.execute(sql, (word, word.lower()))
 
         self.conn.commit()
+
+        sql = 'SELECT id FROM words WHERE word = ?'  # get primary key
+        curs.execute(sql, (word,))
+        id = curs.fetchall()[0][0]
+
         self.timer += time.time() - _start
-        for w in [ word, word[0].upper() + word[1:] ]:
-            for suf in [ "", "*" ]:
-                self.cache.pop(w + suf, None)  # remove negative caching for this word
+
+        lword = word.lower()
+        if lword not in self.words: self.words[lword] = dict()
+        self.words[lword][word] = Wordinfo(id, None)
 
         # get ID and update cache
-        result = self.get_words([word], use_cache = use_cache)
+        result = self.get_words([word])
         return result[word].id
 
-
-    def get_words(self, words, use_cache = True, lower_first_words = None):
-        self.count += 1
-        _start = time.time()
-
-        cache_key_suffix = "*" if lower_first_words else ""
-
-        result = dict()
-
-        sql = 'SELECT word, id, cluster_id, word_lc FROM words WHERE '
-        params = []
-
-        if lower_first_words is None: lower_first_words = set()
+    def get_words(self, words, lower_first_words = None):
+        if not lower_first_words: lower_first_words = set()
 
         in_word = dict()
-        first = True
         for word in words:
-            cache_key = word + cache_key_suffix
-            if cache_key in self.cache and use_cache:
-                if self.cache[cache_key]: result[word] = self.cache[cache_key]  # negative caching use None value and must not be returned
-            else:
-                lword = word.lower()
-                if lword in in_word:
-                    in_word[lword].add(word)
-                    continue
+            if word.startswith('#'): continue
+            lword = word.lower()
+            if lword not in in_word: in_word[lword] = set()
+            in_word[lword].add(word)
 
-                in_word[lword] = set([word])
-                if not first: sql += ' OR '
-                first = False
-                sql += "(word_lc = ?)"
-                params.append(lword)
+        result = dict()
+        for lword in in_word.keys():
+            if lword not in self.words: continue
 
-        if params:
-            curs = self.conn.cursor()
-            curs.execute(sql, tuple(params))
+            found1 = self.words[lword]
+            lower_first = (len([ x for x in in_word[lword] if x in lower_first_words ]) > 0)
 
-            found = dict()
-            for row in curs.fetchall():
-                lword = row[3]
-                if lword not in found: found[lword] = dict()
-                found[lword][row[0]] = Wordinfo(row[1], row[2], real_word = row[0])
+            for word in in_word[lword]:
+                if lower_first and word[1:].islower() and lword in found1 and lword not in in_word[lword]:
+                    # lowercase version not requested but found --> choose this one (first word only)
+                    result[word] = found1[lword]
+                elif word in found1:
+                    # else return word with exact capitalization if found
+                    result[word] = found1[word]
+                elif lword not in in_word[lword] and lword in found1:
+                    # fallback to lowercase word
+                    result[word] = found1[lword]
+                else:  # at last resort, match word with other capitalization (e.g. this is used for English "I")
+                    other_words = [ w for w in found1.keys() if w not in in_word[lword] ]
+                    if other_words:
+                        result[word] = found1[other_words[0]]  # can't do better than random choice
 
-            for lword, found1 in found.items():
-                lower_first = (len([ x for x in in_word[lword] if x in lower_first_words ]) > 0)
-
-                for word in in_word[lword]:
-                    if lower_first and word[1:].islower() and lword in found1 and lword not in in_word[lword]:
-                        # lowercase version not requested but found --> choose this one (first word only)
-                        result[word] = found1[lword]
-                    elif word in found1:
-                        # else return word with exact capitalization if found
-                        result[word] = found1[word]
-                    elif lword not in in_word[lword] and lword in found1:
-                        # fallback to lowercase word
-                        result[word] = found1[lword]
-                    else:  # at last resort, match word with other capitalization (e.g. this is used for English "I")
-                        other_words = [ w for w in found1.keys() if w not in in_word[lword] ]
-                        if other_words:
-                            result[word] = found1[other_words[0]]  # can't do better than random choice
-
-        self.timer += time.time() - _start
-
-        for word, info in result.items():
-            self.cache[word + cache_key_suffix] = info
-
-        for word in [ w for w in words if w not in result ]: self.cache[word + cache_key_suffix] = None  # negative caching
+        result['#TOTAL'] = Wordinfo(-2, -4)
+        result['#NA'] = Wordinfo(-1, -1)
+        result['#START'] = Wordinfo(-3, -3)
+        result['#CTOTAL'] = Wordinfo(-4, -4)
 
         return result
 
@@ -281,13 +278,15 @@ class Predict:
         # dummy loading to "wake-up" db indexes
         if self.db:
             self.log("DB refresh...")
+            now = time.time()
             self.db.refresh()
+            self.log("DB refresh done (%2f s)" % (time.time() - now))
 
     def load_db(self):
         """ load database if needed """
         if not self.db:
             if os.path.isfile(self.dbfile):
-                self.db = SqliteBackend(self.dbfile)
+                self.db = SqliteBackendFslm(self.dbfile)
                 self.log("DB open OK:", self.dbfile)
                 self.refresh_db()
 
@@ -400,7 +399,7 @@ class Predict:
 
         t = int((time.time() - t0) * 1000)
         self.log("Commit: Lines updated:", len(todo), "elapsed:", t,
-                 "db_time:", int(1000 * self.db.timer), "db_count:", self.db.count, "cache:", len(self.db.cache))
+                 "db_time:", int(1000 * self.db.timer), "db_count:", self.db.count)
 
     def _learn(self, add, word, context, replaces = None, silent = False):
         if not self.db: return
@@ -813,7 +812,7 @@ class Predict:
             word = None
 
         t = int((time.time() - t0) * 1000)
-        self.log("Selected word:", word, "- elapsed:", t, "- db_time:", int(1000 * self.db.timer), "- db_count:", self.db.count, "- cache:", len(self.db.cache))
+        self.log("Selected word:", word, "- elapsed:", t, "- db_time:", int(1000 * self.db.timer), "- db_count:", self.db.count)
         self.log()
         self.last_guess = word
 
@@ -831,12 +830,6 @@ class Predict:
         """ periodic tasks: cache purge, DB flush to disc ... """
 
         self._commit_learn(commit_all = force_flush)
-
-        if self.db and not self.learn_history and len(self.db.cache) > self.cf("max_cache", 10000, int):
-            # emergency cache flush. @todo replace it with a proper LRU implementation
-            self.log("DB cache flush")
-            self.db.cache = dict()
-            self.refresh_db()
 
         now = time.time()
         for key in list(self.guess_history):

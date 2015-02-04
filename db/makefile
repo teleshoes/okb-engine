@@ -88,7 +88,7 @@ predict-%.db: clusters-%.txt grams-%-learn.csv.bz2 lang-%.cf
 	$(eval wgrams=$(call getconf,lang-$(lang).cf,cluster_wgrams))
 	set -o pipefail ; lbzip2 -d < grams-$(lang)-learn.csv.bz2 \
 	 | $(TOOLS_DIR)/clusterize.py -l $(depth) -w $(wgrams) -c $(cgrams) clusters-$(lang).txt \
-	 | $(TOOLS_DIR)/load_sqlite.py predict-$(lang)-tmp.db
+	 | $(TOOLS_DIR)/load_sqlite_fslm.py predict-$(lang)-tmp.db
 	mv -f predict-$(lang)-tmp.db $@
-
+	mv -f predict-$(lang)-tmp.ng predict-$(lang).ng
 

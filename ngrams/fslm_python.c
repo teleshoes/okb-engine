@@ -84,12 +84,10 @@ fslm_search(PyObject *self, PyObject *args)
 
     if (! item) { return NULL; }
     value = PyLong_AsLong(item);
-    if (value == -1) { return NULL; }
-    if (value < 0) { value = abs(value); }
-    if (value != 1) { // filter #NA
-      if (count > MAX_TABLE) { PyErr_SetString(FslmError, "n-gram too large"); return NULL; }
-      wids[count ++] = value;
-    }
+    if (value == -1 && PyErr_Occurred()) { return NULL; }
+    value = abs(value);
+    if (count > MAX_TABLE) { PyErr_SetString(FslmError, "n-gram too large"); return NULL; }
+    wids[count ++] = value;
   }
 
   result = search(db, wids, count);

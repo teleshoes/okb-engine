@@ -30,7 +30,7 @@ conn = sqlite3.connect(dbfile)
 
 fslm_file = dbfile
 if fslm_file[-3:] == '.db': fslm_file = fslm_file[:-3]
-fslm_file += '.fslm'
+fslm_file += '.ng'
 
 
 # 1) RAZ db
