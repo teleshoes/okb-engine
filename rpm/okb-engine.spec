@@ -1,6 +1,6 @@
 Name:       okb-engine
 Summary:    OKboard engine
-Version:    0.3.2
+Version:    0.4
 Release:    1
 Group:      System/GUI/Other
 License:    LGPLv2.1
@@ -12,6 +12,7 @@ BuildRequires:  pkgconfig(Qt5Core)
 BuildRequires:  pkgconfig(Qt5Qml)
 BuildRequires:  pkgconfig(Qt5Gui)
 BuildRequires:  pkgconfig(Qt5Quick)
+BuildRequires:  python3-devel
 
 %define qml_maliit_dir /usr/share/maliit/plugins/eu/cpbm/okboard
 %define share_dir /usr/share/okboard
@@ -46,6 +47,10 @@ qmake
 make -j 3
 echo "%{version}-%{release} build: "`date` > engine.version
 
+cd ngrams
+python3 setup.py build_ext --inplace
+mv cfslm*.so cfslm.so
+
 %install
 rm -rf %{buildroot}
 
@@ -54,6 +59,7 @@ cp -p curve/build/libcurveplugin.so %{buildroot}/%{qml_maliit_dir}
 cp predict.py %{buildroot}/%{qml_maliit_dir}
 cp engine.version %{buildroot}/%{qml_maliit_dir}
 cp okboard.cf %{buildroot}/%{share_dir}
+cp -p ngrams/cfslm.so %{buildroot}/%{qml_maliit_dir}
 
 tar xvfj %{SOURCE1}
 tar xvfj %{SOURCE2}
@@ -61,6 +67,7 @@ tar xvfj %{SOURCE2}
 for lang in fr en ; do
     cat $lang.tre | gzip -c > %{buildroot}/%{share_dir}/$lang.tre.gz
     cat predict-$lang.db | gzip -c > %{buildroot}/%{share_dir}/predict-$lang.db.gz
+    cat predict-$lang.ng | gzip -c > %{buildroot}/%{share_dir}/predict-$lang.ng.gz
 done
 
 %files
@@ -68,13 +75,16 @@ done
 %defattr(-,root,root,-)
 %{qml_maliit_dir}/libcurveplugin.so
 %{qml_maliit_dir}/predict.py*
+%{qml_maliit_dir}/cfslm.so
 %{qml_maliit_dir}/engine.version
 %{share_dir}/okboard.cf
 
 %files -n okb-lang-fr
 %{share_dir}/fr.tre.gz
 %{share_dir}/predict-fr.db.gz
+%{share_dir}/predict-fr.ng.gz
 
 %files -n okb-lang-en
 %{share_dir}/en.tre.gz
 %{share_dir}/predict-en.db.gz
+%{share_dir}/predict-en.ng.gz
