@@ -252,7 +252,7 @@ class Predict:
     def cf(self, key, default_value, cast = None):
         """ "mockable" configuration """
         if self.db and key in self.db.params:
-            ret = db.params[key]  # per language DB parameter values
+            ret = self.db.params[key]  # per language DB parameter values
         elif self.tools:
             ret = self.tools.cf(key, default_value, cast)
         elif self.cf:
@@ -404,6 +404,8 @@ class Predict:
 
     def _learn(self, add, word, context, replaces = None, silent = False):
         if not self.db: return
+
+        if re.search(r'\d', word): return  # don't learn numbers (they are matched by \w regexp)
 
         now = int(time.time())
 
@@ -653,7 +655,7 @@ class Predict:
         # evaluate score components
         for word in todo:
             score = dict()
-            detail = dict()
+            detail = dict(scores = dict())
             final_score = 0
 
             if word in word2cid:
@@ -693,12 +695,14 @@ class Predict:
 
                 stock_proba = proba = 1.0 * coef * stock_count / total_stock_count if total_stock_count > 0 else 0
 
+                # @todo learning stuff here :-)
 
                 score1 = score_coef[score_name] * (math.log10(proba) + 8 if proba > 1E-8 else 0) / 8  # [0, 1]
                 final_score = max(final_score, score1)
 
                 # only for logging
                 detail[score_name] = "%.2e ~ stock=%.2e[%d]%s" % (score1, proba, stock_count, detail_append)
+                detail["scores"][score_name] = score1
 
             if final_score:
                 result[word] = (final_score, detail)
