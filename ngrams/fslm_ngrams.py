@@ -174,8 +174,6 @@ class NGramTableEncoder:
             i += 1
             begin_offset = cur_offset
             nodes = w2nodes[wid]
-            #QQQ [ n for n in self.nodes if n.wid == wid ]
-            #QQQ nodes.sort(key = lambda x: x.context_offset)
 
             if self.progress and time.time() > lastp + 10:
                 sys.stderr.write("%d/%d [%d]\n" % (i, len(self.wids), cur_offset))

@@ -18,6 +18,7 @@ CREATE TABLE grams (
 );
 
 CREATE INDEX grams_idx ON grams (id1, id2, id3);
+CREATE INDEX grams_idx2 ON grams (user_count);
 
 CREATE TABLE words (
    id INTEGER PRIMARY KEY NOT NULL, /* we get autoincrement for free */

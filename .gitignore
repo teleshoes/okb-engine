@@ -10,4 +10,5 @@ html.py
 *.tre
 *.db
 gmon.out
+*.so
 
