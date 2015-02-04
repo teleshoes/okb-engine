@@ -92,11 +92,11 @@ unsigned char get_char(void * ptr) {
 }
 
 int parse_table(table_t* table, void* ptr, int block_size) {
-  int max_wid, blocks_bytes, blocks_count;
+  int max_wid, blocks_count;
   int i;
 
   max_wid = get_uint32(ptr);
-  blocks_bytes = get_uint32(ptr + 4);
+  /* not used: blocks_bytes = get_uint32(ptr + 4); */
   blocks_count = get_uint32(ptr + 8);
 
   ptr += 12;
@@ -214,10 +214,10 @@ int lookup_table(db_t *db, int table_index, int wid, int target_context_offset, 
   context_offset = blocks[a].context_offset;
 
   while (offset < end_offset) {
-    int stored_context_offset,cur_context_offset;
-    int count, ok;
+    int cur_context_offset;
+    int count;
 
-    stored_context_offset = cur_context_offset = get_variable_length(db->base_bits, &ptr, &pos);
+    cur_context_offset = get_variable_length(db->base_bits, &ptr, &pos);
     count = get_variable_length(db->base_bits, &ptr, &pos);
 
     if (offset == block_offset) {

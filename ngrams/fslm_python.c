@@ -12,7 +12,7 @@ static PyObject *FslmError;
 static db_t *db = NULL; /* loaded N-gram DB */
 static void* data = NULL;
 
-static free_all() {
+static void free_all() {
   if (db) {
     db_free(db);
     free(data);
