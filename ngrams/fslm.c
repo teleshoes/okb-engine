@@ -161,7 +161,6 @@ void db_free(db_t *db) {
     free(table->word_start_offset);
     free(table->word_end_offset);
     free(table->blocks);
-    free(table);
   }
   free(db);
 }
