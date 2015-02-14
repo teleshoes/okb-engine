@@ -236,6 +236,29 @@ cdb_rm(PyObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
+static PyObject *
+cdb_get_keys(PyObject *self, PyObject *args)
+{
+  PyObject *list;
+  int i;
+
+  if (check_db()) { return NULL; }
+
+  list = PyList_New(0);
+  if (! list) { return NULL; }
+
+  for(i=0; i < h->count; i++) {
+    void *data = h->entries[i].data;
+    if (data) {
+      PyObject* key = PyUnicode_FromString(data);
+      if (! key) { return NULL; }
+      if (PyList_Append(list, key)) { return NULL; }
+    }
+  }
+
+  return list;
+}
+
 static PyMethodDef CdbMethods[] = {
   {"load",       (PyCFunction) cdb_load,       METH_VARARGS, "Load data"},
   {"clear",      (PyCFunction) cdb_clear,      METH_VARARGS, "Unload all data from memory"},
@@ -247,6 +270,7 @@ static PyMethodDef CdbMethods[] = {
   {"get_gram",   (PyCFunction) cdb_get_gram,   METH_VARARGS, "Search a N-gram"},
   {"set_gram",   (PyCFunction) cdb_set_gram,   METH_VARARGS, "Update a N-gram"},
   {"rm",         (PyCFunction) cdb_rm,         METH_VARARGS, "Remove an item"},
+  {"get_keys",   (PyCFunction) cdb_get_keys,   METH_VARARGS, "Get all keys"},
   {NULL, NULL, 0, NULL}        /* Sentinel */
 };
 
