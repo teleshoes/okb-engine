@@ -3,12 +3,11 @@
 
 """ Simple prediction algorithm based on N-grams and word clustering """
 
-import sqlite3
 import os
 import time
 import re
 import math
-import cfslm
+import cfslm, cdb
 
 class Wordinfo:
     def __init__(self, id, cluster_id, real_word = None):
@@ -16,18 +15,18 @@ class Wordinfo:
         self.cluster_id = cluster_id
         self.real_word = real_word
 
-class SqliteBackendFslm:
+class FslmCdbBackend:
     """ this class implements read/write access to prediction database
 
-        updated version : stock ngram are stored in a separate optimized
-        storage. Sqlite is only used for dictionary, cluster information and
-        learnt n-grams (all of these are pre-fetched to avoid latency)
+        Stock ngram are stored in a separate optimized storage
+        Other data (dictionary, cluster information and learnt n-grams) are
+        stored in a read/write flat file
         """
 
     def __init__(self, dbfile):
         self.loaded = False
-        self.conn = sqlite3.connect(dbfile)
 
+        self.dbfile = dbfile
         fslm_file = dbfile
         if fslm_file[-3:] == '.db': fslm_file = fslm_file[:-3]
         fslm_file += '.ng'
@@ -35,13 +34,7 @@ class SqliteBackendFslm:
 
         self.clear_stats()
 
-        # fetch parameters
         self.params = dict()
-        sql = 'SELECT key, value FROM params'
-        curs = self.conn.cursor()
-        curs.execute(sql)
-        for (key, value) in curs.fetchall():
-            self.params[key] = float(value)
 
     def _load(self):
         if self.loaded: return
@@ -49,35 +42,14 @@ class SqliteBackendFslm:
         # load stock ngrams
         cfslm.load(self.fslm_file)
 
-        # load words
-        self.words = dict()
-        sql = 'SELECT word, id, cluster_id, word_lc FROM words'
-        curs = self.conn.cursor()
-        curs.execute(sql)
-        for row in curs.fetchall():
-            (word, id, cluster_id, word_lc) = row
-            if word.startswith('#'): continue  # special tag
-            if word.startswith('@'): continue  # cluster, don't preload these
+        # load read/write storage
+        cdb.load(self.dbfile)
 
-            if word_lc not in self.words: self.words[word_lc] = dict()
-            self.words[word_lc][word] = Wordinfo(id, cluster_id)
-
-        # load user n-grams
-        self.ngrams = dict()
-        sql = 'SELECT id1, id2, id3, stock_count, user_count, user_replace, last_time FROM grams'
-        curs = self.conn.cursor()
-        curs.execute(sql)
-
-        for row in curs.fetchall():
-            (id1, id2, id3, stock_count, user_count, user_replace, last_time) = row
-            ids = ':'.join([str(id1), str(id2), str(id3)])
-            self.ngrams[ids] = (user_count, user_replace, last_time)
         self.loaded = True
 
 
-    def _clear(self):
-        self.words = None
-        self.ngrams = None
+    def clear(self):
+        cdb.clear()
         cfslm.clear()
         self.loaded = False
 
@@ -85,32 +57,40 @@ class SqliteBackendFslm:
         self._load()
 
     def set_param(self, key, value):
-        if key in self.params:
-            sql = 'UPDATE params SET value = ? WHERE key = ?'
-        else:
-            sql = 'INSERT INTO params (value, key) VALUES (?, ?)'
-        curs = self.conn.cursor()
-        curs.execute(sql, (value, key))
-        self.conn.commit()
-
+        cdb.set_string("param-%s" % key, str(value))
         self.params[key] = float(value)
+
+    def get_param(self, key, default_value = None):
+        if key in self.params: return self.params[key]
+        value = cdb.get_string("param-%s" % key)
+        if value is None: value = default_value
+        self.params[key] = value
+        return value
 
     def clear_stats(self):
         self.timer =  self.count = 0
 
+
     def get_grams(self, ids_list):
         result = dict()
+        _start = time.time()
+
         for ids in ids_list:
             (id1, id2, id3) = ids.split(':')
             ng = [ int(x) for x in [id3, id2, id1] ]
             while ng[0] == -1: ng.pop(0)
             stock_count = max(0, cfslm.search(ng))
+
             user_count = user_replace = last_time = 0
-            if ids in self.ngrams:
-                (user_count, user_replace, last_time) = self.ngrams[ids]
+            user_info = cdb.get_gram(ids)
+            if user_info:
+                (user_count, user_replace, last_time) = user_info
 
             if not stock_count and not user_count: continue
             result[ids] = (stock_count, user_count, user_replace, last_time)
+
+        self.timer += time.time() - _start
+        self.count += 1
 
         return result
 
@@ -118,55 +98,42 @@ class SqliteBackendFslm:
         if not grams: return
 
         _start = time.time()
-        curs = self.conn.cursor()
+
         for ids, values in grams.items():
             (stock_count_not_used, user_count, user_replace, last_time) = values  # obviously stock_count is ignored
 
-            # we can issue a request by line, because performance is not critical (asynchronous write to DB)
-            # (we can use conn.executemany() if needed)
-            self.count += 1
-            if ids in self.ngrams:
-                # update line
-                sql = 'UPDATE grams SET user_count = ?, user_replace = ?, last_time = ? WHERE id1 = ? AND id2 = ? AND id3 = ?'
-            else:
-                # create new line
-                sql = 'INSERT INTO grams (stock_count, user_count, user_replace, last_time, id1, id2, id3) VALUES (0, ?, ?, ?, ?, ?, ?)'
+            cdb.set_gram(ids, float(user_count), float(user_replace), int(last_time))
 
-            self.ngrams[ids] = tuple([ user_count, user_replace, last_time ])
-
-            params = [ user_count, user_replace, last_time ] + ids.split(':')
-            curs.execute(sql, tuple(params))
-
-        self.conn.commit()
         self.timer += time.time() - _start
+        self.count += 1
+
 
     def add_word(self, word):
         self._load()
 
-        self.count += 1
         _start = time.time()
 
-        sql = 'INSERT INTO words (word, cluster_id, word_lc) VALUES (?, 0, ?)'  # sqlite will assign a new primary key
-        curs = self.conn.cursor()
-        curs.execute(sql, (word, word.lower()))
+        lword = word.lower()
+        words = cdb.get_words(lword)
+        if not words: words = dict()
 
-        self.conn.commit()
+        if word not in words:
+            wid_str = cdb.get_string("word_id")
+            wid = int(wid_str) if wid_str else 1000000
 
-        sql = 'SELECT id FROM words WHERE word = ?'  # get primary key
-        curs.execute(sql, (word,))
-        id = curs.fetchall()[0][0]
+            wid += 1
+            cdb.set_string("word_id", str(wid))
+
+            words[word] = (wid, 0)  # new words do not belong a cluster
+            cdb.set_words(lword, words)
 
         self.timer += time.time() - _start
+        self.count += 1
 
-        lword = word.lower()
-        if lword not in self.words: self.words[lword] = dict()
-        self.words[lword][word] = Wordinfo(id, None)
-
-        # get ID and update cache
-        result = self.get_words([word])
-        return result[word].id
 
     def get_words(self, words, lower_first_words = None):
+        self._load()
+
         if not lower_first_words: lower_first_words = set()
 
         in_word = dict()
@@ -178,9 +145,9 @@ class SqliteBackendFslm:
 
         result = dict()
         for lword in in_word.keys():
-            if lword not in self.words: continue
+            found1 = cdb.get_words(lword)
+            if not found1: continue
 
-            found1 = self.words[lword]
             lower_first = (len([ x for x in in_word[lword] if x in lower_first_words ]) > 0)
 
             for word in in_word[lword]:
@@ -198,21 +165,19 @@ class SqliteBackendFslm:
                     if other_words:
                         result[word] = found1[other_words[0]]  # can't do better than random choice
 
-        result['#TOTAL'] = Wordinfo(-2, -4)
-        result['#NA'] = Wordinfo(-1, -1)
-        result['#START'] = Wordinfo(-3, -3)
-        result['#CTOTAL'] = Wordinfo(-4, -4)
+        result['#TOTAL'] = (-2, -4)
+        result['#NA'] = (-1, -1)
+        result['#START'] = (-3, -3)
+        result['#CTOTAL'] = (-4, -4)
+
+        for k, v in result.items():
+            result[k] = Wordinfo(v[0], v[1])
 
         return result
 
-    def get_word_by_id(self, id):
+    def get_cluster_by_id(self, id):
         # used only for testing. no caching
-        sql = 'SELECT word FROM words WHERE id = ?'
-        curs = self.conn.cursor()
-        curs.execute(sql, (id,))
-        row = curs.fetchone()
-        if not row: return None
-        return row[0]
+        return cdb.get_string("cluster-%d" % id)
 
     def close(self):
         self.conn.close()
@@ -236,6 +201,7 @@ class Predict:
         self.mock_time = None
         self.guess_history = dict()
         self.coef_score_predict = None
+        self.last_use = 0
 
         self.mod_ts = time.ctime(os.stat(__file__).st_mtime)
 
@@ -248,8 +214,8 @@ class Predict:
 
     def cf(self, key, default_value, cast = None):
         """ "mockable" configuration """
-        if self.db and key in self.db.params:
-            ret = self.db.params[key]  # per language DB parameter values
+        if self.db and self.db.get_param(key):
+            ret = self.db.get_param(key)  # per language DB parameter values
         elif self.tools:
             ret = self.tools.cf(key, default_value, cast)
         elif self.cf:
@@ -286,7 +252,7 @@ class Predict:
         """ load database if needed """
         if not self.db:
             if os.path.isfile(self.dbfile):
-                self.db = SqliteBackendFslm(self.dbfile)
+                self.db = FslmCdbBackend(self.dbfile)
                 self.log("DB open OK:", self.dbfile)
                 self.refresh_db()
 
@@ -438,6 +404,8 @@ class Predict:
         """ update own copy of surrounding text and cursor position """
         self.surrounding_text = text
         self.cursor_pos = pos
+
+        self.last_use = time.time()
 
         verbose = self.cf("verbose", False, bool)
 
@@ -644,7 +612,7 @@ class Predict:
         score_parts = dict(s3 = 0.8, c3 = 0.4, s2 = 0.3, c2 = 0.03, s1 = 0.2)  # default values, per language override can be set in DB parameters
         score_coef = dict()
         for part, default_coef in score_parts.items():
-            score_coef[part] = self.db.params.get("coef_predict_%s" % part, default_coef)
+            score_coef[part] = self.db.get_param("coef_predict_%s" % part, default_coef)
 
         # process request result & compute scores
         current_day = int(self._now() / 86400)
@@ -712,6 +680,8 @@ class Predict:
 
     def guess(self, matches, correlation_id = -1, speed = -1):
         """ main entry point for predictive guess """
+
+        self.last_use = time.time()
 
         class word_score:
             def __init__(self, score, cls, star):
@@ -835,7 +805,11 @@ class Predict:
         for key in list(self.guess_history):
             if self.guess_history[key]["ts"] < now - 600: del self.guess_history[key]
 
-        return len(self.learn_history) > 0  # ask to be called again later
+        #if self.last_use < now - 120:
+        #    self.log("Unloading in memory DB ...")
+        #    self.db.clear()
+
+        return len(self.learn_history) > 0 # or self.db.loaded  # ask to be called again later
 
     def close(self):
         """ Close all resources & flush data """

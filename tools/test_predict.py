@@ -59,7 +59,7 @@ def run(words):
 
         if "clusters" in details:
             for word1, cluster in reversed(list(zip(reversed(words + [word]), details["clusters"]))):
-                print(word1, p.db.get_word_by_id(cluster))
+                print(word1, p.db.get_cluster_by_id(cluster))
 
     if learn:
         p._learn(True, last_word_choices[0], p.last_words)  # learn first word if multiple choices

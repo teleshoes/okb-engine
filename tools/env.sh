@@ -9,7 +9,8 @@ if [ -z "$_me" ] ; then
 else 
     _mydir=$(cd $(dirname "$_me") ; cd .. ; pwd)
     
-    ngram_lib=`find ${_mydir}/ngrams/build/ -type d -name "lib.*"`
+    machine=`uname -m`
+    ngram_lib=`find "${_mydir}/ngrams/build/" -type d -name "lib.*" | grep "$machine"`
     
     export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${_mydir}/curve/build"
     export QML2_IMPORT_PATH=`realpath "${_mydir}/${OKB_QML}"`
