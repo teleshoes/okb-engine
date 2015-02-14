@@ -42,7 +42,6 @@ class CorpusImporter:
         self.size = 0
         self.debug = debug
         self.clean = clean
-        self.dejavu = set()
 
     def load_words(self, words):
         id = 2
@@ -139,9 +138,6 @@ class CorpusImporter:
         txt = ' '.join(sentence)
         if self.clean and sentence != [ '#ERR' ]: print(txt)
         self.sentence = [ ]
-
-        if txt in self.dejavu: return
-        self.dejavu.add(txt)
 
         if self.debug: print("WORDS:", sentence)
 
