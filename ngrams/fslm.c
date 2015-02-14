@@ -37,7 +37,7 @@ This file only contains the decoder from fslm_ngram.py
 #include <stdint.h>
 #include <stdlib.h>
 #include "fslm.h"
-
+#include "pack.h"
 
 int read_bits(int count, void** ptr, int* pos) {
   int value = 0;
@@ -67,28 +67,6 @@ int get_variable_length(int base_bits, void **ptr, int* pos) {
     b += base_bits;
   }
   return read_bits(b, ptr, pos);
-}
-
-uint32_t get_uint32(void* ptr) { /* endianness independant */
-  unsigned char* np = (unsigned char*) ptr;
-  return ((uint32_t)np[0] << 24) |
-    ((uint32_t)np[1] << 16) |
-    ((uint32_t)np[2] << 8) |
-    (uint32_t)np[3];
-}
-
-int32_t get_int32(void* ptr) { /* endianness independant */
-  return (int32_t) get_uint32(ptr);
-}
-
-uint16_t get_uint16(void* ptr) { /* endianness independant */
-  unsigned char* np = (unsigned char*) ptr;
-  return ((uint32_t)np[0] << 8) |
-    (uint32_t)np[1];
-}
-
-unsigned char get_char(void * ptr) {
-  return *((unsigned char*) ptr);
 }
 
 int parse_table(table_t* table, void* ptr, int block_size) {

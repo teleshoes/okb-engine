@@ -3,7 +3,7 @@
 from distutils.core import setup, Extension
 
 module1 = Extension('cfslm',
-                     sources = ['fslm.c', 'fslm_python.c'])
+                     sources = ['fslm.c', 'fslm_python.c', 'pack.c'])
 
 setup(name = 'cfslm',
       version = '1.0',
