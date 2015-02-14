@@ -27,7 +27,7 @@ depend: $(patsubst lang-%.cf,.depend-%,$(wildcard lang-*.cf))
 # split input corpus between learning and test
 %-learn.txt.bz2: $(CORPUS_DIR)/corpus-%.txt.bz2
 	$(eval lang=$*)
-	lbzip2 -d < $(CORPUS_DIR)/corpus-$(lang).txt.bz2 | $(TOOLS_DIR)/corpus-splitter.pl 2000 500 $(lang)-learn.tmp.bz2 $(lang)-test.tmp.bz2
+	lbzip2 -d < $(CORPUS_DIR)/corpus-$(lang).txt.bz2 | $(TOOLS_DIR)/corpus-splitter.pl 200 50 $(lang)-learn.tmp.bz2 $(lang)-test.tmp.bz2
 	mv -vf $(lang)-learn.tmp.bz2 $(lang)-learn.txt.bz2
 	mv -vf $(lang)-test.tmp.bz2 $(lang)-test.txt.bz2
 
@@ -88,7 +88,7 @@ predict-%.db: clusters-%.txt grams-%-learn.csv.bz2 lang-%.cf
 	$(eval wgrams=$(call getconf,lang-$(lang).cf,cluster_wgrams))
 	set -o pipefail ; lbzip2 -d < grams-$(lang)-learn.csv.bz2 \
 	 | $(TOOLS_DIR)/clusterize.py -l $(depth) -w $(wgrams) -c $(cgrams) clusters-$(lang).txt \
-	 | $(TOOLS_DIR)/load_sqlite_fslm.py predict-$(lang)-tmp.db
+	 | $(TOOLS_DIR)/load_cdb_fslm.py predict-$(lang)-tmp.db
 	mv -f predict-$(lang)-tmp.db $@
 	mv -f predict-$(lang)-tmp.ng predict-$(lang).ng
 
