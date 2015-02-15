@@ -1,6 +1,6 @@
 Name:       okb-engine
 Summary:    OKboard engine
-Version:    0.4
+Version:    0.4.2
 Release:    1
 Group:      System/GUI/Other
 License:    LGPLv2.1
@@ -48,8 +48,10 @@ make -j 3
 echo "%{version}-%{release} build: "`date` > engine.version
 
 cd ngrams
-python3 setup.py build_ext --inplace
+python3 setup-fslm.py build_ext --inplace
+python3 setup-cdb.py build_ext --inplace
 mv cfslm*.so cfslm.so
+mv cdb*.so cdb.so
 
 %install
 rm -rf %{buildroot}
@@ -60,6 +62,7 @@ cp predict.py %{buildroot}/%{qml_maliit_dir}
 cp engine.version %{buildroot}/%{qml_maliit_dir}
 cp okboard.cf %{buildroot}/%{share_dir}
 cp -p ngrams/cfslm.so %{buildroot}/%{qml_maliit_dir}
+cp -p ngrams/cdb.so %{buildroot}/%{qml_maliit_dir}
 
 tar xvfj %{SOURCE1}
 tar xvfj %{SOURCE2}
@@ -76,6 +79,7 @@ done
 %{qml_maliit_dir}/libcurveplugin.so
 %{qml_maliit_dir}/predict.py*
 %{qml_maliit_dir}/cfslm.so
+%{qml_maliit_dir}/cdb.so
 %{qml_maliit_dir}/engine.version
 %{share_dir}/okboard.cf
 
