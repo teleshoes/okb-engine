@@ -3,19 +3,20 @@
 
 """ query to get learning information from predict DB """
 
+query = """
+select w1.word, w2.word, w3.word, g.stock_count, g.user_count, g.user_replace, g.last_time
+from words w1, words w2, words w3, grams g
+where g.id1 = w1.id and g.id2 = w2.id and g.id3 = w3.id and user_count > 0
+order by w1.word, w2.word, w3.word
+"""
+
 W_SIZE = 15
 
+import sqlite3
 import getopt
 import sys
 import time
 import os
-import re
-
-mydir = os.path.dirname(os.path.abspath(__file__))
-libdir = os.path.join(mydir, '..')
-sys.path.insert(0, libdir)
-
-import predict
 
 opts, args =  getopt.getopt(sys.argv[1:], 'r')
 raw = False
@@ -27,34 +28,31 @@ for o, a in opts:
         exit(1)
 
 if len(args) < 1:
-    print("usage:", os.path.basename(__file__), "[-r] <predict db file>")
+    print("usage:", os.path.basename(__file__), "<predict db file>")
     exit(1)
 
-db = predict.FslmCdbBackend(args[0])
-lst = db.get_keys()
+conn = sqlite3.connect(args[0])
+curs = conn.cursor()
+curs.execute(query)
+
+lines = dict()
+rows = curs.fetchall()
+for row in rows:
+    key = ':'.join(row[0:3])
+    lines[key] = row
 
 current_day = int(time.time() / 86400)
 
-id2w = dict()
-for key in lst:
-    if key.startswith("cluster-"): continue
-    if re.match(r'^[\w\-\'\#]+$', key):
-        words = db.get_words([key])
-        for word, info in words.items():
-            id2w[int(info.id)] = word
+for row in rows:
+    (w1, w2, w3, stock_count, user_count, user_replace, last_time) = row
+    if w1 == '#TOTAL': continue
 
-for key in lst:
-    if not re.match(r'^[0-9\-]+:[0-9\-]+:[0-9\-]+$', key): continue
-    total_key = ':'.join([ '-2' ] + (key.split(':'))[1:])
-    if key == total_key: continue
-
-    grams = db.get_grams([key, total_key])
-    if key not in grams or total_key not in grams: continue
-
-    (stock_count, user_count, user_replace, last_time) = grams[key]
-    (total_stock_count, total_user_count, dummy1, dummy2) = grams[total_key]
-
-    (w1, w2, w3) = [ id2w.get(int(id),'???') for id in key.split(':') ]
+    total_key = ':'.join([ '#TOTAL', w2, w3 ])
+    if total_key in lines:
+        total_stock_count = lines[total_key][3]
+        total_user_count = lines[total_key][4]
+    else:
+        total_stock_count = total_user_count = -1
 
     if raw:
         print("%s;%s;%s;%f;%f;%f;%f;%f;%d" % (w1, w1, w3,
