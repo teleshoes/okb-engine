@@ -25,6 +25,7 @@ class FslmCdbBackend:
 
     def __init__(self, dbfile):
         self.loaded = False
+        self.dirty = False
 
         self.dbfile = dbfile
         fslm_file = dbfile
@@ -46,9 +47,18 @@ class FslmCdbBackend:
         cdb.load(self.dbfile)
 
         self.loaded = True
+        self.dirty = False
 
+    def get_keys(self):
+        self._load()
+        return cdb.get_keys()
+
+    def save(self):
+        if self.dirty and self.loaded: cdb.save()
+        self.dirty = False
 
     def clear(self):
+        if self.dirty: self.save()
         cdb.clear()
         cfslm.clear()
         self.loaded = False
@@ -59,6 +69,7 @@ class FslmCdbBackend:
     def set_param(self, key, value):
         cdb.set_string("param-%s" % key, str(value))
         self.params[key] = float(value)
+        self.dirty = True
 
     def get_param(self, key, default_value = None):
         if key in self.params: return self.params[key]
@@ -96,6 +107,7 @@ class FslmCdbBackend:
 
     def set_grams(self, grams):
         if not grams: return
+        self.dirty = True
 
         _start = time.time()
 
@@ -110,6 +122,7 @@ class FslmCdbBackend:
 
     def add_word(self, word):
         self._load()
+        self.dirty = True
 
         _start = time.time()
 
@@ -180,7 +193,7 @@ class FslmCdbBackend:
         return cdb.get_string("cluster-%d" % id)
 
     def close(self):
-        self.conn.close()
+        self.clear()
 
 class Predict:
     def __init__(self, tools = None, cfvalues = dict()):
@@ -805,11 +818,15 @@ class Predict:
         for key in list(self.guess_history):
             if self.guess_history[key]["ts"] < now - 600: del self.guess_history[key]
 
+        if self.db and len(self.learn_history) == 0 and self.db.dirty:
+            self.log("Flushing DB ...")
+            self.db.save()  # commit changes to DB
+
         #if self.last_use < now - 120:
         #    self.log("Unloading in memory DB ...")
         #    self.db.clear()
 
-        return len(self.learn_history) > 0 # or self.db.loaded  # ask to be called again later
+        return len(self.learn_history) > 0  # or self.db.loaded  # ask to be called again later
 
     def close(self):
         """ Close all resources & flush data """
