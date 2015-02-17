@@ -38,6 +38,7 @@ current_day = int(time.time() / 86400)
 id2w = dict()
 for key in lst:
     if key.startswith("cluster-"): continue
+    if key.startswith("param-"): continue
     if re.match(r'^[\w\-\'\#]+$', key):
         words = db.get_words([key])
         for word, info in words.items():

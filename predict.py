@@ -130,19 +130,23 @@ class FslmCdbBackend:
         words = cdb.get_words(lword)
         if not words: words = dict()
 
-        if word not in words:
-            wid_str = cdb.get_string("word_id")
-            wid = int(wid_str) if wid_str else 1000000
+        if word in words: return words[word][0]
 
-            wid += 1
-            cdb.set_string("word_id", str(wid))
+        wid_str = cdb.get_string("param-wordid")
+        wid = int(wid_str) if wid_str else 1000000
 
-            words[word] = (wid, 0)  # new words do not belong a cluster
-            cdb.set_words(lword, words)
+        wid += 1
+        cdb.set_string("param-wordid", str(wid))
+
+        words[word] = (wid, 0)  # new words do not belong a cluster
+        cdb.set_words(lword, words)
+
+        self.dirty = True
 
         self.timer += time.time() - _start
         self.count += 1
 
+        return wid
 
     def get_words(self, words, lower_first_words = None):
         self._load()
@@ -273,6 +277,10 @@ class Predict:
 
             else:
                 self.log("DB not found:", self.dbfile)
+
+    def save_db(self):
+        """ save database immediately """
+        if self.db: self.db.save()
 
     def update_preedit(self, preedit):
         """ update own copy of preedit (from maliit) """

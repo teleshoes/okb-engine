@@ -105,3 +105,4 @@ else:
 
 if learn:
     p._commit_learn(commit_all = True)
+    p.save_db()
