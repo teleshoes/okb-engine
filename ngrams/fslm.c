@@ -101,6 +101,7 @@ int parse_table(table_t* table, void* ptr, int block_size) {
   }
 
   table->block_count = blocks_count;
+  table->max_wid = max_wid;
 
   return 0;
 }
@@ -154,6 +155,8 @@ int lookup_table(db_t *db, int table_index, int wid, int target_context_offset, 
 
   table = &(db->tables[table_index]);
   blocks = table->blocks;
+
+  if (wid > table->max_wid || wid < 0) { return -1; /* bad word ID */ }
 
   /* find the block containing the right word and context */
   a = 0;

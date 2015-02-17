@@ -14,6 +14,7 @@ typedef struct table {
   int *word_start_offset;
   int *word_end_offset;
   block_t *blocks;
+  int max_wid;
 } table_t;
 
 typedef struct db {
