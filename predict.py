@@ -199,6 +199,19 @@ class FslmCdbBackend:
     def close(self):
         self.clear()
 
+
+class WordScore:
+    def __init__(self, score, cls, star):
+        (self.score, self.cls, self.star) = (score, cls, star)
+        self.final_score = -1
+        self.message = "Filtered"
+
+    def __str__(self):
+        return (("%.2f" % self.score)
+                + ((":%d" % self.cls) if self.cls else "")
+                + ("*" if self.star else ""))
+
+
 class Predict:
     def __init__(self, tools = None, cfvalues = dict()):
         self.predict_list = [ ]
@@ -212,7 +225,6 @@ class Predict:
         self.last_words = []
         self.sentence_pos = -1
         self.last_guess = None
-        self.recent_contexts = []
         self.learn_history = dict()
         self.first_word = None
         self.mock_time = None
@@ -402,6 +414,7 @@ class Predict:
         except ValueError:
             pass  # #START not found, this is not an error
 
+        context = context[:2]
         wordl = [ word ] + context
 
         if not silent:
@@ -540,45 +553,46 @@ class Predict:
         return 1
 
     def _update_last_words(self):
-        self.last_words, self.sentence_pos = self._get_last_words(2)
+        self.last_words, self.sentence_pos = self._get_last_words()
 
-    def _get_last_words(self, count, include_preedit = True):
+    def _get_last_words(self, count = None, include_preedit = True):
         """ internal method : compute list of last words for n-gram scoring """
 
         # if no context available, handle this as isolated words instead of the beginning of a new sentence (so no #START)
         if self.cursor_pos == -1: return [], -1
 
         text_before = self.surrounding_text[0:self.cursor_pos] + (" " + self.preedit) if include_preedit else ""
-        pos = text_before.find('.')
-        if pos > -1: text_before = text_before[pos + 1:]
+        text_before = re.sub(r'^.*[\.\!\?]', '', text_before)
 
         words = reversed(re.split(r'[^\w\'\-]+', text_before))
         words = [ x for x in words if len(x) > 0 ]
 
         pos = len(words)
-        words = (words + [ '#START' ] * count)[0:count]
+        if count:
+            words = (words + [ '#START' ] * count)[0:count]
+        else:
+            words = words + [ '#START' ]
         return words, pos
 
 
-    def _get_all_predict_scores(self, words):
+    def _get_all_predict_scores(self, words, context):
         """ get n-gram DB information (use 2 SQL batch requests instead of a ton of smaller ones, for huge performance boost) """
-        # these are called "scores", but they try to be probabilities in the range [0, 1]
         result = dict()
         if not words: return result
 
         # get previous words (surrounding text) for lookup
         words_set = set(words)
-        for word in self.last_words: words_set.add(word)
+        for word in context: words_set.add(word)
         words_set.add('#START')
 
         # idenfity words that would need to be looked-up lowercase first (first words in sentences)
         try_lower_first = None
         if self.sentence_pos == 0:
             try_lower_first = set(words)  # first word -> all candidates
-        elif self.sentence_pos == 1 and len(self.last_words) >= 1:
-            try_lower_first = set([self.last_words[0]])
-        elif self.sentence_pos == 2 and len(self.last_words) >= 2:
-            try_lower_first = set([self.last_words[1]])
+        elif self.sentence_pos == 1 and len(context) >= 1:
+            try_lower_first = set([context[0]])
+        elif self.sentence_pos == 2 and len(context) >= 2:
+            try_lower_first = set([context[1]])
 
         # lookup all words from DB or cache (surrounding & candidates)
         word2id = self.db.get_words(words_set, lower_first_words = try_lower_first)
@@ -586,7 +600,7 @@ class Predict:
         # get id for previous words
         last_wids = []
         last_cids = []
-        for word in self.last_words:
+        for word in context:
             if word not in word2id: break  # unknown word -> only use smaller n-grams
             last_wids.append(word2id[word].id)
             last_cids.append(word2id[word].cluster_id)
@@ -695,48 +709,13 @@ class Predict:
             if final_score:
                 result[word] = (final_score, detail)
 
-        self.recent_contexts = self.recent_contexts[1:10] + [ (word, list(self.last_words)) ]
-
         return result
 
-    def guess(self, matches, correlation_id = -1, speed = -1):
-        """ main entry point for predictive guess """
-
-        self.last_use = time.time()
-
-        class word_score:
-            def __init__(self, score, cls, star):
-                (self.score, self.cls, self.star) = (score, cls, star)
-
-            def __str__(self):
-                return (("%.2f" % self.score)
-                        + ((":%d" % self.cls) if self.cls else "")
-                        + ("*" if self.star else ""))
-
-        words = dict()
-        display_matches = []
-        for x in matches:
-            for y in x[4].split(','):
-                word = x[0] if y == '=' else y
-                words[word] = word_score(x[1], x[2], x[3])  # score, class, star
-            display_matches.append((x[0], word_score(x[1], x[2], x[3])))
-
-        if not self.db:
-            # in case we have no prediction DB (this case is probably useless)
-            self.predict_list = sorted(words.keys(), key = lambda x: words[x].score, reverse = True)
-            if self.predict_list: return self.predict_list.pop(0)
-            return None
-
-        self.db.clear_stats()
-
-        self.log('[*] ' + time.ctime() + " - Version: " + self.mod_ts)
-        t0 = time.time()
-        self._update_last_words()
-        if not len(matches): return
-
-        self.log("ID: %d - Speed: %d - Context: %s - Matches: %s" %
-                 (correlation_id, speed,  self.last_words,
-                  ','.join("%s[%s]" % x for x in reversed(display_matches))))
+    def _guess1(self, context, words, correlation_id = -1):
+        """ internal method : prediction engine entry point (stateless)
+            input : dictionary: word => WordScore
+            output : dictionary: word => WordScore w/ additional attributes
+        """
 
         # these settings are completely empirical (or just random guesses), and they probably depend on end user
         coef_score_upper = self.cf('score_upper', 0.01, float)
@@ -760,9 +739,8 @@ class Predict:
         max_words = self.cf('predict_max_candidates', 25, int)
         all_words = all_words[-max_words:]
 
-        all_predict_scores = self._get_all_predict_scores(all_words)  # requests all scores using bulk requests
+        all_predict_scores = self._get_all_predict_scores(all_words, context)  # requests all scores using bulk requests
 
-        lst = []
         for word in all_words:
             score_predict, predict_detail = all_predict_scores.get(word, (0, dict()))
             coef_score_predict = self.coef_score_predict
@@ -789,8 +767,43 @@ class Predict:
             words[word].score_predict = score_predict
             words[word].coef_score_predict = coef_score_predict
             words[word].score_no_predict = score - coef_score_predict * score_predict
-            lst.append(word)
 
+        return words
+
+    def guess(self, matches, correlation_id = -1, speed = -1):
+        """ main entry point for predictive guess """
+
+        self.log('[*] ' + time.ctime() + " - TS: " + self.mod_ts)
+        t0 = time.time()
+
+        self._update_last_words()
+        self.last_use = time.time()
+
+        words = dict()
+        display_matches = []
+        for x in matches:
+            for y in x[4].split(','):
+                word = x[0] if y == '=' else y
+                words[word] = WordScore(x[1], x[2], x[3])  # score, class, star
+                display_matches.append((word, words[word]))
+
+        self.log("ID: %d - Speed: %d - Context: %s - Matches: %s" %
+                 (correlation_id, speed,  self.last_words,
+                  ','.join("%s[%s]" % x for x in reversed(display_matches))))
+
+        if not words: return
+
+        if not self.db:
+            # in case we have no prediction DB (this case is probably useless)
+            self.predict_list = sorted(words.keys(), key = lambda x: words[x].score, reverse = True)
+            if self.predict_list: return self.predict_list.pop(0)
+            return None
+
+        self.db.clear_stats()
+
+        words = self._guess1(self.last_words, words, correlation_id)
+
+        lst = list(words.keys())
         lst.sort(key = lambda w: words[w].final_score, reverse = True)
 
         for w in lst: self.log(words[w].message)
@@ -812,10 +825,72 @@ class Predict:
             key = ':'.join([ word ] + self.last_words[:2])
             self.guess_history[key] = dict(ts = t0,
                                            words = words,
-                                           guess = word)
+                                           ordered_list = lst,
+                                           guess = word,
+                                           context = self.last_words)
 
         # done :-)
         return word
+
+    def backtrack(self, correlation_id = -1, check_timestamps = True):
+        """ After a word guess, try to correct previous word
+            This is intended to be called asynchronously after a simple guess
+            (see above)
+            This function returns information describing how to patch the text
+            and to check if modification are still valid (in the meantime user
+            may have invalidated the new guess) """
+
+        if not self.db: return
+
+        self.db.clear_stats()
+
+        hist = list(self.guess_history.keys())
+        if len(hist) < 2: return
+        hist.sort(key = lambda x: self.guess_history[x]["ts"], reverse = True)
+
+        h0 = self.guess_history[hist[0]]
+        h1 = self.guess_history[hist[1]]
+
+        # @todo if check_timestamps: check TS
+
+        if h0["context"] != [ h1["guess"] ] + h1["context"]: return
+
+        def get_words_and_score(h, max_words):
+            words = list(h["words"].keys())
+            words.sort(key = lambda x: h["words"][x].score, reverse = True)  # sort by curve score only
+            score = h["words"][h["guess"]].final_score
+            words = words[:max_words]
+            return words, score
+
+        t0 = time.time()
+
+        max_words = self.cf('max_words_backtrack', 6, int)
+
+        words0, score0 = get_words_and_score(h0, max_words)
+        words1, score1 = get_words_and_score(h1, max_words)
+
+        dict_word0 = dict([ (w, h0["words"][w]) for w in words0 ])
+
+        found = None
+        max_score = score0 + score1
+
+        for w1 in words1:
+            if w1 == h1["guess"]: continue
+            words = self._guess1([ w1 ] + h1["context"], dict_word0)
+            for w0 in words:
+                score = h1["words"][w1].final_score + words[w0].final_score
+
+                if score > max_score: max_score, found = score, (w0, w1)
+
+        message = "[%s] %s %s" % (",".join(reversed(h1["context"])), h1["guess"], h0["guess"])
+        if found: message += " (%.3f) ==> %s %s (%.3f)" % (score0 + score1, found[1], found[0], max_score)
+        else: message += " ==> [no change]"
+        t = int((time.time() - t0) * 1000)
+        self.log("Backtrack:", message, "- elapsed:", t, "- db_time:", int(1000 * self.db.timer), "- db_count:", self.db.count)
+        self.log()
+
+        if not found: return
+        return (found[1], found[0])  # + correlation_id
 
     def cleanup(self, force_flush = False):
         """ periodic tasks: cache purge, DB flush to disc ... """

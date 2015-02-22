@@ -50,7 +50,7 @@ def run(words):
     p._update_last_words()
     print("Context:", p.last_words, p.sentence_pos)
 
-    result = p._get_all_predict_scores(last_word_choices)
+    result = p._get_all_predict_scores(last_word_choices, p.last_words)
 
     for word in last_word_choices:
         score, details = result[word]
