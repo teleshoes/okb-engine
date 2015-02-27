@@ -81,7 +81,8 @@ def word2keys(word):
     letters = re.sub(r'(.)\1+', lambda m: m.group(1), letters)
     return letters
 
-def gen_curve(word, js, error = 0, plot = False, curviness = 150, lang = "en", retry = 10, out_file = None, verbose = True, max_err = None):
+def gen_curve(word, js, error = 0, plot = False, curviness = 150, lang = "en", retry = 10,
+              out_file = None, verbose = True, max_err = None, ignore_errors = False):
     if verbose: print("=== [%s] curviness=%d error=%d lang=%s" % (word, curviness, error, lang))
 
     letters = word2keys(word)
@@ -196,7 +197,9 @@ def gen_curve(word, js, error = 0, plot = False, curviness = 150, lang = "en", r
         if verbose: print("Retry: %d\n" % retry)
 
         retry -= 1
-        if retry == 0: raise Exception("Retry count exceeded")
+        if retry == 0:
+            if ignore_errors: return None
+            raise Exception("Retry count exceeded (%s)" % word)
         if retry < 10:
             curviness = int(curviness * 0.8)
             error = int(error * 0.8)

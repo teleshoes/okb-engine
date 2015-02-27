@@ -22,14 +22,15 @@ sys.path.insert(0, libdir)
 
 import predict
 
-error = 50
+error = 40
 curviness = 150
 lang = "en"
 max_err = None
 db_file = None
 quiet = False
+max_count = None
 
-opts, args =  getopt.getopt(sys.argv[1:], 'sl:d:q')
+opts, args =  getopt.getopt(sys.argv[1:], 'sl:d:m:qe:c:')
 for o, a in opts:
     if o == "-l":
         lang = a
@@ -39,6 +40,12 @@ for o, a in opts:
         db_file = a
     elif o == "-q":
         quiet = True
+    elif o == "-m":
+        max_count = int(a)
+    elif o == "-e":
+        error = int(a)
+    elif o == "-c":
+        curviness = int(a)
     else:
         print("Bad option: %s" % o)
         exit(1)
@@ -72,7 +79,7 @@ cache_dir = "/tmp/e2e-cache-%d-%d" % (error, curviness)
 if not os.path.isdir(cache_dir): os.mkdir(cache_dir)
 
 def get_curve_result(word, index = 0):
-    global js
+    global js, p
 
     letters = gen_curve.word2keys(word)
     if len(letters) == 1:
@@ -97,12 +104,14 @@ def get_curve_result(word, index = 0):
                                              error = error if i != 2 else 1,
                                              curviness = curviness if i != 1 else 1,
                                              lang = lang, retry = 30, verbose = False,
-                                             max_err = max_err)
-            curve_results.append(candidates)
+                                             max_err = max_err, ignore_errors = True)
+            if candidates:
+                curve_results.append(candidates)
 
         pickle.dump(curve_results, open(cache_file + ".tmp", 'wb'))
         os.rename(cache_file + ".tmp", cache_file)
 
+    if not curve_results: return None
     result = curve_results[index % len(curve_results)]
     return result
 
@@ -126,7 +135,10 @@ for line in sys.stdin:
         index += 1
         if word == '#ERR':
             context = [ '#ERR' ]
+            actual  = [ '#ERR' ]
             continue
+
+        if context and context[0] == '#ERR' and len(context) < 3: continue
 
         word_db = p.db.get_words([ word ], [ word ] if not context else None)
         if word not in word_db:
@@ -138,6 +150,11 @@ for line in sys.stdin:
 
         candidates = get_curve_result(word, index)
 
+        if not candidates:
+            context = [ '#ERR' ]
+            actual  = [ '#ERR' ]
+            continue
+
         tmp = ' '.join(context)
         p.update_surrounding(tmp, len(tmp))
         p.update_preedit("")
@@ -148,24 +165,36 @@ for line in sys.stdin:
         guessed_word = p.guess(candidates)
         if word == guessed_word: std_ok += 1
 
-        bt = p.backtrack()
+        bt = p.backtrack(verbose = not quiet, expected = (actual[-1] if actual else None, word))
         if bt:
             # word N-1 has been replaced
+            msg = "Backtrack: [%s] %s %s ==> [%s] %s %s (expected: %s)" % (
+                ' '.join(context[-4:-1]) or "-", context[-1], guessed_word,
+                ' '.join(context[-4:-1]) or "-", bt[0], bt[1],
+                ' '.join(actual[-4:] + [ word ]))
+
             previous_guessed_word = bt[0]
             bt_count += 1
             if previous_guessed_word == actual[-1]:
                 # we actually corrected a mistake [bad->good]
                 ok += 1
+                print("%s (OK)" % msg)
+
             elif context[-1] == actual[-1]:
                 # we changed N-1 even if it was all right --> worst case [good->bad]
                 ok -= 1
                 bad_bt_count += 1
+                print("%s (FAIL+)" % msg)
+
             else:
                 # we just chose another bad word :-)
+                print("%s (FAIL)" % msg)
+                bad_bt_count += 1
                 pass
 
             guessed_word = bt[1]
             context[-1] = previous_guessed_word
+            p.log()
 
         count += 1
         if word == guessed_word: ok += 1
@@ -179,5 +208,7 @@ for line in sys.stdin:
     if time.time() > ts + 10:
         ts += 10
         stats()
+
+    if max_count and count >= max_count: break
 
 stats()

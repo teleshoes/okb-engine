@@ -204,12 +204,16 @@ class WordScore:
     def __init__(self, score, cls, star):
         (self.score, self.cls, self.star) = (score, cls, star)
         self.final_score = -1
-        self.message = "Filtered"
+        self.message = "(Ignored)"
 
     def __str__(self):
         return (("%.2f" % self.score)
                 + ((":%d" % self.cls) if self.cls else "")
                 + ("*" if self.star else ""))
+
+    @classmethod
+    def copy(cls, old):
+        return WordScore(old.score, old.cls, old.star)
 
 
 class Predict:
@@ -229,6 +233,7 @@ class Predict:
         self.first_word = None
         self.mock_time = None
         self.guess_history = dict()
+        self.guess_history_last = [ ]
         self.coef_score_predict = None
         self.last_use = 0
 
@@ -289,6 +294,8 @@ class Predict:
 
             else:
                 self.log("DB not found:", self.dbfile)
+
+        self._init_score_coefs()
 
     def save_db(self):
         """ save database immediately """
@@ -643,12 +650,6 @@ class Predict:
         # request
         sqlresult = self.db.get_grams(ids_list)
 
-        # initialize parameters
-        score_parts = dict(s3 = 0.8, c3 = 0.4, s2 = 0.3, c2 = 0.03, s1 = 0.2)  # default values, per language override can be set in DB parameters
-        score_coef = dict()
-        for part, default_coef in score_parts.items():
-            score_coef[part] = self.db.get_param("coef_predict_%s" % part, default_coef)
-
         # process request result & compute scores
         current_day = int(self._now() / 86400)
 
@@ -656,9 +657,7 @@ class Predict:
 
         # evaluate score components
         for word in todo:
-            score = dict()
-            detail = dict(scores = dict())
-            final_score = 0
+            detail = dict(scores = dict(), probas = dict())
 
             if word in word2cid:
                 detail["clusters"] = [ word2cid[word] ] + last_cids[0:2]
@@ -695,27 +694,54 @@ class Predict:
                 (stock_count, user_count, user_replace, last_time) = num
                 (total_stock_count, total_user_count, dummy1, dummy2) = den
 
-                stock_proba = proba = 1.0 * coef * stock_count / total_stock_count if total_stock_count > 0 else 0
+                proba = 1.0 * coef * stock_count / total_stock_count if total_stock_count > 0 else 0
+                detail["probas"][score_name] = proba
+                detail[score_name] = "stock=%.2e[%s]" % (stock_count, detail_append or "-")
 
                 # @todo learning stuff here :-)
 
-                score1 = score_coef[score_name] * (math.log10(proba) + 8 if proba > 1E-8 else 0) / 8  # [0, 1]
-                final_score = max(final_score, score1)
-
-                # only for logging
-                detail[score_name] = "%.2e ~ stock=%.2e[%d]%s" % (score1, proba, stock_count, detail_append)
-                detail["scores"][score_name] = score1
+            final_score, all_scores = self._final_score(detail["probas"])
 
             if final_score:
+                detail["scores"] = all_scores
                 result[word] = (final_score, detail)
+                # only for logging
 
         return result
 
-    def _guess1(self, context, words, correlation_id = -1):
+
+    def _init_score_coefs(self):
+        # initialize score coefficients
+        score_parts = dict(s3 = 0.8, c3 = 0.4, s2 = 0.3, c2 = 0.03, s1 = 0.2)  # default values, per language override can be set in DB parameters
+        self.score_coef = dict()
+        for part, default_coef in score_parts.items():
+            self.score_coef[part] = self.db.get_param("coef_predict_%s" % part, default_coef)
+
+    def _final_score(self, probas):
+        final_score = None
+        scores = dict()
+
+        for score_name, proba in probas.items():
+            scores[score_name] = score1 = self.score_coef[score_name] * (math.log10(proba) + 8 if proba > 1E-8 else 0) / 8  # [0, 1]
+            if not final_score or score1 > final_score: final_score = score1
+
+        return (final_score, scores)
+
+    def _two_words_final_score(self, proba1, proba2):
+        if not proba1 or not proba2: return None
+        keys = set(proba1.keys()).intersection(proba2.keys())
+        probas = dict()
+        for key in keys:
+            probas[key] = proba1[key] * proba2[key]
+        return self._final_score(probas)
+
+    def _guess1(self, context, words, correlation_id = -1, verbose = False):
         """ internal method : prediction engine entry point (stateless)
             input : dictionary: word => WordScore
             output : dictionary: word => WordScore w/ additional attributes
         """
+
+        if verbose: self.log("guess1: %s %s" % (context, list(words.keys())))
 
         # these settings are completely empirical (or just random guesses), and they probably depend on end user
         coef_score_upper = self.cf('score_upper', 0.01, float)
@@ -741,6 +767,7 @@ class Predict:
 
         all_predict_scores = self._get_all_predict_scores(all_words, context)  # requests all scores using bulk requests
 
+        new_words = dict()
         for word in all_words:
             score_predict, predict_detail = all_predict_scores.get(word, (0, dict()))
             coef_score_predict = self.coef_score_predict
@@ -755,20 +782,22 @@ class Predict:
             if words[word].star: score += star_bonus
             if no_new_word and not score_predict: score -= star_bonus
 
-            message = "%15s : %.3f = %.3f[%3d%s] + %.3f * %.3f[%s]" % (
+            message = "%s: %.3f = %.3f[%3d%s] + %.3f * %.3f[%s]" % (
                 word, score,
                 words[word].score, words[word].cls,
                 "*" if words[word].star else " ",
                 coef_score_predict, score_predict, predict_detail)
 
-            words[word].message = message
-            words[word].final_score = score
-            words[word].word = word
-            words[word].score_predict = score_predict
-            words[word].coef_score_predict = coef_score_predict
-            words[word].score_no_predict = score - coef_score_predict * score_predict
+            new_words[word] = WordScore.copy(words[word])
+            new_words[word].message = message
+            new_words[word].final_score = score
+            new_words[word].word = word
+            new_words[word].score_predict = score_predict
+            new_words[word].coef_score_predict = coef_score_predict
+            new_words[word].score_no_predict = score - coef_score_predict * score_predict
+            new_words[word].predict_detail = predict_detail
 
-        return words
+        return new_words
 
     def guess(self, matches, correlation_id = -1, speed = -1):
         """ main entry point for predictive guess """
@@ -823,17 +852,19 @@ class Predict:
         # store result for later user correction
         if word:
             key = ':'.join([ word ] + self.last_words[:2])
-            self.guess_history[key] = dict(ts = t0,
-                                           words = words,
-                                           ordered_list = lst,
-                                           guess = word,
-                                           context = self.last_words)
+            h = dict(ts = t0,
+                     words = words,
+                     ordered_list = lst,
+                     guess = word,
+                     context = self.last_words)
+            self.guess_history[key] = h
+            self.guess_history_last = [ h ] + self.guess_history_last[:10]
 
         # done :-)
         return word
 
-    def backtrack(self, correlation_id = -1, check_timestamps = True):
-        """ After a word guess, try to correct previous word
+    def backtrack(self, correlation_id = -1, check_timestamps = True, verbose = False, expected = None):
+        """ After a word guess, try to correct previous words
             This is intended to be called asynchronously after a simple guess
             (see above)
             This function returns information describing how to patch the text
@@ -844,14 +875,13 @@ class Predict:
 
         self.db.clear_stats()
 
-        hist = list(self.guess_history.keys())
-        if len(hist) < 2: return
-        hist.sort(key = lambda x: self.guess_history[x]["ts"], reverse = True)
+        if len(self.guess_history_last) < 2: return
 
-        h0 = self.guess_history[hist[0]]
-        h1 = self.guess_history[hist[1]]
+        h0 = self.guess_history_last[0]
+        h1 = self.guess_history_last[1]
 
         # @todo if check_timestamps: check TS
+        # @todo check new sentence ?
 
         if h0["context"] != [ h1["guess"] ] + h1["context"]: return
 
@@ -862,9 +892,16 @@ class Predict:
             words = words[:max_words]
             return words, score
 
+        def add_scores(ws1, ws0):
+            if ws1 is None or ws0 is None: return -1.0, -1.0
+            score = ws1.final_score + ws0.final_score
+            predict_score = ws1.score_predict + ws0.score_predict
+
+            return score, predict_score
+
         t0 = time.time()
 
-        max_words = self.cf('max_words_backtrack', 6, int)
+        max_words = self.cf('max_words_backtrack', 10, int)
 
         words0, score0 = get_words_and_score(h0, max_words)
         words1, score1 = get_words_and_score(h1, max_words)
@@ -872,21 +909,42 @@ class Predict:
         dict_word0 = dict([ (w, h0["words"][w]) for w in words0 ])
 
         found = None
-        max_score = score0 + score1
+        guess_score, guess_predict_score = add_scores(h1["words"][h1["guess"]], h0["words"][h0["guess"]])
+        max_score = guess_score
 
+        if verbose: self.log("Backtrack: reference = %s (%.2f) + %s (%.2f) = %.2f" % (h1["guess"], score1, h0["guess"], score0, guess_score))
+        h0_new = dict()
         for w1 in words1:
             if w1 == h1["guess"]: continue
-            words = self._guess1([ w1 ] + h1["context"], dict_word0)
+            words = self._guess1([ w1 ] + h1["context"], dict_word0, verbose = verbose)
+            h0_new[w1] = dict(words = words)
             for w0 in words:
-                score = h1["words"][w1].final_score + words[w0].final_score
+                score, predict_score = add_scores(h1["words"][w1], words[w0])
+                if verbose: self.log(" [%.2f] %s(%.2f) + %s" % (score, w1, h1["words"][w1].final_score, words[w0].message))
 
-                if score > max_score: max_score, found = score, (w0, w1)
+                if score > max_score and predict_score > guess_predict_score:
+                    max_score, found = score, (w0, w1)
 
-        message = "[%s] %s %s" % (",".join(reversed(h1["context"])), h1["guess"], h0["guess"])
-        if found: message += " (%.3f) ==> %s %s (%.3f)" % (score0 + score1, found[1], found[0], max_score)
+        def show_score(h, w = None):
+            if not w: w = h["guess"]
+            if w in h["words"]:
+                sc = h["words"][w]
+                return "%s(%.3f+%.3f=%.3f)" % (w, sc.score_no_predict, self.coef_score_predict * sc.score_predict, sc.final_score)
+            else:
+                return "%s(-)" % w
+
+        message = "[%s] %s %s" % (",".join(reversed(h1["context"])), show_score(h1), show_score(h0))
+        if found: message += " <%.3f> ==> %s %s <%.3f>" % (guess_score, show_score(h1, found[1]), show_score(h0_new[found[1]], found[0]), max_score)
         else: message += " ==> [no change]"
+        if expected:
+            message += " - Expected = %s %s <%.3f>" % (show_score(h1, expected[0]),
+                                                       show_score(h0, expected[1]),
+                                                       add_scores(h1["words"].get(expected[0], None),
+                                                                  h0_new[expected[0]]["words"].get(expected[1], None))[0] if expected[0] in h0_new else -1.0)
+
+            if found: message += " =%s" % ("OK" if found and (found[0] == expected[1] and found[1] == expected[0]) else "FAIL")
         t = int((time.time() - t0) * 1000)
-        self.log("Backtrack:", message, "- elapsed:", t, "- db_time:", int(1000 * self.db.timer), "- db_count:", self.db.count)
+        self.log("Backtrack ++++:", message, "- elapsed:", t, "- db_time:", int(1000 * self.db.timer), "- db_count:", self.db.count)
         self.log()
 
         if not found: return
