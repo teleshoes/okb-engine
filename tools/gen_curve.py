@@ -82,7 +82,7 @@ def word2keys(word):
     return letters
 
 def gen_curve(word, js, error = 0, plot = False, curviness = 150, lang = "en", retry = 10,
-              out_file = None, verbose = True, max_err = None, ignore_errors = False):
+              out_file = None, verbose = True, max_err = None, ignore_errors = False, max_rank = None):
     if verbose: print("=== [%s] curviness=%d error=%d lang=%s" % (word, curviness, error, lang))
 
     letters = word2keys(word)
@@ -189,8 +189,13 @@ def gen_curve(word, js, error = 0, plot = False, curviness = 150, lang = "en", r
 
         candidates.sort(key = lambda x: x["score"], reverse = True)
 
+        ranks = [ c for c in range(len(candidates)) if candidates[c]["word"] == word ]
+        rank = ranks[0] if ranks else 1000
+
         w2s = dict([ (c["word"], c["score"]) for c in candidates ])
-        ok = (word in w2s and (not max_err or w2s[word] >= max(w2s.values()) - max_err))
+        ok = (word in w2s
+              and (not max_err or w2s[word] >= max(w2s.values()) - max_err)
+              and (not max_rank or rank <= max_rank))
 
         if plot or ok or not retry: break
 

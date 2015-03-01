@@ -25,10 +25,11 @@ import predict
 error = 40
 curviness = 150
 lang = "en"
-max_err = None
+max_err = .2
 db_file = None
 quiet = False
 max_count = None
+max_rank = 8
 
 opts, args =  getopt.getopt(sys.argv[1:], 'sl:d:m:qe:c:')
 for o, a in opts:
@@ -104,7 +105,7 @@ def get_curve_result(word, index = 0):
                                              error = error if i != 2 else 1,
                                              curviness = curviness if i != 1 else 1,
                                              lang = lang, retry = 30, verbose = False,
-                                             max_err = max_err, ignore_errors = True)
+                                             max_err = max_err, ignore_errors = True, max_rank = max_rank)
             if candidates:
                 curve_results.append(candidates)
 
@@ -116,7 +117,7 @@ def get_curve_result(word, index = 0):
     return result
 
 index = 1
-count, ok = 0, 0
+lcount = count = ok = 0
 std_ok = bt_count = bad_bt_count = 0
 ts = time.time()
 
@@ -127,7 +128,8 @@ def stats():
 for line in sys.stdin:
     words = line.strip().split(' ')
 
-    p.log("==> Words: %s" % words)
+    lcount += 1
+    p.log("==> [#%d] Words: %s" % (lcount, ' '.join(words)))
 
     context = [ ]
     actual  = [ ]
@@ -138,7 +140,7 @@ for line in sys.stdin:
             actual  = [ '#ERR' ]
             continue
 
-        if context and context[0] == '#ERR' and len(context) < 3: continue
+        # if context and context[0] == '#ERR' and len(context) < 3: continue
 
         word_db = p.db.get_words([ word ], [ word ] if not context else None)
         if word not in word_db:

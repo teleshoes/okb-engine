@@ -680,7 +680,12 @@ class Predict:
                 if not num: continue
                 den = sqlresult.get(den_id, None)
                 if not den: continue
-                detail_append = ""
+
+                # stock stats
+                (stock_count, user_count, user_replace, last_time) = num
+                (total_stock_count, total_user_count, dummy1, dummy2) = den
+
+                detail_txt = "stock=%d" % stock_count
 
                 # add P(Wi|Ci) term for cluster n-grams
                 coef = 1.0
@@ -688,19 +693,15 @@ class Predict:
                     # this is a "c*" score (cluster)
                     if not coef_wc: continue
                     coef = coef_wc
-                    detail_append += " coef=%.5f" % coef
-
-                # stock stats
-                (stock_count, user_count, user_replace, last_time) = num
-                (total_stock_count, total_user_count, dummy1, dummy2) = den
+                    detail_txt += " coef=%.5f" % coef
 
                 proba = 1.0 * coef * stock_count / total_stock_count if total_stock_count > 0 else 0
                 detail["probas"][score_name] = proba
-                detail[score_name] = "stock=%.2e[%s]" % (stock_count, detail_append or "-")
+                detail[score_name] = detail_txt
 
                 # @todo learning stuff here :-)
 
-            final_score, all_scores = self._final_score(detail["probas"])
+            final_score, all_scores = self._final_score(detail)
 
             if final_score:
                 detail["scores"] = all_scores
@@ -717,23 +718,20 @@ class Predict:
         for part, default_coef in score_parts.items():
             self.score_coef[part] = self.db.get_param("coef_predict_%s" % part, default_coef)
 
-    def _final_score(self, probas):
+    def _final_score(self, detail):
+        probas = detail["probas"]
         final_score = None
         scores = dict()
+        max_coef = max_proba = 0
 
         for score_name, proba in probas.items():
             scores[score_name] = score1 = self.score_coef[score_name] * (math.log10(proba) + 8 if proba > 1E-8 else 0) / 8  # [0, 1]
-            if not final_score or score1 > final_score: final_score = score1
+            if not final_score or score1 > final_score:
+                final_score = score1
+                max_coef, max_proba = self.score_coef[score_name], proba
 
+        detail["result"] = dict(coef = max_coef, proba = max_proba)
         return (final_score, scores)
-
-    def _two_words_final_score(self, proba1, proba2):
-        if not proba1 or not proba2: return None
-        keys = set(proba1.keys()).intersection(proba2.keys())
-        probas = dict()
-        for key in keys:
-            probas[key] = proba1[key] * proba2[key]
-        return self._final_score(probas)
 
     def _guess1(self, context, words, correlation_id = -1, verbose = False):
         """ internal method : prediction engine entry point (stateless)
@@ -894,8 +892,10 @@ class Predict:
 
         def add_scores(ws1, ws0):
             if ws1 is None or ws0 is None: return -1.0, -1.0
-            score = ws1.final_score + ws0.final_score
             predict_score = ws1.score_predict + ws0.score_predict
+            score = ws1.final_score + ws0.final_score
+            # predict_score = 2 * ws1.score_predict + ws0.score_predict
+            # score = ws1.score_no_predict + ws0.score_no_predict + predict_score
 
             return score, predict_score
 
@@ -915,7 +915,9 @@ class Predict:
         if verbose: self.log("Backtrack: reference = %s (%.2f) + %s (%.2f) = %.2f" % (h1["guess"], score1, h0["guess"], score0, guess_score))
         h0_new = dict()
         for w1 in words1:
-            if w1 == h1["guess"]: continue
+            if w1 == h1["guess"]:
+                h0_new[w1] = dict(h0)
+                continue
             words = self._guess1([ w1 ] + h1["context"], dict_word0, verbose = verbose)
             h0_new[w1] = dict(words = words)
             for w0 in words:
@@ -926,6 +928,7 @@ class Predict:
                     max_score, found = score, (w0, w1)
 
         def show_score(h, w = None):
+            if not h: return "%s(-)" % w
             if not w: w = h["guess"]
             if w in h["words"]:
                 sc = h["words"][w]
@@ -933,12 +936,12 @@ class Predict:
             else:
                 return "%s(-)" % w
 
-        message = "[%s] %s %s" % (",".join(reversed(h1["context"])), show_score(h1), show_score(h0))
+        message = "[%s] %s %s" % (",".join(reversed(h1["context"]))[-30:], show_score(h1), show_score(h0))
         if found: message += " <%.3f> ==> %s %s <%.3f>" % (guess_score, show_score(h1, found[1]), show_score(h0_new[found[1]], found[0]), max_score)
         else: message += " ==> [no change]"
         if expected:
             message += " - Expected = %s %s <%.3f>" % (show_score(h1, expected[0]),
-                                                       show_score(h0, expected[1]),
+                                                       show_score(h0_new.get(expected[0]), expected[1]),
                                                        add_scores(h1["words"].get(expected[0], None),
                                                                   h0_new[expected[0]]["words"].get(expected[1], None))[0] if expected[0] in h0_new else -1.0)
 
