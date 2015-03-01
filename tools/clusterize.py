@@ -90,8 +90,8 @@ for line in sys.stdin.readlines():
     if w3 == '#TOTAL': continue  # total n-grams are recomputed below
 
     if w2 == '#START':
-        # first words n-grams are now considered as 3-grams [#START, #START, word]
-        w1 = '#START'
+        # first words n-grams are now considered as 2-grams [#NA, #START, word] (changed again)
+        w1 = '#NA'
 
     add_gram([w1, w2, w3], count)
     add_gram([w1, w2, '#TOTAL'], count)
