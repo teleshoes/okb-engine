@@ -282,9 +282,9 @@ class Predict:
             self.db.refresh()
             self.log("DB refresh done (%2f s)" % (time.time() - now))
 
-    def load_db(self):
+    def load_db(self, force_reload = False):
         """ load database if needed """
-        if self.db: return True
+        if self.db and not force_reload: return True
 
         if not os.path.isfile(self.dbfile):
             self.log("DB not found:", self.dbfile)
