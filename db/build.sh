@@ -22,7 +22,7 @@ die() { echo "DIE: $*"; exit 1; }
 cd `dirname "$0"`
 mydir=`pwd`
 
-cp -vauf $mydir/lang-*.cf $WORK_DIR/
+cp -vauf $mydir/lang-*.cf $mydir/db.version $WORK_DIR/
 
 cd $WORK_DIR
 for target in depend all ; do

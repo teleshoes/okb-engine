@@ -22,5 +22,5 @@ else:
 
     for key in keys:
         print("%s = %s" % (key, cdb.get_string(key)))
-        
+
 cdb.clear()

@@ -67,13 +67,13 @@ class FslmCdbBackend:
         self._load()
 
     def set_param(self, key, value):
-        cdb.set_string("param-%s" % key, str(value))
+        cdb.set_string("param_%s" % key, str(value))
         self.params[key] = float(value)
         self.dirty = True
 
     def get_param(self, key, default_value = None):
         if key in self.params: return self.params[key]
-        value = cdb.get_string("param-%s" % key)
+        value = cdb.get_string("param_%s" % key)
         if value is None: value = default_value
         self.params[key] = value
         return value
@@ -132,11 +132,11 @@ class FslmCdbBackend:
 
         if word in words: return words[word][0]
 
-        wid_str = cdb.get_string("param-wordid")
+        wid_str = cdb.get_string("param_wordid")
         wid = int(wid_str) if wid_str else 1000000
 
         wid += 1
-        cdb.set_string("param-wordid", str(wid))
+        cdb.set_string("param_wordid", str(wid))
 
         words[word] = (wid, 0)  # new words do not belong a cluster
         cdb.set_words(lword, words)
@@ -284,18 +284,19 @@ class Predict:
 
     def load_db(self):
         """ load database if needed """
-        if not self.db:
-            if os.path.isfile(self.dbfile):
-                self.db = FslmCdbBackend(self.dbfile)
-                self.log("DB open OK:", self.dbfile)
-                self.refresh_db()
+        if self.db: return True
 
-                self.coef_score_predict = self.cf("predict_coef", 1, float)
+        if not os.path.isfile(self.dbfile):
+            self.log("DB not found:", self.dbfile)
+            return False
 
-            else:
-                self.log("DB not found:", self.dbfile)
+        self.db = FslmCdbBackend(self.dbfile)
+        self.log("DB open OK:", self.dbfile)
+        self.refresh_db()
 
+        self.coef_score_predict = self.cf("predict_coef", 1, float)
         self._init_score_coefs()
+        return True
 
     def save_db(self):
         """ save database immediately """
@@ -932,7 +933,8 @@ class Predict:
             if not w: w = h["guess"]
             if w in h["words"]:
                 sc = h["words"][w]
-                return "%s(%.3f+%.3f=%.3f)" % (w, sc.score_no_predict, self.coef_score_predict * sc.score_predict, sc.final_score)
+                coef = sc.predict_detail["result"]["coef"] if "result" in sc.predict_detail else 0
+                return "%s(%.3f+%.3f=%.3f:%.2f)" % (w, sc.score_no_predict, self.coef_score_predict * sc.score_predict, sc.final_score, coef)
             else:
                 return "%s(-)" % w
 

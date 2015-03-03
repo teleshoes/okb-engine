@@ -12,3 +12,4 @@ html.py
 gmon.out
 *.so
 *.ng
+.depend*
