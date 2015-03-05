@@ -1026,6 +1026,8 @@ class Predict:
     def cleanup(self, force_flush = False):
         """ periodic tasks: cache purge, DB flush to disc ... """
 
+        if not self.db: return False
+
         self._commit_learn(commit_all = force_flush)
 
         now = time.time()
@@ -1038,7 +1040,7 @@ class Predict:
             self.log("Purge DB ...")
 
             current_day = int(now / 86400)
-            self.db.purge(self.cf("purge_min_count1", 3, float), current_day - self.cf("purge_min_date1", 15))
+            self.db.purge(self.cf("purge_min_count1", 3, float), current_day - self.cf("purge_min_date1", 60))
             self.db.purge(self.cf("purge_min_count2", 20, float), current_day - self.cf("purge_min_date2", 180))
 
             self.db.set_param("last_purge", last_purge)
@@ -1056,8 +1058,8 @@ class Predict:
 
     def close(self):
         """ Close all resources & flush data """
-        self.cleanup(force_flush = True)
         if self.db:
+            self.cleanup(force_flush = True)
             self.db.close()
             self.db = None
 
