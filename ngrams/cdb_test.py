@@ -24,7 +24,7 @@ exp = dict()
 
 for it in range(0, IT):
     print(it)
-    db = cdb.load(tmp)
+    cdb.load(tmp)
     for i in range(0, N2):
         index = random.randint(1, N)
         if index in exp:

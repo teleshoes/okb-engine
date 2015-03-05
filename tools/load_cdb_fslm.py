@@ -109,7 +109,8 @@ for word, info in words.items():
         words_in_cluster = [ w for w in words.keys() if words[w][1] == info[0] ]  # all words in cluster
         words_in_cluster.sort(key = lambda x: wordcount.get(x, 0), reverse = True)  # sort by count
         cdb.set_string("cluster-%d" % info[0],
-                       "%s:%d:%d:%s" % (word, wordcount.get(word, 0), len(words_in_cluster), ','.join(words_in_cluster[:5])))
+                       ("%s:%d:%d:%s" % (word, wordcount.get(word, 0), len(words_in_cluster),
+                                         ','.join(words_in_cluster[:5])))[:50])  # <- size limitation in C module (& spare room for unicode chars)
 
     else:
         lword = word.lower()

@@ -1,3 +1,7 @@
+/* this is a basic read-write hash-like structure
+   it is intended to be easy to mmap, but i've not tried it yet 
+*/
+
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -15,7 +19,6 @@
 #define ALLOC_DATA 50000
 
 #define CANARY 0x29a35f85
-
 
 static unsigned long hash_str(unsigned char *str) {
   // djb2 @ https://stackoverflow.com/questions/7666509/hash-function-for-string
@@ -94,7 +97,7 @@ static int load(phash_t* h) {
       kl = strlen(ptr);
       if (kl > MAX_KEY_LEN) { goto fail; }
       if (ptr > h->data + len) { goto fail; }
-      vl = get_char(ptr + 1 + kl);
+      vl = get_char(ptr + 1 + kl) & 0x3f;
       if (vl == 0) { goto fail; }
 
       hash_value = hash_str((unsigned char *) ptr) % h->bucket_count;
@@ -142,7 +145,7 @@ phash_t* ph_init(char* filename) {
   return h;
 }
 
-void* ph_get(phash_t* h, char* key, int *return_length) {
+void* ph_get(phash_t* h, char* key, int *return_length, int *return_type) {
   int hash_value = hash_str((unsigned char *) key) % h->bucket_count;
   int index = h->buckets[hash_value];
   while (index > 0) {
@@ -153,6 +156,8 @@ void* ph_get(phash_t* h, char* key, int *return_length) {
 	int l;
 	ptr += strlen(entry->data) + 1;
 	l = *((unsigned char*) ptr);
+	if (return_type) { *return_type = l >> 6; }
+	l &= 0x3f;
 	ptr ++;
 	if (return_length) { *return_length = l; }
 	return ptr;
@@ -164,7 +169,7 @@ void* ph_get(phash_t* h, char* key, int *return_length) {
   return NULL;
 }
 
-void ph_set(phash_t* h, char* key, void *data, int length) {
+int ph_set(phash_t* h, char* key, void *data, int length, int type) {
   int hash_value, index, lk;
   void* ptr;
   entry_t* entry;
@@ -178,14 +183,14 @@ void ph_set(phash_t* h, char* key, void *data, int length) {
   hash_value = hash_str((unsigned char *) key) % h->bucket_count;
   index = h->buckets[hash_value];
 
-  if (length > 255) { length = 255; }
+  if (length > 63) { return 1; }
 
   lk = strlen(key);
   if (length > 0) {
     ptr = h->ptr;
     strcpy(h->ptr, key);
     h->ptr += lk + 1;
-    *((unsigned char*) h->ptr) = length;
+    *((unsigned char*) h->ptr) = length + (type << 6);
     h->ptr += 1;
     memcpy(h->ptr, data, length);
     h->ptr += length;
@@ -199,19 +204,21 @@ void ph_set(phash_t* h, char* key, void *data, int length) {
     if (pe) {
       if (! strcmp(pe, key)) {
 	entry->data = ptr;
-	return;
+	return 0;
       }
     }
     index = entry->next;
   }
 
-  if (! length) { return; }
+  if (! length) { return 0; }
 
   index = (h->count ++);
   entry = &(h->entries[index]);
   entry->data = ptr;
   entry->next = h->buckets[hash_value];
   h->buckets[hash_value] = index;
+
+  return 0;
 }
 
 #define BUF 10240
@@ -248,6 +255,7 @@ void ph_save(phash_t* h) {
 	if (lk > 0) {
 	  strcpy(pbuf, key); pbuf += lk + 1;
 	  *pbuf = lv; pbuf += 1;
+	  lv &= 0x3f;
 	  memcpy(pbuf, ptr, lv); pbuf += lv;
 	  if (pbuf - buf >= BUF - 512) {
 	    int l = pbuf - buf;
@@ -283,5 +291,5 @@ void ph_save(phash_t* h) {
 }
 
 void ph_rm(phash_t* h, char* key) {
-  ph_set(h, key, NULL, 0);
+  ph_set(h, key, NULL, 0, 0);
 }

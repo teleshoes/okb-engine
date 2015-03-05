@@ -22,8 +22,8 @@ typedef struct phash {
 } phash_t;
 
 phash_t* ph_init(char *filename);
-void* ph_get(phash_t* h, char* key, int *return_length);
-void ph_set(phash_t* h, char* key, void *data, int length);
+void* ph_get(phash_t* h, char* key, int *return_length, int *return_type);
+int ph_set(phash_t* h, char* key, void *data, int length, int type);
 void ph_save(phash_t* h);
 void ph_rm(phash_t* h, char* key);
 void ph_close(phash_t* h);

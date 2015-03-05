@@ -35,14 +35,15 @@ lst = db.get_keys()
 
 current_day = int(time.time() / 86400)
 
-id2w = dict()
-for key in lst:
-    if key.startswith("cluster-"): continue
-    if key.startswith("param-"): continue
-    if re.match(r'^[\w\-\'\#]+$', key):
-        words = db.get_words([key])
-        for word, info in words.items():
-            id2w[int(info.id)] = word
+id_cache = dict()
+
+def id2w(id):
+    global id_cache, db
+    if id in id_cache: return id_cache[id]
+
+    id_cache[id] = word = db.get_word_by_id(id)  # may be null
+    return word
+
 
 for key in lst:
     if not re.match(r'^[0-9\-]+:[0-9\-]+:[0-9\-]+$', key): continue
@@ -55,7 +56,7 @@ for key in lst:
     (stock_count, user_count, user_replace, last_time) = grams[key]
     (total_stock_count, total_user_count, dummy1, dummy2) = grams[total_key]
 
-    (w1, w2, w3) = [ id2w.get(int(id),'???') for id in key.split(':') ]
+    (w1, w2, w3) = [ id2w(int(id)) or "???" for id in key.split(':') ]
 
     if raw:
         print("%s;%s;%s;%f;%f;%f;%f;%f;%d" % (w1, w1, w3,
