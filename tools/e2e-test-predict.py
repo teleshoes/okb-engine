@@ -22,6 +22,7 @@ sys.path.insert(0, libdir)
 
 import predict
 
+learn = False
 error = 40
 curviness = 150
 lang = "en"
@@ -125,6 +126,26 @@ def stats():
     print("***** Count=%d OK=%d bt=%d bad_bt=%d (%.1f%%) - OK_nobt=%d (%.1f%%)" %
           (count, ok, bt_count, bad_bt_count, 100.0 * ok / count, std_ok, 100.0 * std_ok / count))
 
+def learn_replace(context, actual):
+    global p, learn
+    if not learn: return
+
+    l = [ '#START' ]
+    if context and context[0] != '#ERR': l = [ ]
+
+    while context:
+        c = context.pop(0)
+        a = actual.pop(0)
+
+        if c != a:
+            print("Learn: replace %s -> %s (%s)" % (c, a, l[:2]))
+            p.replace_word(c, a, reversed(l))
+        l.append(a)
+
+def save():
+    global p
+    p._commit_learn(commit_all = True)
+
 for line in sys.stdin:
     words = line.strip().split(' ')
 
@@ -136,6 +157,7 @@ for line in sys.stdin:
     for word in words:
         index += 1
         if word == '#ERR':
+            learn_replace(context, actual)
             context = [ '#ERR' ]
             actual  = [ '#ERR' ]
             continue
@@ -153,6 +175,7 @@ for line in sys.stdin:
         candidates = get_curve_result(word, index)
 
         if not candidates:
+            learn_replace(context, actual)
             context = [ '#ERR' ]
             actual  = [ '#ERR' ]
             continue
@@ -206,11 +229,20 @@ for line in sys.stdin:
 
     p.log("Sentence : context", context)
     p.log("Sentence :  actual", actual)
+    learn_replace(context, actual)
+
+    if learn and lcount % 20 == 0:
+        save()
+        if lcount % 1000 == 0: p.db.save()
 
     if time.time() > ts + 10:
         ts += 10
         stats()
 
     if max_count and count >= max_count: break
+
+if learn:
+    save()
+    p.db.save()
 
 stats()

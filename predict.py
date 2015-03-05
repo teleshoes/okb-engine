@@ -304,6 +304,7 @@ class Predict:
         self.log("DB open OK:", self.dbfile)
         self.refresh_db()
 
+        self.half_life = self.cf('learning_half_life', 30, int)
         self.coef_score_predict = self.cf("predict_coef", 1, float)
         self._init_score_coefs()
         return True
@@ -323,7 +324,6 @@ class Predict:
         self.db.clear_stats()
 
         current_day = int(self._now() / 86400)
-        half_life = self.cf('learning_half_life', 180, int)
 
         if commit_all:
             learn = self.learn_history.keys()
@@ -397,7 +397,7 @@ class Predict:
 
             elif current_day > last_time:
                 # data ageing
-                coef = math.exp(-0.7 * (current_day - last_time) / float(half_life))
+                coef = math.exp(-0.7 * (current_day - last_time) / float(self.half_life))
                 user_count *= coef
                 user_replace *= coef
                 last_time = current_day
@@ -522,24 +522,26 @@ class Predict:
 
         self.last_surrounding_text = text
 
-    def replace_word(self, old, new):
+    def replace_word(self, old, new, context = None):
         """ inform prediction engine that a guessed word has been replaced by the user """
         # note: this can not be reliably detected with surrounding text only
         # -> case i've got a one word sentence and replace it --> and can't make the difference with moving to another location in the text
 
-        self._learn(True, new, self.last_words, replaces = old)
+        if not context: context = self.last_words
+        context = list(context)
+        self._learn(True, new, context, replaces = old)
 
         if not self.cf('predict_auto_tune', True, bool): return
 
         # use replacement information to auto-tune prediction weight
-        oldkey = ':'.join([ old ] + self.last_words[:2])
-        if oldkey in self.guess_history:
+        oldkey = ':'.join([ old ] + context)
+        if oldkey in self.guess_history and new in self.guess_history[oldkey]["words"]:
             gh = self.guess_history[oldkey]
-            if new in gh["words"]:
-                gh["replaced"] = new
-                newkey = ':'.join([ new ] + self.last_words[:2])
-                self.guess_history[newkey] = gh
-                del self.guess_history[oldkey]
+
+            gh["replaced"] = new
+            newkey = ':'.join([ new ] + context)
+            self.guess_history[newkey] = gh
+            del self.guess_history[oldkey]
 
             infonew = gh["words"][new]
             infoguess = gh["words"][gh["guess"]]
@@ -666,6 +668,24 @@ class Predict:
 
         (global_stock_count, global_user_count) = sqlresult["-2:-1:-1"][0:2]  # grand total #NA:#NA:#TOTAL
 
+        learning_master_switch = self.cf('learning_enable', True, bool)
+        learning_count = self.cf('learning_count', 10000, int)
+        learning_count_min = self.cf('learning_count_min', 10, int)
+
+        # get stats for "learning curve"
+        stats = dict()
+        if learning_master_switch:
+            for word in todo:
+                for score_name in todo[word]:
+                    tmp = sqlresult.get(todo[word][score_name][0], None)
+                    if not tmp: continue
+
+                    if score_name not in stats: stats[score_name] = []
+                    stats[score_name].append(tmp[0])  # stock count
+
+            for score_name in stats:
+                stats[score_name] = float(sum(stats[score_name])) / len(stats[score_name])  # average
+
         # evaluate score components
         for word in todo:
             detail = dict(scores = dict(), probas = dict())
@@ -692,11 +712,11 @@ class Predict:
                 den = sqlresult.get(den_id, None)
                 if not den: continue
 
-                # stock stats
+                # get predict DB data
                 (stock_count, user_count, user_replace, last_time) = num
                 (total_stock_count, total_user_count, dummy1, dummy2) = den
 
-                detail_txt = "stock=%d" % stock_count
+                detail_txt = "stock=%d/%d" % (stock_count, total_stock_count)
 
                 # add P(Wi|Ci) term for cluster n-grams
                 coef = 1.0
@@ -706,7 +726,44 @@ class Predict:
                     coef = coef_wc
                     detail_txt += " coef=%.5f" % coef
 
-                proba = 1.0 * coef * stock_count / total_stock_count if total_stock_count > 0 else 0
+                stock_proba = 1.0 * coef * stock_count / total_stock_count if total_stock_count > 0 else 0
+
+                if total_user_count and (user_count or user_replace) \
+                   and global_user_count and learning_master_switch and not cluster:
+                    # use information learned from user
+
+                    if total_stock_count:
+                        age = current_day - last_time
+                        coef_age = math.exp(-0.7 * age / float(self.half_life))
+
+                        # usage of this context compared to the whole corpus
+                        # for 1-grams it's always 1, <= 1 otherwise
+                        context_usage = (total_user_count / global_user_count)
+                        if global_stock_count and total_stock_count:
+                            context_usage = math.sqrt(context_usage * (total_stock_count / global_stock_count))
+
+                        # user text input is way smaller than stock corpus, so we need a bit of scaling
+                        x = total_user_count * coef_age / max(learning_count_min, learning_count * context_usage)
+
+                        coef_user = 1 / math.pow(1E6, 1 - min(x, 1))
+                        c = max(1, 1.0 * total_stock_count / total_user_count) * coef_user
+
+                        proba = ((stock_count + c * user_count * user_count / (user_count + user_replace))
+                                 / (total_stock_count + c * total_user_count))
+
+                        detail_txt += (" user=[%d-%d/%d] age=%d [c=%.2e cu=%.2e P=%.2e->%.2e]" %
+                                       (user_count, user_replace, total_user_count, current_day - last_time,
+                                        c, coef_user, stock_proba, proba))
+
+                    else:
+                        proba = user_count * user_count / (user_count + user_replace) / total_user_count
+                        detail_txt += "user=[%d-%d/%d] (no stock)" % (user_count, user_replace, total_user_count)
+
+
+                else:
+                    # only use stock information
+                    proba = stock_proba
+
                 detail["probas"][score_name] = proba
                 detail[score_name] = detail_txt
 
