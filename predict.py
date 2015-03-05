@@ -68,13 +68,14 @@ class FslmCdbBackend:
 
     def set_param(self, key, value):
         cdb.set_string("param_%s" % key, str(value))
-        self.params[key] = float(value)
+        self.params[key] = value
         self.dirty = True
 
-    def get_param(self, key, default_value = None):
+    def get_param(self, key, default_value = None, cast = None):
         if key in self.params: return self.params[key]
         value = cdb.get_string("param_%s" % key)
         if value is None: value = default_value
+        if cast: value = cast(value)
         self.params[key] = value
         return value
 
@@ -195,6 +196,15 @@ class FslmCdbBackend:
     def get_cluster_by_id(self, id):
         # used only for testing. no caching
         return cdb.get_string("cluster-%d" % id)
+
+    def get_word_by_id(self, id):
+        # used only for testing. no caching
+        return cdb.get_word_by_id(int(id))
+
+    def purge(self, min_count, min_day):
+        self._load()
+        self.dirty = True
+        cdb.purge_grams(float(min_count), int(min_day))
 
     def close(self):
         self.clear()
@@ -717,7 +727,7 @@ class Predict:
         score_parts = dict(s3 = 0.8, c3 = 0.4, s2 = 0.3, c2 = 0.03, s1 = 0.2)  # default values, per language override can be set in DB parameters
         self.score_coef = dict()
         for part, default_coef in score_parts.items():
-            self.score_coef[part] = self.db.get_param("coef_predict_%s" % part, default_coef)
+            self.score_coef[part] = self.db.get_param("coef_predict_%s" % part, default_coef, float)
 
     def _final_score(self, detail):
         probas = detail["probas"]
@@ -955,6 +965,7 @@ class Predict:
         if not found: return
         return (found[1], found[0])  # + correlation_id
 
+
     def cleanup(self, force_flush = False):
         """ periodic tasks: cache purge, DB flush to disc ... """
 
@@ -964,6 +975,18 @@ class Predict:
         for key in list(self.guess_history):
             if self.guess_history[key]["ts"] < now - 600: del self.guess_history[key]
 
+        # purge
+        last_purge = self.db.get_param("last_purge", 0, int)
+        if now > last_purge + self.cf("purge_every", 432000, int):
+            self.log("Purge DB ...")
+
+            current_day = int(now / 86400)
+            self.db.purge(self.cf("purge_min_count1", 3, float), current_day - self.cf("purge_min_date1", 15))
+            self.db.purge(self.cf("purge_min_count2", 20, float), current_day - self.cf("purge_min_date2", 180))
+
+            self.db.set_param("last_purge", last_purge)
+
+        # save learning info to database
         if self.db and len(self.learn_history) == 0 and self.db.dirty:
             self.log("Flushing DB ...")
             self.db.save()  # commit changes to DB
