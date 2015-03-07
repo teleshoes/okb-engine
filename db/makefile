@@ -58,7 +58,7 @@ grams-%-full.csv.bz2: %-full.dict %-learn.txt.bz2
 %.tre: %-full.dict %-predict.dict
 	$(eval lang=$*)
 	$(TOOLS_DIR)/loadkb.py $(lang)-full.tre < $(lang)-full.dict
-	$(TOOLS_DIR)/loadkb.py $@ < $(lang)-predict.dict
+	$(TOOLS_DIR)/loadkb.py $@ < words-$(lang).txt  # all word seens in learn corpus (smaller than full directory, but bigger than prediction learning dictionary)
 
 # build N-grams list for learning & test corpora
 grams-%-learn.csv.bz2: %-predict.dict %-learn.txt.bz2
