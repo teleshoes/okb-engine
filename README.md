@@ -1,82 +1,79 @@
-OKboard engine: tools for gesture keyboards and word prediction
-===============================================================
+OKboard engine: framework for gesture keyboards
+===============================================
 
 Description
 -----------
-This is a set of tools for building gesture based virtual keyboards. It targets SailfishOS devices (but it should work on any civilized computer running QT 5 with touchscreen or mouse).
+This is a set of libraries & tools for building gesture based virtual keyboards for mobile phones (and maybe tablets?).
+
+It currently targets Jolla phone (but it should be easy to run it on any civilized computer running QT 5 & Maliit with touchscreen or mouse).
 
 It's made of:
+* A C++ library (libcurveplugin.so) for gesture recognition that can be used both as a QML plugin or as a simple C++ library
+* A Python prediction engine (predict.py) for word prediction (mostly based on N-grams). Database persistence is done with C python modules
+* Lots of tools for testing, visualization, parameters tuning, generating language files ...
 
-* A C++ library (libcurveplugin.so) for gesture recognition that can be used both as QML plugin or as a simple C++ library (see below for info on APIs)
-* A Python prediction engine (predict.py) for word prediction (mostly based on N-grams)
-* Lots of tools for testing, visualization, parameters tuning, adding new languages (tools/ directory) ...
-
-See OKboard project for examples on using each API (QML & Python), and included "cli" command line utility (C++ API).
+See okboard project for examples on using each API (QML & Python), and included "cli" command line utility (C++ API).
 
 How does it work
 ----------------
 _TODO_
+(magic stuff inside)
 
 Limitations
 -----------
 * Current implementation does not support learning new words.
-  As a result it is shipped with very large dictionnaries and prediction datatases (French DB can recognise 650k words)
-  This was probably a very dumb design decision, but it allowed to stress test and tune the algorithm a lot.
+  As a result it is shipped with very large dictionnaries and prediction datatases
+  (E.g.: French DB has > 100k words and the prediction engine runs on the 60k most used words)
+  This is a limitation of the gesture engine.
 * Prediction engine is "home made" instead of using of using off-the-shelf tools (e.g. Presage)
-  A switch to Presage has not been undertaken because of performance and space optimization missing in this product.
-* Prediction engine if often slow mainly due to sqlite access -> this part should be replaced (e.g. in memory storage)
+  At the moment, our implementation is far more advanced than Presage (clustering support, space/performance optimizations ...), and i don't know about any alternative, so this is not likely to change soon
 * Only gestures over letters (A-Z) are understood. E.g. you can't swipe over the "c-cedilla" key with French keyboard (I noticed this key existed very late during development)
 
 How to build
 ------------
-qmake / make for C++ parts.
+See okboard package README file for documentation about building everything at once.
 
-RPM .spec file is included for packaging engine and language files.
+An RPM .spec file is included for packaging engine and language files.
 
-Language files source is not included in source code distribution and mush be placed under db/ sub-directory:
+Language files source is not included in source code distribution and must be placed under db/ sub-directory:
 You can generate them by yourself (see section below), or extract them from existing RPMs.
 
 How to create new language files / add new languages
 ----------------------------------------------------
-Commands are to be run from a working directory. `$TOOLS` represents "tools" directory in okb-engine source directory, `$LANG` the 2 letter language code.
+Language files include:
+* `$LANG.tre`: read-only (at the moment) dictionary file (stored as compact tree for space & performance issues)
+* `predict-$LANG.ng`: read-only file for storing stock n-grams in a highly efficient way (read `ngrams/fslm.c` for documentation and references)
+* `predict-$LANG.db`: read-write database (this is just an ugly & dumb c-struct in a file, but it is way smaller and faster than a sqlite database (as previously done)
 
-Language files are comprised of:
+Where `$LANG` is the 2-letter language ID.
 
-* `$LANG.tre`: dictionary file (stored as compact tree for space & performance issues)
-* `predict-$LANG.db`: sqlite DB for word prediction
+All tools needed to generate language files are included in `db/` directory
 
-With current version this only works with languages with latin alphabet, and it has not been tested with any other language that French & English.
-
-### Dictionary file
-`cat <dictionary file> | $TOOLS/loadkb.py $LANG.tre`
-
-Dictionary file is UTF-8 encoded and contains one word per line.
-You can possibly generate them with aspell with `aspell <language> dump master` but you'll end with very big dictionaries (probably useless for a phone keyboard).
-
-### Word prediction database
-`cat <corpus file> | $TOOLS/import_corpus.py <dictionary file> | sort -n | tail -n <ngram count> | $TOOLS/load_sqlite.py predict-$LANG.db`
-
-Corpus files must contains UTF-8 text, with only significant content. Sentences must be separated with periods. Line breaks are ignored.
-N-gram count is a trade off between space used and accuracy.
+Howto:
+* Define `CORPUS_FILE` and `WORK_DIR` environments variable (or set them in `~/.okboard-build` new configuration file)
+* Package all your corpora files as `$CORPUS_FILE/corpus-$LANG.txt.bz2`. Sentences must be separated by punctuation (".") or blank lines.
+* `$WORK_DIR` should point to a directory with enough space available (English + French requires 1.5 GB)
+* Create a `db/lang-$LANG.cf` configuration file (use examples from other languages)
+* Run `db/build.sh` to generate all language files
 
 
 ### Included databases (French & English)
-Text prediction DB included with the distribution has been build with the above process & the following corpora:
+Text prediction database included with the distribution has been build with the above process & the following corpora:
 
 * English: Enron (https://foundationdb.com/documentation/enron.html) + OANC (http://www.anc.org/). This is US english only
-* French: http://corpora.informatik.uni-leipzig.de, http://www.loria.fr/projets/asila/corpus_en_ligne.html and some stuff i haven't kept track off
+* French: http://corpora.informatik.uni-leipzig.de, http://www.loria.fr/projets/asila/corpus_en_ligne.html
 
-Text cleaning has been done manually (shell one-liners), and therefore there is no tools available.
+In addition i've added a bunch of chat & IRC logs to these (because original corpora were not good enough for conversation style writing). I won't provide original corpora files because of possible privacy issues.
 
-N-gram count has been set to 400k (completely arbitrary choice).
-
-Dictionary files have been produced with the above aspell trick.
+Text cleaning has been done manually (shell one-liners), and therefore there is no reusable tool available.
 
 API documentation
 -----------------
 _TODO_ this needs proper documentation :-)
 
 ### QML API (curveplugin)
+
+Remember all processing is asynchronous
 
 * `startCurve(int x, int y)` Start a new gesture with first point at given coordinates
 * `addPoint(int x, int y)` Add a new point to the curve
@@ -86,7 +83,7 @@ _TODO_ this needs proper documentation :-)
 * `loadKeys(QVariantList list)` Load information about keyboard geometry as a list of hashmaps with keys "x", "y", "width", "height", "caption" (a single letter string)
 * `loadTree(QString fileName)` Load dictionary file (this is run asynchronously to avoid blocking the GUI)
 * `setLogFile(QString fileName)` Choose output file. And empty string disables logging.
-* `getResultJson()` Get all results as a JSON file
+** `getResultJson()` Get all results as a JSON file
 * `setDebug(bool debug)` Makes logs much more verbose
 * `loadParameters(QString params)` Load parameters values as a JSON string
 * `getCandidates()` Return candidate list. Each item in the list is also a QVariantList with the following elements: name, score, class, star, word list (comma separated string)
@@ -105,42 +102,45 @@ It is provided by the Predict class. All calls should be invoked with pyOtherSid
 * `guess(candidates, correlation_id)` Returns guessed word 
 * `get_predict_words()` Returns alternate choices (used for prediction bar)
 * `cleanup()` Run periodic tasks (learning, DB flush, cache management). This should be called during user inactivity periods. If return value is True, you should call this function again later.
+* `backtrack()` [IN PROGRESS] when you type a word, it may become obvious that the previous guessed word was wrong, so this function returns information needed to correct it
 
 TODO
 ----
 ### Short term
 * Support for learning new words: updatable .tre file or separate storage, and new C/QML plugin API.
-  This would allow to start with much smaller databases (.tre and word predict) and greatly increase performance & word recognition rate.
+  Now we have reduced DB size, this is most needed to allow users to add new words (jargon words, friends name ...)
 * Handle really badly written words -> detect this case and have much more reliance on word prediction engine
+* Form for sending detailed logs by e-mail for analysis or post-mortem
+* mmap all data files (our larger language is now 6MB so it may not matter)
 
 ### Middle term
+* Refactoring: Having separate gesture engine (C++ plugin with internal threading) and Python prediction engine makes some features very difficult to implement (e.g. learning new words)
+  This would avoid unnecessary data & code duplication, and inefficient communication (python <-> QML <-> C++)
+* Add Xt9 replacement: this would enable us to completely fork from Jolla keyboard. This would require to improve the prediction engine to handle partially typed words (and above refactoring is also a pre-requisite)
+* Improve learning : "learn" usage of cluster n-grams + assign new words to existing cluster: maybe a background task that evaluate perplexity increase for each (word, cluster) values
 * Better documentation :-) ... and explain the algorithm because the code is not very friendly (due to lot of trial and error)
-* Code simplification: some parts are really complicated and are not that useful (all logs about score, turn score, classifier ...). 
-  Possibly over one-third of the code could be headed to the trashcan.
 * Allow user hints for word features: double letters, accents, middle key when 3+ keys are aligned (in the last case, user slowing down is detected but it's not always easy to perform), 
   compound words separators (apostrophe, hyphen), capitalization. These should all stay optional.
-* Better error management (fail gracefully in case of disk full, database corrupted, etc.)
-* Auto-tune coefficients between curve matching and word prediction to adapt to user style (may be based on speed or error count). Maybe do the same with some parameters (.cf file)
-* Better handling of compound words (i.e. containing hyphens or apostrophs)
-* Tools for easily adding and packaging new languages
-* Automatic non-regression tests for all the word prediction part
+* [PARTLY DONE] Better error management (fail gracefully in case of disk full, database corrupted, etc.) 
+* [STARTED but very crude] Auto-tune coefficients between curve matching and word prediction to adapt to user style (may be based on speed or error count). Maybe do the same with some parameters (.cf file)
+* Better handling of compound words (i.e. containing hyphens or apostrophs). They should be handled as one word or a sequence of words. Store go-between characters as n-grams attributes
+* [DONE but could be more user friendly] Tools for easily adding and packaging new languages
+* Automatic non-regression tests for all the word prediction part and language file generation
 * Tool for collecting user data (learning data, logs) ... with user permission.
   Provide anonymisation features when possible (remove all proper names, non words items such as number, new words learnt ...)
-* Large scale testing campaign with lot of users to collect information on different user styles (and improve test cases)
-* Find a solution for very long words (they are so boring to type)
-* Use third party prediction engine (Presage, is there any other ?)
+* Find a solution for long words (they are so boring to type)
+* Suggest words during "swiping" so you can just stop drawing when you see the word you want. I'm not sure this is really practical.
+* [WON'T DO] Use third party prediction engine (Presage, is there any other ?)
 * Clean up int/float mess in the curve plugin
-* Support different screen sizes and resolutions - this should make landscape mode easier
-* Compact storage for word prediction database (replace sqlite), for speed & size
+* Support different screen sizes and resolutions - this should allow landscape mode or usage on tablet
+* [DONE] Compact read/write storage for word prediction database (sqlite replacement), for speed & size
 * All threading should be rewritten in the QT way (see pyotherside source code) instead of home made and error-prone threads plumbing
-* Add new languages
+* Add new languages [easy now it's mostly automated, we only need good quality text corpus]
+* Large scale testing campaign with lot of users to collect information on different user styles (and improve test cases)
 
 ### Long term / research projects
 * Support for non-latin languages
 * API to load/unload/select context & DB (dictionary & prediction DB) --> e.g. using keyboard for specialized uses (on-device development ...)
 * Improve word prediction: use real smoothing and backoff (instead of current constant linear interpolation hack)
-* Improve word prediction: use word classes / groups / tags to increase result for low count N-grams,
-  e.g. see "Linearly Interpolated Hierarchical N-gram" (Imed Zitouni and Qiru Zhou) (need a proper quote)
-  -> automatic classifier would allow to easily add new languages, as existing tag databases are very sparse
-* Improve prediction engine to handle partially typed words (with possible errors): this could provide a replacement for Xt9 for new maliit plugins
+* [as incredible as it sounds ... DONE] Improve word prediction: use word classes / groups / tags to increase result for low count N-grams. An automatic classifier would allow to easily add new languages, as existing tag databases are very sparse
 * Use grammar rules to improve word prediction (I definitely won't code this)
