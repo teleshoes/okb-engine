@@ -672,20 +672,6 @@ class Predict:
         learning_count = self.cf('learning_count', 10000, int)
         learning_count_min = self.cf('learning_count_min', 10, int)
 
-        # get stats for "learning curve"
-        stats = dict()
-        if learning_master_switch:
-            for word in todo:
-                for score_name in todo[word]:
-                    tmp = sqlresult.get(todo[word][score_name][0], None)
-                    if not tmp: continue
-
-                    if score_name not in stats: stats[score_name] = []
-                    stats[score_name].append(tmp[0])  # stock count
-
-            for score_name in stats:
-                stats[score_name] = float(sum(stats[score_name])) / len(stats[score_name])  # average
-
         # evaluate score components
         for word in todo:
             detail = dict(scores = dict(), probas = dict())
@@ -929,15 +915,16 @@ class Predict:
         # done :-)
         return word
 
-    def backtrack(self, correlation_id = -1, check_timestamps = True, verbose = False, expected = None):
+    def backtrack(self, correlation_id = -1, verbose = False, expected = None, top = 3):
         """ After a word guess, try to correct previous words
             This is intended to be called asynchronously after a simple guess
             (see above)
             This function returns information describing how to patch the text
-            and to check if modification are still valid (in the meantime user
+            and to check if modifications are still valid (in the meantime user
             may have invalidated the new guess) """
 
         if not self.db: return
+        if not self.cf("backtrack_enable", 1, int): return
 
         self.db.clear_stats()
 
@@ -946,10 +933,18 @@ class Predict:
         h0 = self.guess_history_last[0]
         h1 = self.guess_history_last[1]
 
-        # @todo if check_timestamps: check TS
         # @todo check new sentence ?
 
-        if h0["context"] != [ h1["guess"] ] + h1["context"]: return
+        if not h0["context"] or h0["context"][0] == '#START': return  # starting a new sentence
+
+        if os.getenv("BT_DUMMY", None):
+            # return dummy values (just for GUI part testing)
+            self._learn(False, h0["guess"], h0["context"]);
+            self._learn(False, h1["guess"], h1["context"]);
+            return ("foo", "bar", h0["context"][0], h0["guess"], correlation_id, h1["context"] and h1["context"][0] == '#START')
+
+        list_lower = lambda x: [ w.lower() for w in x ]
+        if list_lower(h0["context"]) != list_lower([ h1["guess"] ] + h1["context"]): return
 
         def get_words_and_score(h, max_words):
             words = list(h["words"].keys())
@@ -960,16 +955,23 @@ class Predict:
 
         def add_scores(ws1, ws0):
             if ws1 is None or ws0 is None: return -1.0, -1.0
-            predict_score = ws1.score_predict + ws0.score_predict
-            score = ws1.final_score + ws0.final_score
-            # predict_score = 2 * ws1.score_predict + ws0.score_predict
-            # score = ws1.score_no_predict + ws0.score_no_predict + predict_score
 
+            coef1 = ws1.predict_detail["result"]["coef"] if "result" in ws1.predict_detail else 0
+            coef0 = ws0.predict_detail["result"]["coef"] if "result" in ws0.predict_detail else 0
+            new_coef = math.sqrt(coef1 * coef0)
+
+            if coef0 and coef1:
+                predict_score = new_coef * (ws1.score_predict / coef1 + ws0.score_predict / coef0)
+            else:
+                predict_score = ws1.score_predict + ws0.score_predict
+            score = ws1.score_no_predict + ws0.score_no_predict + self.coef_score_predict * predict_score
             return score, predict_score
 
         t0 = time.time()
 
         max_words = self.cf('max_words_backtrack', 10, int)
+        backtrack_score_threshold = self.cf('backtrack_score_threshold', 0.1, float)
+        backtrack_predict_threshold = self.cf('backtrack_predict_threshold', 0.1, float)
 
         words0, score0 = get_words_and_score(h0, max_words)
         words1, score1 = get_words_and_score(h1, max_words)
@@ -980,21 +982,6 @@ class Predict:
         guess_score, guess_predict_score = add_scores(h1["words"][h1["guess"]], h0["words"][h0["guess"]])
         max_score = guess_score
 
-        if verbose: self.log("Backtrack: reference = %s (%.2f) + %s (%.2f) = %.2f" % (h1["guess"], score1, h0["guess"], score0, guess_score))
-        h0_new = dict()
-        for w1 in words1:
-            if w1 == h1["guess"]:
-                h0_new[w1] = dict(h0)
-                continue
-            words = self._guess1([ w1 ] + h1["context"], dict_word0, verbose = verbose)
-            h0_new[w1] = dict(words = words)
-            for w0 in words:
-                score, predict_score = add_scores(h1["words"][w1], words[w0])
-                if verbose: self.log(" [%.2f] %s(%.2f) + %s" % (score, w1, h1["words"][w1].final_score, words[w0].message))
-
-                if score > max_score and predict_score > guess_predict_score:
-                    max_score, found = score, (w0, w1)
-
         def show_score(h, w = None):
             if not h: return "%s(-)" % w
             if not w: w = h["guess"]
@@ -1004,6 +991,31 @@ class Predict:
                 return "%s(%.3f+%.3f=%.3f:%.2f)" % (w, sc.score_no_predict, self.coef_score_predict * sc.score_predict, sc.final_score, coef)
             else:
                 return "%s(-)" % w
+
+        self.log("Backtrack: [%.3f] %s + %s [Guess]" % (guess_score, show_score(h1), show_score(h0)))
+        h0_new = dict()
+        loops = 0
+        messages = dict()
+        for w1 in words1:
+            if w1 == h1["guess"]:
+                h0_new[w1] = dict(h0)
+                continue
+            words = self._guess1([ w1 ] + h1["context"], dict_word0, verbose = verbose)
+            h0_new[w1] = dict(words = words)
+            for w0 in words:
+                loops += 1
+                score, predict_score = add_scores(h1["words"][w1], words[w0])
+                if verbose: self.log(" [%.2f] %s(%.2f) + %s" % (score, w1, h1["words"][w1].final_score, words[w0].message))
+
+                messages[score] = "[%.3f] %s + %s" % (score, show_score(h1, w1), show_score(h0_new[w1], w0))
+
+                if score > max_score and predict_score > guess_predict_score + backtrack_score_threshold \
+                  and h1["words"][w1].score_predict > h1["words"][h1["guess"]].score_predict - backtrack_predict_threshold \
+                  and words[w0].score_predict > h0["words"][h0["guess"]].score_predict - backtrack_predict_threshold:
+                    max_score, found = score, (w0, w1)
+
+        for k in sorted(messages.keys(), reverse = True)[:top]:
+            self.log("Backtrack: %s" % messages[k])
 
         message = "[%s] %s %s" % (",".join(reversed(h1["context"]))[-30:], show_score(h1), show_score(h0))
         if found: message += " <%.3f> ==> %s %s <%.3f>" % (guess_score, show_score(h1, found[1]), show_score(h0_new[found[1]], found[0]), max_score)
@@ -1016,11 +1028,17 @@ class Predict:
 
             if found: message += " =%s" % ("OK" if found and (found[0] == expected[1] and found[1] == expected[0]) else "FAIL")
         t = int((time.time() - t0) * 1000)
-        self.log("Backtrack ++++:", message, "- elapsed:", t, "- db_time:", int(1000 * self.db.timer), "- db_count:", self.db.count)
+        self.log("Backtrack:", message, "- elapsed:", t, "- db_time:", int(1000 * self.db.timer), "- db_count:", self.db.count, "- loops:", loops)
         self.log()
 
         if not found: return
-        return (found[1], found[0])  # + correlation_id
+
+        # update learning info (as backtracking is intended to be very rare, just unlearn the two guessed words)
+        self._learn(False, h0["guess"], h0["context"]);
+        self._learn(False, h1["guess"], h1["context"]);
+
+        # return value: new word1, new word2, expected word1 (capitalized), expected word2 (capitalized), correlation_id, capitalize 1st word (bool)
+        return (found[1], found[0], h0["context"][0], h0["guess"], correlation_id, h1["context"] and h1["context"][0] == '#START')
 
 
     def cleanup(self, force_flush = False):
@@ -1040,8 +1058,8 @@ class Predict:
             self.log("Purge DB ...")
 
             current_day = int(now / 86400)
-            self.db.purge(self.cf("purge_min_count1", 3, float), current_day - self.cf("purge_min_date1", 60))
-            self.db.purge(self.cf("purge_min_count2", 20, float), current_day - self.cf("purge_min_date2", 180))
+            self.db.purge(self.cf("purge_min_count1", 3, float), current_day - self.cf("purge_min_date1", 30, int))
+            self.db.purge(self.cf("purge_min_count2", 20, float), current_day - self.cf("purge_min_date2", 180, int))
 
             self.db.set_param("last_purge", last_purge)
 
