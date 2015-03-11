@@ -77,7 +77,9 @@ os.chdir(os.path.dirname(__file__))
 jsonfile = '../test/hello.json'
 js = json.loads(open(jsonfile, "r").read())
 
-cache_dir = "/tmp/e2e-cache-%d-%d" % (error, curviness)
+cache_home = "/tmp/e2e-cache"
+cache_dir = os.path.join(cache_home, "%d-%d" % (error, curviness))
+if not os.path.isdir(cache_home): os.mkdir(cache_home)
 if not os.path.isdir(cache_dir): os.mkdir(cache_dir)
 
 def get_curve_result(word, index = 0):
@@ -190,7 +192,8 @@ for line in sys.stdin:
         guessed_word = p.guess(candidates)
         if word == guessed_word: std_ok += 1
 
-        bt = p.backtrack(verbose = not quiet, expected = (actual[-1] if actual else None, word))
+        bt = p.backtrack(verbose = False, expected = (actual[-1] if actual else None, word))
+        # bt = p.backtrack(verbose = not quiet, expected = (actual[-1] if actual else None, word))
         if bt:
             # word N-1 has been replaced
             msg = "Backtrack: [%s] %s %s ==> [%s] %s %s (expected: %s)" % (
