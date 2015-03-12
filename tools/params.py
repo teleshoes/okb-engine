@@ -10,6 +10,7 @@ defparams = [
     [ "atp_min_turn1", int, 5, 25],
     [ "atp_opt_gap", int, 1, 6],
     [ "atp_threshold", int, 1, 20],
+    [ "bjr_min_turn", int, 90, 180],
     [ "cat_window", int ],  # no optim, larger is better (and slower)
     [ "cls_distance_max_ratio", float, 0, 2 ],
     [ "cls_enable", int ],

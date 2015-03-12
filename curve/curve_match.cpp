@@ -1061,14 +1061,43 @@ void Scenario::calc_turn_score_all() {
 	  scores[j].turn_score = -1;
 	  return;
 	}
-	bool bad_turn = 0;
+	bool bad_turn = false;
 	if (typ_act[j] == 0 && abs(a_actual[j]) > max_angle) {
 	  DBG("  [score turn] *** unmatched actual turn #%d: %.2f", j, a_actual[j]);
-	  bad_turn = (a_actual[j] > 0)?1:-1;
+	  bad_turn = true;
 	}
 	if (typ_exp[j] == 0 && abs(a_expected[j]) > max_angle) {
 	  DBG("  [score turn] *** unmatched expected turn #%d: %.2f", j, a_expected[j]);
-	  bad_turn = (a_expected[j] > 0)?1:-1;
+
+	  /*
+	    When there is a quick succession of : turn > 120°, normal turn, turn > 120°
+	    the middle one is difficult to do when typing quickly (especially one-handed)
+	    At the moment i've noticed this with only one word ("bonjour", for the "J" turn)
+	    I hope i haven't implemented a rule just for one word :-)
+	    This causes no significant regression on existing test cases
+	  */
+	  float min_turn = params->bjr_min_turn;
+
+	  int f1 = 0, f2 = 0;
+	  if (j > i0 && abs(a_expected[j - 1]) > min_turn) {
+	    f1 = 2;
+	  } else if (j == i0 && i0 > 0) {
+	    f1 = 1;
+	  }
+
+	  if (j < i && abs(a_expected[j + 1]) > min_turn) {
+	    f2 = 2;
+	  } else if (j == i && i < count - 2) {
+	    f2 = 1;
+	  }
+
+	  if (f1 + f2 > 2 && min_turn > 0) {
+	      DBG("  [score turn] bad turn ignored #%d (\"bonjour\"-like)", j);
+	      if (scores[j].cos_score < 0) { error_count --; }
+	      scores[j].cos_score = 0; // invalidate turn angle score because it's not relevant in this case
+	  } else {
+	    bad_turn = true;
+	  }
 	}
 
 	if (bad_turn) {
