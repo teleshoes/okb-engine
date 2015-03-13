@@ -1091,7 +1091,7 @@ void Scenario::calc_turn_score_all() {
 	    f2 = 1;
 	  }
 
-	  if (f1 + f2 > 2 && min_turn > 0) {
+	  if (f1 + f2 > 2 && min_turn > 0 && abs(a_expected[j]) < min_turn) {
 	      DBG("  [score turn] bad turn ignored #%d (\"bonjour\"-like)", j);
 	      if (scores[j].cos_score < 0) { error_count --; }
 	      scores[j].cos_score = 0; // invalidate turn angle score because it's not relevant in this case
