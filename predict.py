@@ -8,6 +8,7 @@ import time
 import re
 import math
 import cfslm, cdb
+import unicodedata
 
 class Wordinfo:
     def __init__(self, id, cluster_id, real_word = None):
@@ -451,6 +452,20 @@ class Predict:
             else:
                 self.learn_history.pop(key, None)
 
+    def _get_curve_learn_info(self, word, first_word):
+        """ generate information for curve matching to add a new word into user
+            dictionary (or at least update statistics) """
+
+        # we don't check in word DB and just return the word as-is (with just some basic capitalization fix)
+        if first_word and word[0].isupper() and word[1:].islower():
+            word = word.lower()
+
+        # compute letter list (for curve matching plugin) - just copy-paste (ahem) from loadkb.py
+        letters = ''.join(c for c in unicodedata.normalize('NFD', word.lower()) if unicodedata.category(c) != 'Mn')
+        letters = re.sub(r'[^a-z]', '', letters.lower())
+        letters = re.sub(r'(.)\1+', lambda m: m.group(1), letters)
+
+        return (letters, word)
 
     def update_surrounding(self, text, pos):
         """ update own copy of surrounding text and cursor position """
@@ -458,6 +473,8 @@ class Predict:
         self.cursor_pos = pos
 
         self.last_use = time.time()
+
+        curve_learn_info = None
 
         verbose = self.cf("verbose", False, bool)
 
@@ -485,6 +502,14 @@ class Predict:
         if not list_before and len(list_after) == 1:
             # new word
             word = list_after[0]
+
+            # Return information for curve matching QML plugin to learn this
+            # word or update statistics
+            # We could add this word after the learning timeout (with a lot
+            # more context & word DB checking), but it is important to add it
+            # now for "wow-effect" during demos
+            curve_learn_info = self._get_curve_learn_info(word, len(context) == 1)
+
             if not begin and not end:
                 # single word sentence
                 self.first_word = word  # keep first word for later
@@ -521,6 +546,8 @@ class Predict:
             pass
 
         self.last_surrounding_text = text
+
+        return curve_learn_info
 
     def replace_word(self, old, new, context = None):
         """ inform prediction engine that a guessed word has been replaced by the user """
