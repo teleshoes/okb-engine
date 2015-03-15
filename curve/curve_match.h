@@ -249,6 +249,7 @@ class CurveMatch {
   QHash<unsigned char, Key> keys;
   Params params;
   LetterTree wordtree;
+  bool userdict_dirty;
   bool loaded;
   QString treeFile;
   QString userDictFile;

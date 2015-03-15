@@ -2529,6 +2529,8 @@ void CurveMatch::learn(QString letters, QString word) {
   UserDictEntry entry = userDictionary[word]; // default-initialized if new
   userDictionary[word] = UserDictEntry(letters, now, entry.count + 1.0);
 
+  userdict_dirty = true;
+
   if (word == letters) {
     word = QString("=");
   }
@@ -2556,6 +2558,8 @@ void CurveMatch::learn(QString letters, QString word) {
 }
 
 void CurveMatch::loadUserDict() {
+  userdict_dirty = false;
+
   userDictionary.clear();
 
   QFile file(userDictFile);
@@ -2584,6 +2588,7 @@ void CurveMatch::loadUserDict() {
 }
 
 void CurveMatch::saveUserDict() {
+  if (! userdict_dirty) { return; }
   purgeUserDict();
 
   QFile file(userDictFile);
@@ -2591,11 +2596,15 @@ void CurveMatch::saveUserDict() {
 
   QTextStream out(&file);
 
+  int now = (int) time(0);
+
   QHashIterator<QString, UserDictEntry> i(userDictionary);
   while (i.hasNext()) {
     i.next();
     UserDictEntry entry = i.value();
-    out << i.key() << " " << entry.letters << " " << entry.count << " " << entry.ts  << endl;
+    if (! entry.expire(now)) {
+      out << i.key() << " " << entry.letters << " " << entry.count << " " << entry.ts  << endl;
+    }
   }
 
   file.close();
@@ -2617,6 +2626,8 @@ static int userDictLessThan(QPair<QString, UserDictEntry> &e1, QPair<QString, Us
 void CurveMatch::purgeUserDict() {
   if (userDictionary.size() <= params.user_dict_size + 100) { return; }
 
+  userdict_dirty = true;
+
   QList<QPair<QString, UserDictEntry> > lst;
   QHashIterator<QString, UserDictEntry> i(userDictionary);
   while (i.hasNext()) {
@@ -2626,11 +2637,8 @@ void CurveMatch::purgeUserDict() {
 
   qSort(lst.begin(), lst.end(), userDictLessThan);
 
-  int now = (int) time(0);
   for(int i = 0; i < lst.size() - params.user_dict_size; i ++) {
-    if (i < lst.size() - params.user_dict_size || lst[i].second.expire(now)) {
-      userDictionary.remove(lst[i].first);
-    }
+    userDictionary.remove(lst[i].first);
   }
 }
 
