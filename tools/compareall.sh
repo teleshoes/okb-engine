@@ -11,7 +11,7 @@ for test in test/*.json ; do
     kb="en"
     echo $name | grep '^fr-'>/dev/null && kb="fr"
     for a in 0 1 2 ; do
-	./cli/build/cli -D -s -a $a -d -s "db/$kb.tre" "$test" > $tmp/$a 2>/dev/null
+	./cli/build/cli -g -s -a $a -d -s "db/$kb.tre" "$test" > $tmp/$a 2>/dev/null
     done
 
     for a in 1 2 ; do

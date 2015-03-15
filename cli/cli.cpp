@@ -20,9 +20,11 @@ static void usage(char *progname) {
   cout << "usage:" << endl;
   cout << "cat file.json | " << progname << " [<options>] <tree file>" << endl;
   cout << progname << " [<options>] <tree file> <input json>" << endl;
+  cout << progname << " -L <tree file> <letters key> <word>    add word to user dictionary" << endl;
+  cout << progname << " -D <tree file>                         dump dictionary (incl. user's)" << endl;
   cout << "options:" << endl;
   cout << " -d : default parameters" << endl;
-  cout << " -D : disable debug more" << endl;
+  cout << " -g : disable debug more" << endl;
   cout << " -l <file> : log file" << endl;
   cout << " -a <nr> : implementation (0:simple, 1:incremental, 2:thread)" << endl;
   cout << " -s : online display scores (instead of full json)" << endl;
@@ -42,31 +44,45 @@ int main(int argc, char* argv[]) {
   bool debug = true;
   int delay = 0;
   int repeat = 1;
+  bool act_learn = false;
+  bool act_dump = false;
+  bool act_get = false;
   
   extern char *optarg;
   extern int optind;
 
   int c;
-  while ((c = getopt(argc, argv, "dl:a:sDm:r:")) != -1) {
+  while ((c = getopt(argc, argv, "dl:a:sgm:r:LDG")) != -1) {
     switch (c) {
     case 'a': implem = atoi(optarg); break;
     case 'd': defparam = true; break;
     case 'l': logfile = optarg; break;
     case 's': showscore = true; break;
-    case 'D': debug = false; break;
+    case 'g': debug = false; break;
     case 'm': delay = 1000 * atoi(optarg); break;
     case 'r': repeat = atoi(optarg); break;
+    case 'L': act_learn = true; break;
+    case 'D': act_dump = true; break;
+    case 'G': act_get = true; break;
     default: usage(argv[0]); break;
     }
   }
 
-  if (argc > optind + 1) {
-    file.setFileName(argv[optind+1]);
-    file.open(QFile::ReadOnly);
-  } else if (argc > optind) {
-    file.open(stdin, QIODevice::ReadOnly);
+  if (! (argc > optind)) { usage(argv[0]); }
+ 
+  if (act_learn) {
+    if (! (argc > optind + 2)) { usage(argv[0]); }
+  } else if (act_dump || act_get) {
+    //
   } else {
-    usage(argv[0]);
+    if (argc > optind + 1) {
+      file.setFileName(argv[optind+1]);
+      file.open(QFile::ReadOnly);
+    } else if (argc > optind) {
+      file.open(stdin, QIODevice::ReadOnly);
+    } else {
+      usage(argv[0]);
+    }
   }
   
   QTextStream in(&file);
@@ -95,6 +111,20 @@ int main(int argc, char* argv[]) {
     cm->setLogFile(logfile);
   }
   cm->loadTree(QString(argv[optind]));
+
+  if (act_learn) {
+    cm->learn(argv[optind + 1], argv[optind + 2]);
+    cm->saveUserDict();
+    cout << "learn OK" << endl;
+    return 0; 
+  } else if (act_dump) {
+    cm->dumpDict();
+    return 0;
+  } else if (act_get) {
+    char* words = cm -> getPayload((unsigned char *) argv[optind + 1]);
+    cout << "Word: " << (words?words:"*not found*") << endl;
+    return 0;
+  }
 
   CurveThread t;
 
