@@ -7,6 +7,7 @@
 #include <cmath>
 #include <iostream>
 #include <math.h>
+#include <string.h>
 
 #include "functions.h"
 
@@ -607,8 +608,8 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &
       int st = curve->getSharpTurn(last_turn_point);
 
       /* particular case: simple turn (ST=1) shared between two keys */
-      if (st == 1 && (start_index < last_turn_point && 
-		      start_index >= last_turn_point - max_turn_distance && 
+      if (st == 1 && (start_index < last_turn_point &&
+		      start_index >= last_turn_point - max_turn_distance &&
 		      max_score_index <= last_turn_point + max_turn_distance)) {
 	DBG("  [get_next_key_match] shared ST=1 point !");
       } else /* default case */ if (st < 3) { use_st_score = true; }
@@ -1352,7 +1353,7 @@ void Scenario::calc_turn_score_all() {
     // if (st2) { continue; }
     if (! inverted) { continue; }
 
-    DBG("Inverted turn: #%d", i);    
+    DBG("Inverted turn: #%d", i);
     scores[d->index].misc_score -= 0.5;
     // @todo finish this :-)
   }
@@ -2057,7 +2058,18 @@ bool CurveMatch::loadTree(QString fileName) {
   bool status = wordtree.loadFromFile(fileName);
   loaded = status;
   this -> treeFile = fileName;
-  logdebug("loadTree(%s): %d", QSTRING2PCHAR(fileName), status);
+  if (fileName.isEmpty()) {
+    logdebug("loadtree(-): %d", status);
+    this -> userDictFile = QString();
+
+  } else if (loaded) {
+    QString uf = fileName;
+    if (uf.endsWith(".tre")) { uf.remove(uf.length() - 4, 4); }
+    uf += "-user.txt";
+    this -> userDictFile = uf;
+    loadUserDict();
+    logdebug("loadTree(%s): %d", QSTRING2PCHAR(fileName), status);
+  }
   return status;
 }
 
@@ -2508,4 +2520,124 @@ QString CurveMatch::resultToString(bool indent) {
   resultToJson(json);
   QJsonDocument doc(json);
   return QString(doc.toJson(indent?QJsonDocument::Indented:QJsonDocument::Compact));
+}
+
+void CurveMatch::learn(QString letters, QString word) {
+  if (! params.user_dict_learn) { return; }
+
+  int now = (int) time(0);
+  UserDictEntry entry = userDictionary[word]; // default-initialized if new
+  userDictionary[word] = UserDictEntry(letters, now, entry.count + 1.0);
+
+  if (word == letters) {
+    word = QString("=");
+  }
+
+  QPair<void*, int> pl = wordtree.getPayload(QSTRING2PUCHAR(letters));
+  QString payload;
+
+  if (pl.first) {
+    payload = QString((const char*) pl.first);
+    QStringList lst = payload.split(",");
+    foreach(QString w, lst) {
+      if (w == word) {
+	return; // we already know this word
+      }
+    }
+    lst.append(word);
+    payload = lst.join(",");
+  } else {
+    payload = word;
+  }
+
+  unsigned char *ptr = QSTRING2PUCHAR(payload);
+
+  wordtree.setPayload(QSTRING2PUCHAR(letters), ptr, strlen((char*) ptr) + 1);
+}
+
+void CurveMatch::loadUserDict() {
+  userDictionary.clear();
+
+  QFile file(userDictFile);
+  if (! file.open(QIODevice::ReadOnly)) { return; }
+
+  QTextStream in(&file);
+
+  QString line;
+  do {
+    line = in.readLine();
+    QTextStream stream(&line);
+    QString word, letters;
+    double count;
+    int ts;
+
+    stream >> word >> letters >> count >> ts;
+
+    if (count && ts) {
+      userDictionary[word] = UserDictEntry(letters, ts, count);
+      learn(letters, word); // add the word to in memory tree dictionary
+    }
+  } while (!line.isNull());
+
+  file.close();
+  purgeUserDict();
+}
+
+void CurveMatch::saveUserDict() {
+  purgeUserDict();
+
+  QFile file(userDictFile);
+  if (! file.open(QIODevice::WriteOnly)) { return; }
+
+  QTextStream out(&file);
+
+  QHashIterator<QString, UserDictEntry> i(userDictionary);
+  while (i.hasNext()) {
+    i.next();
+    UserDictEntry entry = i.value();
+    out << i.key() << " " << entry.letters << " " << entry.count << " " << entry.ts  << endl;
+  }
+
+  file.close();
+}
+
+float UserDictEntry::score() {
+  return -ts; // we'll just do a simple LRU eviction for now
+}
+
+bool UserDictEntry::expire(int /* current time not used yet */) {
+  return false;
+}
+
+static int userDictLessThan(QPair<QString, UserDictEntry> &e1, QPair<QString, UserDictEntry> &e2) {
+  return e1.second.score() < e2.second.score();
+}
+
+
+void CurveMatch::purgeUserDict() {
+  if (userDictionary.size() <= params.user_dict_size + 100) { return; }
+
+  QList<QPair<QString, UserDictEntry> > lst;
+  QHashIterator<QString, UserDictEntry> i(userDictionary);
+  while (i.hasNext()) {
+    i.next();
+    lst.append(QPair<QString, UserDictEntry>(i.key(), i.value()));
+  }
+
+  qSort(lst.begin(), lst.end(), userDictLessThan);
+
+  int now = (int) time(0);
+  for(int i = 0; i < lst.size() - params.user_dict_size; i ++) {
+    if (i < lst.size() - params.user_dict_size || lst[i].second.expire(now)) {
+      userDictionary.remove(lst[i].first);
+    }
+  }
+}
+
+void CurveMatch::dumpDict() {
+  wordtree.dump();
+}
+
+char* CurveMatch::getPayload(unsigned char *letters) {
+  return (char*) wordtree.getPayload(letters).first;
 }

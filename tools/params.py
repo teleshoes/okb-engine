@@ -75,6 +75,8 @@ defparams = [
     [ "turn_threshold2", int, 120, 179 ],
     [ "turn_threshold3", int, 90, 145 ],
     [ "turn_tip_min_distance", int, 10, 200 ],
+    [ "user_dict_size", int ],
+    [ "user_dict_learn", int ],
     [ "ut_coef", float, 0.1, 0.9 ],
     [ "ut_score", float, 0, 1 ],
     [ "ut_total", int, 20, 90 ],

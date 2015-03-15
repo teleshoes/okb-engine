@@ -226,6 +226,20 @@ typedef struct {
   int st_speed, st_special, st_retry;
 } stats_t;
 
+/* user dictionary entry */
+class UserDictEntry {
+ public:
+  UserDictEntry() {};
+  UserDictEntry(QString _l, int _t, double _c) : letters(_l), ts(_t), count(_c) { };
+
+  float score();
+  bool expire(int now);
+
+  QString letters;
+  int ts;
+  double count;
+};
+
 /* main processing for curve matching */
 class CurveMatch {
  protected:
@@ -237,6 +251,7 @@ class CurveMatch {
   LetterTree wordtree;
   bool loaded;
   QString treeFile;
+  QString userDictFile;
   QString logFile;
   QTime startTime;
   int id;
@@ -247,6 +262,8 @@ class CurveMatch {
   stats_t st;
 
   bool kb_preprocess;
+
+  QHash<QString, UserDictEntry> userDictionary;
 
   void scenarioFilter(QList<Scenario> &scenarios, float score_ratio, int min_size, int max_size = -1, bool finished = false);
   void curvePreprocess1(int last_curve_index = -1);
@@ -281,6 +298,13 @@ class CurveMatch {
   void useDefaultParameters();
 
   void setDebug(bool debug);
+
+  void learn(QString letters, QString word);
+  void loadUserDict();
+  void saveUserDict();
+  void purgeUserDict();
+  void dumpDict();
+  char* getPayload(unsigned char *letters);
 };
 
 #endif /* CURVE_MATCH_H */

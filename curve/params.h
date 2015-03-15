@@ -77,6 +77,8 @@ class Params {
   int turn_threshold2;
   int turn_threshold3;
   int turn_tip_min_distance;
+  int user_dict_learn;
+  int user_dict_size;
   float ut_coef;
   float ut_score;
   int ut_total;
@@ -170,6 +172,8 @@ static Params default_params = {
   140, // turn_threshold2
   115, // turn_threshold3
   30, // turn_tip_min_distance
+  1, // user_dict_learn
+  2000, // user_dict_size
   0.45, // ut_coef
   0.5, // ut_score
   80, // ut_total
@@ -257,6 +261,8 @@ void Params::toJson(QJsonObject &json) const {
   json["turn_threshold2"] = turn_threshold2;
   json["turn_threshold3"] = turn_threshold3;
   json["turn_tip_min_distance"] = turn_tip_min_distance;
+  json["user_dict_learn"] = user_dict_learn;
+  json["user_dict_size"] = user_dict_size;
   json["ut_coef"] = ut_coef;
   json["ut_score"] = ut_score;
   json["ut_total"] = ut_total;
@@ -346,6 +352,8 @@ Params Params::fromJson(const QJsonObject &json) {
   p.turn_threshold2 = json["turn_threshold2"].toDouble();
   p.turn_threshold3 = json["turn_threshold3"].toDouble();
   p.turn_tip_min_distance = json["turn_tip_min_distance"].toDouble();
+  p.user_dict_learn = json["user_dict_learn"].toDouble();
+  p.user_dict_size = json["user_dict_size"].toDouble();
   p.ut_coef = json["ut_coef"].toDouble();
   p.ut_score = json["ut_score"].toDouble();
   p.ut_total = json["ut_total"].toDouble();
