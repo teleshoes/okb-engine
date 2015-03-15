@@ -25,13 +25,21 @@ class LetterTree {
  private:
   unsigned char *data;
   int length;
+  int alloc;
+  int new_index;
+  bool dirty;
+
   void dump(QString prefix, LetterNode node);
+  int setPayloadRec(unsigned char *key, void* payload, int len, int index);
+  
  public:
   LetterTree();
   ~LetterTree();
   bool loadFromFile(QString fileName);
   LetterNode getRoot();
   void dump();
+  QPair<void*, int> getPayload(unsigned char *key);
+  void setPayload(unsigned char *key, void* payload, int len);
 };
 
 /* all words in a letter tree */
