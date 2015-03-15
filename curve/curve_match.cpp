@@ -2061,6 +2061,7 @@ bool CurveMatch::loadTree(QString fileName) {
   if (fileName.isEmpty()) {
     logdebug("loadtree(-): %d", status);
     this -> userDictFile = QString();
+    loaded = false;
 
   } else if (loaded) {
     QString uf = fileName;
@@ -2524,12 +2525,7 @@ QString CurveMatch::resultToString(bool indent) {
 
 void CurveMatch::learn(QString letters, QString word) {
   if (! params.user_dict_learn) { return; }
-
-  int now = (int) time(0);
-  UserDictEntry entry = userDictionary[word]; // default-initialized if new
-  userDictionary[word] = UserDictEntry(letters, now, entry.count + 1.0);
-
-  userdict_dirty = true;
+  if (! loaded) { return; }
 
   if (word == letters) {
     word = QString("=");
@@ -2551,6 +2547,13 @@ void CurveMatch::learn(QString letters, QString word) {
   } else {
     payload = word;
   }
+
+  // update user dictionary (and in-memory tree)
+  int now = (int) time(0);
+  UserDictEntry entry = userDictionary[word]; // default-initialized if new
+  userDictionary[word] = UserDictEntry(letters, now, entry.count + 1.0);
+
+  userdict_dirty = true;
 
   unsigned char *ptr = QSTRING2PUCHAR(payload);
 
