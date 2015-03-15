@@ -6,16 +6,16 @@
 #include <stdio.h>
 
 static float cpu_user(struct rusage &start, struct rusage &stop) {
-  return (float) (stop.ru_utime.tv_sec - start.ru_utime.tv_sec) +    
+  return (float) (stop.ru_utime.tv_sec - start.ru_utime.tv_sec) +
     (float) (stop.ru_utime.tv_usec - start.ru_utime.tv_usec) / 1000000.0;
 }
 
 static float cpu_sys(struct rusage &start, struct rusage &stop) {
-  return (float) (stop.ru_stime.tv_sec - start.ru_stime.tv_sec) +    
+  return (float) (stop.ru_stime.tv_sec - start.ru_stime.tv_sec) +
     (float) (stop.ru_stime.tv_usec - start.ru_stime.tv_usec) / 1000000.0;
 }
 
-// avoid compiler warning: deleting object of polymorphic class type 'XXX' 
+// avoid compiler warning: deleting object of polymorphic class type 'XXX'
 // which has non-virtual destructor might cause undefined behaviour
 ThreadCallBack::~ThreadCallBack() {}
 
@@ -26,6 +26,14 @@ CurveThread::CurveThread(QObject *parent) :
   idle = false;
   callback = NULL;
   matcher = NULL;
+}
+
+void CurveThread::learn(QString letters, QString word) {
+  {
+    QMutexLocker locker(&learnMutex);
+    learnQueue.append(QPair<QString, QString>(letters, word));
+  }
+  addPoint(Point(CMD_LEARN, 0));
 }
 
 void CurveThread::clearCurve() {
@@ -42,7 +50,7 @@ void CurveThread::addPoint(Point point, int timestamp) {
   }
   mutex.lock();
   curvePending.append(CurvePoint(point, (timestamp >= 0)?timestamp:startTime.msecsTo(now)));
-  if (waiting) { 
+  if (waiting) {
     pointsAvailable.wakeOne();
   }
   mutex.unlock();
@@ -106,7 +114,7 @@ void CurveThread::run() {
 
   forever {
     inProgress.clear();
-    
+
     /* critical section */
     mutex.lock();
     if ((curvePending.size() == 0) /* && (! try_aggressive_match) */){
@@ -116,7 +124,7 @@ void CurveThread::run() {
     }
     waiting = false;
     setIdle(false);
-    
+
     foreach(CurvePoint p, curvePending) {
       // make sure there is no shared information (as in QT) between these two lists
       inProgress.append(p);
@@ -179,7 +187,7 @@ void CurveThread::run() {
 
 	t_matched = QTime::currentTime();
 	getrusage(RUSAGE_THREAD, &ru_matched);
-	
+
 	// display statistics
 	QList<CurvePoint> curve = matcher->getCurve();
 	logdebug("+++ CPU time before=%.3f/%.3f after=%.3f/%.3f / draw-time=%.3f end-time=%.3f",
@@ -187,7 +195,7 @@ void CurveThread::run() {
 		 cpu_user(ru_completed, ru_matched), cpu_sys(ru_completed, ru_matched),
 		 ((float)(curve[curve.size() - 1].t - curve[0].t)) / 1000,
 		 (float)(t_completed.msecsTo(t_matched)) / 1000);
-	
+
 	started = false;
 	if (callback) { callback->call(matcher->getCandidates()); }
 
@@ -196,7 +204,17 @@ void CurveThread::run() {
 	mutex.lock();
 	setIdle(true);
 	mutex.unlock();
-	return;	
+	return;
+
+      } else if (point.x == CMD_LEARN) {
+	QMutexLocker locker(&learnMutex);
+
+	QListIterator<QPair<QString, QString> > i(learnQueue);
+	while(i.hasNext()) {
+	  QPair<QString, QString> item = i.next();
+	  matcher->learn(item.first, item.second);
+	}
+	learnQueue.clear();
 
       } else {
 	if (! started) {
@@ -206,7 +224,7 @@ void CurveThread::run() {
 	matcher->addPoint(point);
       }
     }
-    
+
   }
 
 }
@@ -214,8 +232,8 @@ void CurveThread::run() {
 void CurveThread::setIdle(bool value) {
   // this method must be called within a mutex.lock()
   if (value and ! idle) {
-    idleCondition.wakeAll(); // wake up any parent thread waiting for idle	
-  }  
+    idleCondition.wakeAll(); // wake up any parent thread waiting for idle
+  }
   idle = value;
 }
 

@@ -60,6 +60,8 @@ class CurveKB : public QObject {
     // i've never managed to return an object list from c++ to qml :-)
     Q_INVOKABLE QVariantList getCandidates();
 
+    Q_INVOKABLE void learn(QString letters, QString word);
+
     void sendSignal(QList<Scenario> &candidates);
 
  private:

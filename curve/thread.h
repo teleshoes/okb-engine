@@ -42,6 +42,8 @@ class CurveThread : public QThread
 
   void loadTree(QString fileName);
 
+  void learn(QString letters, QString word);
+
 protected:
   /* --- variables shared between "client" and computation thread --- */
   bool waiting;
@@ -51,6 +53,9 @@ protected:
   QMutex mutex;
   bool idle;
   QString treFile;
+	     
+  QMutex learnMutex;
+  QList<QPair<QString, QString> > learnQueue;
   /* --- end of shared variables --- */
 
   IncrementalMatch *matcher;
@@ -63,7 +68,7 @@ protected:
 };
 
 enum thread_cmd_t {
-  CMD_END = -1001, CMD_CLEAR = -1002, CMD_QUIT = -1003, CMD_LOAD_TRE = - 1004,
+  CMD_END = -1001, CMD_CLEAR = -1002, CMD_QUIT = -1003, CMD_LOAD_TRE = - 1004, CMD_LEARN = - 1005
 };
 
 #endif /* THREAD_H */
