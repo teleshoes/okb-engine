@@ -2055,10 +2055,14 @@ void CurveMatch::addPoint(Point point, int timestamp) {
 
 bool CurveMatch::loadTree(QString fileName) {
   /* load a .tre (word tree) file */
+  if (loaded && fileName == this -> treeFile) { return true; }
+  userDictionary.clear();
+
   bool status = wordtree.loadFromFile(fileName);
   loaded = status;
   this -> treeFile = fileName;
   if (fileName.isEmpty()) {
+    saveUserDict(); // in case we had data to flush
     logdebug("loadtree(-): %d", status);
     this -> userDictFile = QString();
     loaded = false;
@@ -2523,46 +2527,62 @@ QString CurveMatch::resultToString(bool indent) {
   return QString(doc.toJson(indent?QJsonDocument::Indented:QJsonDocument::Compact));
 }
 
-void CurveMatch::learn(QString letters, QString word) {
+void CurveMatch::learn(QString letters, QString word, bool init) {
   if (! params.user_dict_learn) { return; }
   if (! loaded) { return; }
 
+  QString payload_word = word;
   if (word == letters) {
-    word = QString("=");
+    payload_word = QString("=");
   }
 
-  QPair<void*, int> pl = wordtree.getPayload(QSTRING2PUCHAR(letters));
-  QString payload;
+  // get user dictionary
+  UserDictEntry entry = userDictionary[word]; // default-initialized if new
 
-  if (pl.first) {
+  // get data from in-memory tree
+  QPair<void*, int> pl = wordtree.getPayload(QSTRING2PUCHAR(letters));
+
+  // compute new node value for in-memory tree
+  QString payload;
+  if (pl.first) { // existing node
     payload = QString((const char*) pl.first);
     QStringList lst = payload.split(",");
+    bool found = false;
     foreach(QString w, lst) {
-      if (w == word) {
-	return; // we already know this word
+      if (w == payload_word) {
+	found = true; // we already know this word
       }
     }
-    lst.append(word);
-    payload = lst.join(",");
-  } else {
-    payload = word;
+    if (found) {
+      payload = QString(); // no update
+    } else {
+      lst.append(payload_word);
+      payload = lst.join(",");
+    }
+  } else { // new node
+    payload = payload_word;
   }
 
   // update user dictionary (and in-memory tree)
   int now = (int) time(0);
-  UserDictEntry entry = userDictionary[word]; // default-initialized if new
-  userDictionary[word] = UserDictEntry(letters, now, entry.count + 1.0);
+  if (! payload.isEmpty()) {
+    if (! init) { DBG("Added new word: %s [%s]", QSTRING2PCHAR(word), QSTRING2PCHAR(letters)); }
+    unsigned char *ptr = QSTRING2PUCHAR(payload);
+    wordtree.setPayload(QSTRING2PUCHAR(letters), ptr, strlen((char*) ptr) + 1);
+  }
 
-  userdict_dirty = true;
+  if (entry.count > 0 || ! payload.isEmpty()) {
+    // if we've added the word to our memory tree or the word already exist in user dictionary
+    userdict_dirty = true;
+    userDictionary[word] = UserDictEntry(letters, now, entry.count + (init?0.0:1.0));
+  }
 
-  unsigned char *ptr = QSTRING2PUCHAR(payload);
-
-  wordtree.setPayload(QSTRING2PUCHAR(letters), ptr, strlen((char*) ptr) + 1);
 }
 
 void CurveMatch::loadUserDict() {
-  userdict_dirty = false;
+  if (userDictFile.isEmpty()) { return; }
 
+  userdict_dirty = false;
   userDictionary.clear();
 
   QFile file(userDictFile);
@@ -2582,7 +2602,7 @@ void CurveMatch::loadUserDict() {
 
     if (count && ts) {
       userDictionary[word] = UserDictEntry(letters, ts, count);
-      learn(letters, word); // add the word to in memory tree dictionary
+      learn(letters, word, true); // add the word to in memory tree dictionary
     }
   } while (!line.isNull());
 
@@ -2592,6 +2612,7 @@ void CurveMatch::loadUserDict() {
 
 void CurveMatch::saveUserDict() {
   if (! userdict_dirty) { return; }
+  if (userDictFile.isEmpty()) { return; }
   purgeUserDict();
 
   QFile file(userDictFile);
