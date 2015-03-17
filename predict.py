@@ -247,6 +247,7 @@ class Predict:
         self.guess_history_last = [ ]
         self.coef_score_predict = None
         self.last_use = 0
+        self.curve_learn_info_hist = [ ]
 
         self.mod_ts = time.ctime(os.stat(__file__).st_mtime)
 
@@ -546,6 +547,11 @@ class Predict:
             pass
 
         self.last_surrounding_text = text
+
+        if not curve_learn_info: return None
+        if curve_learn_info in self.curve_learn_info_hist: return None
+        self.curve_learn_info_hist = self.curve_learn_info_hist[-10:]
+        self.curve_learn_info_hist.append(curve_learn_info)
 
         return curve_learn_info
 
@@ -1075,7 +1081,7 @@ class Predict:
 
         self._commit_learn(commit_all = force_flush)
 
-        now = time.time()
+        now = int(time.time())
         for key in list(self.guess_history):
             if self.guess_history[key]["ts"] < now - 600: del self.guess_history[key]
 
@@ -1088,7 +1094,7 @@ class Predict:
             self.db.purge(self.cf("purge_min_count1", 3, float), current_day - self.cf("purge_min_date1", 30, int))
             self.db.purge(self.cf("purge_min_count2", 20, float), current_day - self.cf("purge_min_date2", 180, int))
 
-            self.db.set_param("last_purge", last_purge)
+            self.db.set_param("last_purge", now)
 
         # save learning info to database
         if self.db and len(self.learn_history) == 0 and self.db.dirty:
