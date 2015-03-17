@@ -137,6 +137,7 @@ void CurveThread::run() {
 
     if (inProgress.size() == 0 && last_activity.secsTo(now) >= (AUTO_UNLOAD_DELAY) && tre_loaded && ! started) {
       logdebug("unloading tree ...");
+      matcher->saveUserDict();
       matcher->loadTree(QString());
       tre_loaded = false;
     } else if (inProgress.size() > 0) {
@@ -200,6 +201,7 @@ void CurveThread::run() {
 	if (callback) { callback->call(matcher->getCandidates()); }
 
       } else if (point.x == CMD_QUIT) {
+	matcher->saveUserDict();
 	logdebug("thread exiting ...");
 	mutex.lock();
 	setIdle(true);

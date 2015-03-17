@@ -85,6 +85,8 @@ void LetterTree::dump(QString prefix, LetterNode node) {
 QPair<void*, int> LetterTree::getPayload(unsigned char *key) {
   LetterNode node = getRoot();
   while (*key) {
+    if (*key < 'a' || *key > 'z') { return QPair<void*, int>(NULL, 0); }
+
     bool found = false;
     LetterNode next_node;
     foreach (LetterNode child, node.getChilds()) {
@@ -125,6 +127,8 @@ void LetterTree::setPayload(unsigned char *key, void* value, int len) {
 int LetterTree::setPayloadRec(unsigned char *key, void* value, int len, int index) {
   bool end = (! *key);
   int start_index = index;
+
+  if ((! end) && (*key < 'a' || *key > 'z')) { return -1; }
 
   if (start_index != -1) {
     if (end) {

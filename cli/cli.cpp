@@ -22,6 +22,7 @@ static void usage(char *progname) {
   cout << progname << " [<options>] <tree file> <input json>" << endl;
   cout << progname << " -L <tree file> <letters key> <word>    add word to user dictionary" << endl;
   cout << progname << " -D <tree file>                         dump dictionary (incl. user's)" << endl;
+  cout << progname << " -G <tree file> <letters key>           get words for key" << endl;
   cout << "options:" << endl;
   cout << " -d : default parameters" << endl;
   cout << " -g : disable debug more" << endl;
