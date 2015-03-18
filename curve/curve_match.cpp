@@ -8,6 +8,7 @@
 #include <iostream>
 #include <math.h>
 #include <string.h>
+#include <stdio.h> // for rename()
 
 #include "functions.h"
 
@@ -2062,7 +2063,6 @@ bool CurveMatch::loadTree(QString fileName) {
   loaded = status;
   this -> treeFile = fileName;
   if (fileName.isEmpty()) {
-    saveUserDict(); // in case we had data to flush
     logdebug("loadtree(-): %d", status);
     this -> userDictFile = QString();
     loaded = false;
@@ -2528,6 +2528,9 @@ QString CurveMatch::resultToString(bool indent) {
 }
 
 void CurveMatch::learn(QString letters, QString word, bool init) {
+  DBG("CM-learn [%s]: %s (%d)", QSTRING2PCHAR(letters), QSTRING2PCHAR(word), (int) init);
+
+  if (letters.length() < 2 || word.length() < 2) { return; }
   if (! params.user_dict_learn) { return; }
   if (! loaded) { return; }
 
@@ -2537,7 +2540,10 @@ void CurveMatch::learn(QString letters, QString word, bool init) {
   }
 
   // get user dictionary
-  UserDictEntry entry = userDictionary[word]; // default-initialized if new
+  UserDictEntry entry;
+  if (userDictionary.contains(word)) {
+    entry = userDictionary[word];
+  }
 
   // get data from in-memory tree
   QPair<void*, int> pl = wordtree.getPayload(QSTRING2PUCHAR(letters));
@@ -2554,7 +2560,7 @@ void CurveMatch::learn(QString letters, QString word, bool init) {
       }
     }
     if (found) {
-      payload = QString(); // no update
+      payload = QString(); // don't update the tree
     } else {
       lst.append(payload_word);
       payload = lst.join(",");
@@ -2566,15 +2572,21 @@ void CurveMatch::learn(QString letters, QString word, bool init) {
   // update user dictionary (and in-memory tree)
   int now = (int) time(0);
   if (! payload.isEmpty()) {
-    if (! init) { DBG("Added new word: %s [%s]", QSTRING2PCHAR(word), QSTRING2PCHAR(letters)); }
+    if (! init) { logdebug("Learned new word: %s [%s]", QSTRING2PCHAR(word), QSTRING2PCHAR(letters)); }
     unsigned char *ptr = QSTRING2PUCHAR(payload);
-    wordtree.setPayload(QSTRING2PUCHAR(letters), ptr, strlen((char*) ptr) + 1);
+    int len = strlen((char*) ptr) + 1;
+    unsigned char pl_char[len];
+    memmove(pl_char, ptr, len);
+    wordtree.setPayload(QSTRING2PUCHAR(letters), pl_char, len);
+    DBG("CM-learn: update tree %s -> '%s' pl=[%s]", QSTRING2PCHAR(letters), QSTRING2PCHAR(word), pl_char);
   }
 
-  if (entry.count > 0 || ! payload.isEmpty()) {
+  if (! entry.letters.isEmpty() || ! payload.isEmpty()) {
     // if we've added the word to our memory tree or the word already exist in user dictionary
     userdict_dirty = true;
-    userDictionary[word] = UserDictEntry(letters, now, entry.count + (init?0.0:1.0));
+    float new_count = entry.count + (init?0.0:1.0);
+    userDictionary[word] = UserDictEntry(letters, now, new_count);
+    logdebug("CM-learn: update user dict '%s' new_count=%.2f", QSTRING2PCHAR(word), new_count);
   }
 
 }
@@ -2595,7 +2607,7 @@ void CurveMatch::loadUserDict() {
     line = in.readLine();
     QTextStream stream(&line);
     QString word, letters;
-    double count;
+    float count;
     int ts;
 
     stream >> word >> letters >> count >> ts;
@@ -2613,9 +2625,11 @@ void CurveMatch::loadUserDict() {
 void CurveMatch::saveUserDict() {
   if (! userdict_dirty) { return; }
   if (userDictFile.isEmpty()) { return; }
+  if (userDictionary.isEmpty()) { return; }
+
   purgeUserDict();
 
-  QFile file(userDictFile);
+  QFile file(userDictFile + ".tmp");
   if (! file.open(QIODevice::WriteOnly)) { return; }
 
   QTextStream out(&file);
@@ -2626,15 +2640,22 @@ void CurveMatch::saveUserDict() {
   while (i.hasNext()) {
     i.next();
     UserDictEntry entry = i.value();
-    if (! entry.expire(now)) {
-      out << i.key() << " " << entry.letters << " " << entry.count << " " << entry.ts  << endl;
+    QString word = i.key();
+    if (! entry.expire(now) && ! word.isEmpty() && ! entry.letters.isEmpty()) {
+      out << word << " " << entry.letters << " " << entry.count << " " << entry.ts << endl;
     }
   }
 
   file.close();
+  if (file.error()) { return; /* save failed */ }
+
+  // QT rename can't do an atomic file replacement
+  rename(QSTRING2PCHAR(userDictFile + ".tmp"), QSTRING2PCHAR(userDictFile));
+
+  userdict_dirty = false;
 }
 
-float UserDictEntry::score() {
+float UserDictEntry::score() const {
   return -ts; // we'll just do a simple LRU eviction for now
 }
 
@@ -2642,8 +2663,8 @@ bool UserDictEntry::expire(int /* current time not used yet */) {
   return false;
 }
 
-static int userDictLessThan(QPair<QString, UserDictEntry> &e1, QPair<QString, UserDictEntry> &e2) {
-  return e1.second.score() < e2.second.score();
+static int userDictLessThan(QPair<QString, float> &e1, QPair<QString, float> &e2) {
+  return e1.second < e2.second;
 }
 
 
@@ -2652,11 +2673,12 @@ void CurveMatch::purgeUserDict() {
 
   userdict_dirty = true;
 
-  QList<QPair<QString, UserDictEntry> > lst;
+  QList<QPair<QString, float> > lst;
   QHashIterator<QString, UserDictEntry> i(userDictionary);
   while (i.hasNext()) {
     i.next();
-    lst.append(QPair<QString, UserDictEntry>(i.key(), i.value()));
+    float score = i.value().score();
+    lst.append(QPair<QString, float>(i.key(), score));
   }
 
   qSort(lst.begin(), lst.end(), userDictLessThan);

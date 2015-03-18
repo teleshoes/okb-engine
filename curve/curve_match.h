@@ -229,15 +229,15 @@ typedef struct {
 /* user dictionary entry */
 class UserDictEntry {
  public:
-  UserDictEntry() : ts(0), count(0.0) {};
-  UserDictEntry(QString _l, int _t, double _c) : letters(_l), ts(_t), count(_c) { };
+  UserDictEntry() : letters(QString()), ts(0), count(0.0) {};
+  UserDictEntry(QString _l, int _t, float _c) : letters(_l), ts(_t), count(_c) { };
 
-  float score();
+  float score() const;
   bool expire(int now);
 
   QString letters;
   int ts;
-  double count;
+  float count;
 };
 
 /* main processing for curve matching */
