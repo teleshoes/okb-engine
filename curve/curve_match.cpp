@@ -4,6 +4,7 @@
 #include <QDateTime>
 #include <QElapsedTimer>
 #include <QTextStream>
+#include <QStringList>
 #include <cmath>
 #include <iostream>
 #include <math.h>
