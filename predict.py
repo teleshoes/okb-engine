@@ -809,15 +809,15 @@ class Predict:
         probas = detail["probas"]
         final_score = None
         scores = dict()
-        max_coef = max_proba = 0
+        max_coef = max_proba = max_name = 0
 
         for score_name, proba in probas.items():
             scores[score_name] = score1 = self.score_coef[score_name] * (math.log10(proba) + 8 if proba > 1E-8 else 0) / 8  # [0, 1]
             if not final_score or score1 > final_score:
                 final_score = score1
-                max_coef, max_proba = self.score_coef[score_name], proba
+                max_coef, max_proba, max_name = self.score_coef[score_name], proba, score_name
 
-        detail["result"] = dict(coef = max_coef, proba = max_proba)
+        detail["result"] = dict(coef = max_coef, proba = max_proba, name = max_name)
         return (final_score, scores)
 
     def _guess1(self, context, words, correlation_id = -1, verbose = False):
@@ -871,7 +871,7 @@ class Predict:
                 word, score,
                 words[word].score, words[word].cls,
                 "*" if words[word].star else " ",
-                coef_score_predict, score_predict, predict_detail)
+                coef_score_predict, score_predict, re.sub(r'(\d\.0*\d\d)\d+', lambda m: m.group(1), str(predict_detail)))
 
             new_words[word] = WordScore.copy(words[word])
             new_words[word].message = message

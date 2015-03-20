@@ -55,7 +55,7 @@ def run(words):
     for word in last_word_choices:
         score, details = result[word]
 
-        print("%15s :" % word, score, details)
+        print("%15s :" % word, score, re.sub(r'(\d\.0*\d\d)\d+', lambda m: m.group(1), str(details)))
 
         if "clusters" in details:
             for word1, cluster in reversed(list(zip(reversed(words + [word]), details["clusters"]))):
