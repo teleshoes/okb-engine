@@ -286,8 +286,18 @@ class Predict:
             self.db.close()
         self.db = None
 
+    def _dummy_request(self):
+        # run somme dummy request to avoid huge processing time for first request
+        words = [ self.db.get_word_by_id(id) for id in range(11, 30) ]
+        words = [ w for w in words if w ]
+        context = [ words.pop(0), words.pop(1) ]
+        words = dict([ (w, WordScore(0.8, 0, False)) for w in words ])
+        t0 = time.time()
+        self._guess1(context, words)
+        self.log("Running dummy request:", list(words.keys()), "(time=%d)" % int(1000 * (time.time() - t0)))
+
     def refresh_db(self):
-        # dummy loading to "wake-up" db indexes
+        # force DB (re-)loading for faster reads
         if self.db:
             self.log("DB refresh...")
             now = time.time()
@@ -309,6 +319,9 @@ class Predict:
         self.half_life = self.cf('learning_half_life', 30, int)
         self.coef_score_predict = self.cf("predict_coef", 1, float)
         self._init_score_coefs()
+
+        self._dummy_request()
+
         return True
 
     def save_db(self):
@@ -453,6 +466,12 @@ class Predict:
             else:
                 self.learn_history.pop(key, None)
 
+    def _word2letters(self, word):
+        letters = ''.join(c for c in unicodedata.normalize('NFD', word.lower()) if unicodedata.category(c) != 'Mn')
+        letters = re.sub(r'[^a-z]', '', letters.lower())
+        letters = re.sub(r'(.)\1+', lambda m: m.group(1), letters)
+        return letters
+
     def _get_curve_learn_info(self, word, first_word):
         """ generate information for curve matching to add a new word into user
             dictionary (or at least update statistics) """
@@ -462,9 +481,7 @@ class Predict:
             word = word.lower()
 
         # compute letter list (for curve matching plugin) - just copy-paste (ahem) from loadkb.py
-        letters = ''.join(c for c in unicodedata.normalize('NFD', word.lower()) if unicodedata.category(c) != 'Mn')
-        letters = re.sub(r'[^a-z]', '', letters.lower())
-        letters = re.sub(r'(.)\1+', lambda m: m.group(1), letters)
+        letters = self._word2letters(word)
 
         return (letters, word)
 
