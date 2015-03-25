@@ -89,7 +89,10 @@ predict-%.db: clusters-%.txt grams-%-learn.csv.bz2 lang-%.cf db.version
 
 	set -o pipefail ; lbzip2 -d < grams-$(lang)-learn.csv.bz2 \
 	 | $(TOOLS_DIR)/clusterize.py -l $(depth) -w $(wgrams) -c $(cgrams) clusters-$(lang).txt \
+	 | tee predict-$(lang).txt \
 	 | $(TOOLS_DIR)/load_cdb_fslm.py predict-$(lang)-tmp.db
+
+	lbzip2 -9fv predict-$(lang).txt
 
 	$(TOOLS_DIR)/db_param.py predict-$(lang)-tmp.db version $(shell cat db.version)
 	mv -f predict-$(lang)-tmp.db $@
