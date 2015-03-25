@@ -26,9 +26,9 @@ clusterfile = args[0]
 
 max_word = max_cluster = max_depth = None
 for o, a in opts:
-    if o == "-c":
+    if o == "-w":
         max_word = int(a)
-    elif o == "-w":
+    elif o == "-c":
         max_cluster = int(a)
     elif o == "-l":
         max_depth = int(a)
