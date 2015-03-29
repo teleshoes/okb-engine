@@ -1,6 +1,6 @@
 Name:       okb-engine
 Summary:    OKboard engine
-Version:    0.4.2
+Version:    0.4.9
 Release:    1
 Group:      System/GUI/Other
 License:    LGPLv2.1
