@@ -11,6 +11,7 @@ import getopt
 import pickle
 import gen_curve
 import json
+import re
 
 mydir = os.path.dirname(os.path.abspath(__file__))
 libdir = os.path.join(mydir, '..')
@@ -48,15 +49,20 @@ for o, a in opts:
         print("Bad option: %s" % o)
         exit(1)
 
-cache_dir = "/tmp/e2e-cache-%d-%d" % (error, curviness)
+cache_home = "/tmp/e2e-cache"
+cache_dir = os.path.join(cache_home, "%d-%d" % (error, curviness))
+if not os.path.isdir(cache_home): os.mkdir(cache_home)
 if not os.path.isdir(cache_dir): os.mkdir(cache_dir)
-
 
 # read n-grams from stdin
 wordcount = dict()
 grams = []
 curves = dict()
+l = 0
 for line in sys.stdin.readlines():
+    l += 1
+    if l % 5000 == 0: sys.stderr.write("%d (%d)\n" % (l, len(grams)))
+
     line = line.strip()
     if not line: continue
 
@@ -86,7 +92,6 @@ for line in sys.stdin.readlines():
         continue
 
     grams.append([count, w1, w2, w3])
-
 
     # try cache
     cache_file = os.path.join(cache_dir, letters)
@@ -128,6 +133,8 @@ db_file = os.path.join(mydir, "../db/predict-%s.db" % lang)
 p.set_dbfile(db_file)
 p.load_db()
 
+sys.stderr.write("N-grams count: %d\n" % len(grams))
+
 wc = 0
 for (count, w1, w2, w3) in grams:
     last = [w1, w2]
@@ -152,16 +159,24 @@ for (count, w1, w2, w3) in grams:
         candidates = curves[letters][i]
         if len(candidates) <= 1: continue  # these will always be right
 
-        scores = p._get_all_predict_scores([c["word"] for c in candidates])
+        scores = p._get_all_predict_scores([c["word"] for c in candidates], p.last_words)
 
         wc += 1
         for candidate in candidates:
             predict_score = scores.get(candidate["word"], None)
 
             if predict_score:
-                predict_score = predict_score[1].get("scores", None)
-            if predict_score:
-                predict_score = ' '.join("%s=%s" % (n, s) for n, s in predict_score.items())
+                ps = predict_score[1]
+                predict_score = dict()
+                for k, v in ps.items():
+                    if type(v) is dict:
+                        for k1, v1 in v.items():
+                            predict_score["%s-%s" % (k, k1)] = v1
+                    elif type(v) is list:
+                        predict_score[k] = ",".join([ str(x) for x in v ])
+                    else:
+                        predict_score[k] = re.sub(r'\s+', '~', str(v))
+                predict_score = ' '.join([ "%s=%s" % (k, v) for k, v in sorted(predict_score.items()) ])
 
             print("%s;%d;%s;%s;%.2f;%s;%s;%s" % (testid, n,
                                                  1 if candidate["word"] == w3 else 0,
