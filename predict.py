@@ -811,7 +811,14 @@ class Predict:
         # evaluate score for all words
         return self._filter_final_score(result, score_count)
 
+    def _filter_func(self, delta_proba_log):
+        x = delta_proba_log
+        
+        # Old formula: y = math.pow(x, 4) / (3 + math.pow(x, 3)) / (0.2 + x / 4)
 
+        y = math.pow((1 - math.cos(math.pi * min(x, 4) / 4)) / 2, 2)  # this one is prettier
+        return y
+        
     def _filter_final_score(self, details, score_count):
         flt_max = self.cf('filter_max', .2, float)
         flt_coef = self.cf('filter_coef', .15, float)
@@ -846,7 +853,10 @@ class Predict:
                 proba = details[word]["filter"]["proba"]
                 if proba:
                     x = math.log10(max_proba / proba)
-                    final_score = flt_max - flt_coef * math.pow(x, 4) / (3 + math.pow(x, 3)) / (0.2 + x / 4)
+                    y = self._filter_func(x)
+                    final_score = flt_max - flt_coef * y
+                    details[word]["filter"]["x"] = x
+                    details[word]["filter"]["y"] = y
 
             result[word] = (final_score, details[word])
 
