@@ -318,7 +318,6 @@ class Predict:
 
         self.half_life = self.cf('learning_half_life', 30, int)
         self.coef_score_predict = self.cf("predict_coef", 1, float)
-        self._init_score_coefs()
 
         self._dummy_request()
 
@@ -570,7 +569,7 @@ class Predict:
         self.curve_learn_info_hist = self.curve_learn_info_hist[-10:]
         self.curve_learn_info_hist.append(curve_learn_info)
 
-        return curve_learn_info
+        return curve_learn_info  # return words seen (this allows to learn new words in curve engine)
 
     def replace_word(self, old, new, context = None):
         """ inform prediction engine that a guessed word has been replaced by the user """
@@ -690,7 +689,7 @@ class Predict:
         ids_list = set(["-2:-1:-1"])
         word2cid = dict()
         for word in words:
-            result[word] = (0, dict())
+            result[word] = dict()
             if word not in word2id:  # unknown word -> dummy scoring
                 continue
             wid, cid = word2id[word].id, word2id[word].cluster_id
@@ -722,9 +721,11 @@ class Predict:
         learning_count = self.cf('learning_count', 10000, int)
         learning_count_min = self.cf('learning_count_min', 10, int)
 
+        score_count = dict()
+
         # evaluate score components
         for word in todo:
-            detail = dict(scores = dict(), probas = dict())
+            detail = dict(probas = dict(), filter = dict())
 
             if word in word2cid:
                 detail["clusters"] = [ word2cid[word] ] + last_cids[0:2]
@@ -792,50 +793,64 @@ class Predict:
                                         c, coef_user, stock_proba, proba))
 
                     else:
-                        proba = user_count * user_count / (user_count + user_replace) / total_user_count
+                        proba = user_count * user_count / (user_count + user_replace) / total_user_count  # @TODO user_count - user_replace ?
                         detail_txt += "user=[%d-%d/%d] (no stock)" % (user_count, user_replace, total_user_count)
-
 
                 else:
                     # only use stock information
                     proba = stock_proba
 
+                if score_name not in score_count: score_count[score_name] = 0
+                score_count[score_name] += user_count + stock_count
+
                 detail["probas"][score_name] = proba
                 detail[score_name] = detail_txt
 
-                # @todo learning stuff here :-)
+            result[word] = detail
 
-            final_score, all_scores = self._final_score(detail)
+        # evaluate score for all words
+        return self._filter_final_score(result, score_count)
 
-            if final_score:
-                detail["scores"] = all_scores
-                result[word] = (final_score, detail)
-                # only for logging
+
+    def _filter_final_score(self, details, score_count):
+        flt_max = self.cf('filter_max', .2, float)
+        flt_coef = self.cf('filter_coef', .15, float)
+        flt_min_count = self.cf('filter_min_count', 25, int)
+
+        all_scores = ("s3", "c3", "s2", "c2", "s1")
+
+        # compute score coefficient: usually it only the most significant score, but we may add other in case of low occurences count
+        total_coef = 0
+        score_coef = dict()
+        for sc in all_scores:
+            score_coef[sc] = min(1.0, float(score_count.get(sc, 0)) / flt_min_count)
+            total_coef += score_coef[sc]
+            if score_coef[sc] == 1: break  # no backoff
+
+        if not total_coef: total_coef = 1  # avoid division by zero (and result won't matter anyway)
+
+        # evaluate score
+        result = dict()
+        max_proba = 0
+        for word in details:
+            if not details[word]: continue
+            proba = 0
+            for sc in all_scores:
+                proba += details[word]["probas"].get(sc, 0) * score_coef.get(sc, 0) / total_coef
+            max_proba = max(max_proba, proba)
+            details[word]["filter"] = dict(proba = proba, coef = score_coef)
+
+        for word in details:
+            final_score = 0
+            if details[word]:
+                proba = details[word]["filter"]["proba"]
+                if proba:
+                    x = math.log10(max_proba / proba)
+                    final_score = flt_max - flt_coef * math.pow(x, 4) / (3 + math.pow(x, 3)) / (0.2 + x / 4)
+
+            result[word] = (final_score, details[word])
 
         return result
-
-
-    def _init_score_coefs(self):
-        # initialize score coefficients
-        score_parts = dict(s3 = 0.8, c3 = 0.4, s2 = 0.3, c2 = 0.03, s1 = 0.2)  # default values, per language override can be set in DB parameters
-        self.score_coef = dict()
-        for part, default_coef in score_parts.items():
-            self.score_coef[part] = self.db.get_param("coef_predict_%s" % part, default_coef, float)
-
-    def _final_score(self, detail):
-        probas = detail["probas"]
-        final_score = None
-        scores = dict()
-        max_coef = max_proba = max_name = 0
-
-        for score_name, proba in probas.items():
-            scores[score_name] = score1 = self.score_coef[score_name] * (math.log10(proba) + 8 if proba > 1E-8 else 0) / 8  # [0, 1]
-            if not final_score or score1 > final_score:
-                final_score = score1
-                max_coef, max_proba, max_name = self.score_coef[score_name], proba, score_name
-
-        detail["result"] = dict(coef = max_coef, proba = max_proba, name = max_name)
-        return (final_score, scores)
 
     def _guess1(self, context, words, correlation_id = -1, verbose = False):
         """ internal method : prediction engine entry point (stateless)
@@ -973,6 +988,8 @@ class Predict:
             and to check if modifications are still valid (in the meantime user
             may have invalidated the new guess) """
 
+        return # broken by agregation formula change :-( ... @todo repair
+
         if not self.db: return
         if not self.cf("backtrack_enable", 1, int): return
 
@@ -989,8 +1006,8 @@ class Predict:
 
         if os.getenv("BT_DUMMY", None):
             # return dummy values (just for GUI part testing)
-            self._learn(False, h0["guess"], h0["context"]);
-            self._learn(False, h1["guess"], h1["context"]);
+            self._learn(False, h0["guess"], h0["context"])
+            self._learn(False, h1["guess"], h1["context"])
             return ("foo", "bar", h0["context"][0], h0["guess"], correlation_id, h1["context"] and h1["context"][0] == '#START')
 
         list_lower = lambda x: [ w.lower() for w in x ]
@@ -1084,8 +1101,8 @@ class Predict:
         if not found: return
 
         # update learning info (as backtracking is intended to be very rare, just unlearn the two guessed words)
-        self._learn(False, h0["guess"], h0["context"]);
-        self._learn(False, h1["guess"], h1["context"]);
+        self._learn(False, h0["guess"], h0["context"])
+        self._learn(False, h1["guess"], h1["context"])
 
         # return value: new word1, new word2, expected word1 (capitalized), expected word2 (capitalized), correlation_id, capitalize 1st word (bool)
         return (found[1], found[0], h0["context"][0], h0["guess"], correlation_id, h1["context"] and h1["context"][0] == '#START')
