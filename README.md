@@ -21,13 +21,10 @@ _TODO_
 
 Limitations
 -----------
-* Current implementation does not support learning new words.
-  As a result it is shipped with very large dictionnaries and prediction datatases
-  (E.g.: French DB has > 100k words and the prediction engine runs on the 60k most used words)
-  This is a limitation of the gesture engine.
 * Prediction engine is "home made" instead of using of using off-the-shelf tools (e.g. Presage)
   At the moment, our implementation is far more advanced than Presage (clustering support, space/performance optimizations ...), and i don't know about any alternative, so this is not likely to change soon
 * Only gestures over letters (A-Z) are understood. E.g. you can't swipe over the "c-cedilla" key with French keyboard (I noticed this key existed very late during development)
+* There is no "user hints" to indicate word features such as double letters, accents, compound words
 
 How to build
 ------------
@@ -41,7 +38,7 @@ You can generate them by yourself (see section below), or extract them from exis
 How to create new language files / add new languages
 ----------------------------------------------------
 Language files include:
-* `$LANG.tre`: read-only (at the moment) dictionary file (stored as compact tree for space & performance issues)
+* `$LANG.tre`: read-only dictionary file (stored as compact tree for space & performance reasons)
 * `predict-$LANG.ng`: read-only file for storing stock n-grams in a highly efficient way (read `ngrams/fslm.c` for documentation and references)
 * `predict-$LANG.db`: read-write database (this is just an ugly & dumb c-struct in a file, but it is way smaller and faster than a sqlite database (as previously done)
 
@@ -114,6 +111,7 @@ TODO
 * mmap all data files (our larger language is now 6MB so it may not matter)
 
 ### Middle term
+* Implement two-hand swiping (like Keymonk or Nintype): This is probably useful for landscape mode or new tablet
 * Refactoring: Having separate gesture engine (C++ plugin with internal threading) and Python prediction engine makes some features very difficult to implement (e.g. learning new words)
   This would avoid unnecessary data & code duplication, and inefficient communication (python <-> QML <-> C++)
 * Add Xt9 replacement: this would enable us to completely fork from Jolla keyboard. This would require to improve the prediction engine to handle partially typed words (and above refactoring is also a pre-requisite)
@@ -123,7 +121,9 @@ TODO
   compound words separators (apostrophe, hyphen), capitalization. These should all stay optional.
 * [PARTLY DONE] Better error management (fail gracefully in case of disk full, database corrupted, etc.) 
 * [STARTED but very crude] Auto-tune coefficients between curve matching and word prediction to adapt to user style (may be based on speed or error count). Maybe do the same with some parameters (.cf file)
-* Better handling of compound words (i.e. containing hyphens or apostrophs). They should be handled as one word or a sequence of words. Store go-between characters as n-grams attributes
+* Better handling of compound words (i.e. containing hyphens or apostrophs). They should be handled as a sequence of words in the prediction engine. Maybe store go-between characters as n-grams attributes
+  Today they are considered as single words, so some of them are rare in the learning corpus and so are difficult to input. Optionally the one-word approach could be kept for high count n-grams.
+  No change to be done to curve matching part, we need to be able to type these words as a single swipe.
 * [DONE but could be more user friendly] Tools for easily adding and packaging new languages
 * Automatic non-regression tests for all the word prediction part and language file generation
 * Tool for collecting user data (learning data, logs) ... with user permission.
@@ -135,12 +135,19 @@ TODO
 * Support different screen sizes and resolutions - this should allow landscape mode or usage on tablet
 * [DONE] Compact read/write storage for word prediction database (sqlite replacement), for speed & size
 * All threading should be rewritten in the QT way (see pyotherside source code) instead of home made and error-prone threads plumbing
-* Add new languages [easy now it's mostly automated, we only need good quality text corpus]
+* Add new languages [easy: now it's mostly automated, we only need good quality text corpus, and some manual tuning]
 * Large scale testing campaign with lot of users to collect information on different user styles (and improve test cases)
 
 ### Long term / research projects
+* Use semantic context for improving prediction. LSA (Latent Semantic Analysis) may be a good candidate, cf. this excellent paper: "Adaptive word prediction and its application in an assistive communication system" (Tonio Wandmacher) http://d-nb.info/993235727/34 (but matrix calculations may require too much CPU time on device). Also other solutions are described in this paper: "Unsupervised Methods for Language Modeling" (Tomáš Brychcín) http://www.kiv.zcu.cz/site/documents/verejne/vyzkum/publikace/technicke-zpravy/2012/tr-2012-03.pdf
+* Explore other tricks found in above paper: coefficient optimization
+* Variable length N-grams, at least for clusters: Existing research on POS (Part of Speech) can probably be reused (this is the same problem: we are just using automatically found clusters instead of manually tagged words). Exemple: Evaluate all N-grams, but don't go deeper when results converge -> a simple simulation could give us the required N-grams count
+* Use machine learning algorithms - this will require a larger set of good quality test cases for learning (current generated test cases are not an option, so this will happen after release)
+   - curve matching: building the first version gave us indications on what feature could be used (e.g. existing scores and checks): This can be seen as a pair-wise ranking problem or classification problem (try both)
+   - aggregation between gesture score and prediction engine scores: also a ranking problem
 * Support for non-latin languages
 * API to load/unload/select context & DB (dictionary & prediction DB) --> e.g. using keyboard for specialized uses (on-device development ...)
 * Improve word prediction: use real smoothing and backoff (instead of current constant linear interpolation hack)
 * [as incredible as it sounds ... DONE] Improve word prediction: use word classes / groups / tags to increase result for low count N-grams. An automatic classifier would allow to easily add new languages, as existing tag databases are very sparse
 * Use grammar rules to improve word prediction (I definitely won't code this)
+* Handle compound words without separation signs (needed for German, but maybe it's a bad candidate for this kind of input method)
