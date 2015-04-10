@@ -32,7 +32,7 @@ See okboard package README file for documentation about building everything at o
 
 An RPM .spec file is included for packaging engine and language files.
 
-Language files source is not included in source code distribution and must be placed under db/ sub-directory:
+Language files source is not included in source code distribution and must be placed in db/ sub-directory (under okb-engine source directory).
 You can generate them by yourself (see section below), or extract them from existing RPMs.
 
 How to create new language files / add new languages
