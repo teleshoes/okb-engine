@@ -27,6 +27,8 @@ fi
 cd `dirname "$0"`
 mydir=`pwd`
 
+. $mydir/../tools/env.sh
+
 cp -vauf $mydir/lang-*.cf $mydir/db.version $WORK_DIR/
 
 cd $WORK_DIR

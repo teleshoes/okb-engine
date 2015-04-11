@@ -248,6 +248,7 @@ class Predict:
         self.coef_score_predict = None
         self.last_use = 0
         self.curve_learn_info_hist = [ ]
+        self.corpus_size = None
 
         self.mod_ts = time.ctime(os.stat(__file__).st_mtime)
 
@@ -294,7 +295,6 @@ class Predict:
         words = dict([ (w, WordScore(0.8, 0, False)) for w in words ])
         t0 = time.time()
         self._guess1(context, words)
-        self.log("Running dummy request:", list(words.keys()), "(time=%d)" % int(1000 * (time.time() - t0)))
 
     def refresh_db(self):
         # force DB (re-)loading for faster reads
@@ -319,6 +319,7 @@ class Predict:
         self.half_life = self.cf('learning_half_life', 30, int)
         self.coef_score_predict = self.cf("predict_coef", 1, float)
 
+        self.corpus_size = self.db.get_grams(["-2:-1:-1"])["-2:-1:-1"][0]  # grand total #NA:#NA:#TOTAL
         self._dummy_request()
 
         return True
@@ -813,50 +814,72 @@ class Predict:
 
     def _filter_func(self, delta_proba_log):
         x = delta_proba_log
-        
+
         # Old formula: y = math.pow(x, 4) / (3 + math.pow(x, 3)) / (0.2 + x / 4)
 
         y = math.pow((1 - math.cos(math.pi * min(x, 4) / 4)) / 2, 2)  # this one is prettier
         return y
-        
+
     def _filter_final_score(self, details, score_count):
-        flt_max = self.cf('filter_max', .2, float)
-        flt_coef = self.cf('filter_coef', .15, float)
-        flt_min_count = self.cf('filter_min_count', 25, int)
+        flt_max = self.cf('filter_max', .4, float)
+        flt_coef = self.cf('filter_coef', .3, float)
+        flt_min_count = self.cf('filter_min_count', 25, int)  # @todo this is highly dependent on corpus size, so it should not be a fixed parameter
 
         all_scores = ("s3", "c3", "s2", "c2", "s1")
 
-        # compute score coefficient: usually it only the most significant score, but we may add other in case of low occurences count
-        total_coef = 0
-        score_coef = dict()
-        for sc in all_scores:
-            score_coef[sc] = min(1.0, float(score_count.get(sc, 0)) / flt_min_count)
-            total_coef += score_coef[sc]
-            if score_coef[sc] == 1: break  # no backoff
+        # find which scores are relevant in the current context
+        cluster_score_id = word_score_id = None
 
-        if not total_coef: total_coef = 1  # avoid division by zero (and result won't matter anyway)
+        for sc in all_scores:
+            count = float(score_count.get(sc, 0))
+            if count > flt_min_count:
+                if sc.startswith("c"):
+                    if not cluster_score_id: cluster_score_id = sc
+                else:
+                    if not word_score_id: word_score_id = sc
+
+        sc1, sc2 = word_score_id, None
+
+        if cluster_score_id and word_score_id:
+            if int(word_score_id[-1:]) < int(cluster_score_id[-1:]): sc1, sc2 = cluster_score_id, word_score_id
+
+        if not sc1: sc1 = cluster_score_id or "s1"
 
         # evaluate score
         result = dict()
-        max_proba = 0
+        max_proba = max_proba2 = 0
         for word in details:
             if not details[word]: continue
-            proba = 0
-            for sc in all_scores:
-                proba += details[word]["probas"].get(sc, 0) * score_coef.get(sc, 0) / total_coef
+            proba = details[word]["probas"].get(sc1, 0)
             max_proba = max(max_proba, proba)
-            details[word]["filter"] = dict(proba = proba, coef = score_coef)
+            details[word]["filter"] = dict(proba = proba, coef = (sc1,sc2))
+
+            if sc2:
+                proba2 = details[word]["probas"].get(sc2, 0)
+                if proba2: details[word]["filter"]["proba2"] = proba2
+                max_proba2 = max(max_proba2, proba2)
+
+        if sc2: # prevent high cluster probability to bring very rare words
+            for word in details:
+                if not details[word]: continue
+                d = details[word]["filter"]
+                proba2 = d.get("proba2", 0)
+                if proba2 < max_proba2 / 100:
+                    d["proba_orig"] = d["proba"]
+                    d["proba"] *= 100 * proba2 / max_proba2
+
+            max_proba = max([ details[w]["filter"]["proba"] for w in details if details[w] ])
 
         for word in details:
             final_score = 0
-            if details[word]:
-                proba = details[word]["filter"]["proba"]
-                if proba:
-                    x = math.log10(max_proba / proba)
-                    y = self._filter_func(x)
-                    final_score = flt_max - flt_coef * y
-                    details[word]["filter"]["x"] = x
-                    details[word]["filter"]["y"] = y
+            if not details[word]: continue
+            proba = details[word]["filter"]["proba"]
+            if proba:
+                x = math.log10(max_proba / proba)
+                y = self._filter_func(x)
+                final_score = flt_max - flt_coef * y
+                details[word]["filter"]["x"] = x
+                details[word]["filter"]["y"] = y
 
             result[word] = (final_score, details[word])
 
@@ -878,7 +901,7 @@ class Predict:
 
         star_bonus = 0
         if max_star_index >= 0 and max_star_index <= self.cf('max_star_index', 8, int):
-            star_bonus = self.cf('star_bonus', 1.0, float) / (1 + max_star_index)
+            star_bonus = self.cf('star_bonus', 0.1, float)  # it's low enough, we don't need this: / (1 + max_star_index)
 
         no_new_word = (max_star_index > self.cf('max_star_index_new_word', 5, int))
 
@@ -998,8 +1021,6 @@ class Predict:
             and to check if modifications are still valid (in the meantime user
             may have invalidated the new guess) """
 
-        return # broken by agregation formula change :-( ... @todo repair
-
         if not self.db: return
         if not self.cf("backtrack_enable", 1, int): return
 
@@ -1033,21 +1054,14 @@ class Predict:
         def add_scores(ws1, ws0):
             if ws1 is None or ws0 is None: return -1.0, -1.0
 
-            coef1 = ws1.predict_detail["result"]["coef"] if "result" in ws1.predict_detail else 0
-            coef0 = ws0.predict_detail["result"]["coef"] if "result" in ws0.predict_detail else 0
-            new_coef = math.sqrt(coef1 * coef0)
-
-            if coef0 and coef1:
-                predict_score = new_coef * (ws1.score_predict / coef1 + ws0.score_predict / coef0)
-            else:
-                predict_score = ws1.score_predict + ws0.score_predict
+            predict_score = ws1.score_predict + ws0.score_predict
             score = ws1.score_no_predict + ws0.score_no_predict + self.coef_score_predict * predict_score
             return score, predict_score
 
         t0 = time.time()
 
         max_words = self.cf('max_words_backtrack', 10, int)
-        backtrack_score_threshold = self.cf('backtrack_score_threshold', 0.1, float)
+        backtrack_score_threshold = self.cf('backtrack_score_threshold', 0.05, float)
         backtrack_predict_threshold = self.cf('backtrack_predict_threshold', 0.1, float)
 
         words0, score0 = get_words_and_score(h0, max_words)
@@ -1064,8 +1078,7 @@ class Predict:
             if not w: w = h["guess"]
             if w in h["words"]:
                 sc = h["words"][w]
-                coef = sc.predict_detail["result"]["coef"] if "result" in sc.predict_detail else 0
-                return "%s(%.3f+%.3f=%.3f:%.2f)" % (w, sc.score_no_predict, self.coef_score_predict * sc.score_predict, sc.final_score, coef)
+                return "%s(%.3f+%.3f=%.3f)" % (w, sc.score_no_predict, self.coef_score_predict * sc.score_predict, sc.final_score)
             else:
                 return "%s(-)" % w
 

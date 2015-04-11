@@ -139,6 +139,7 @@ TODO
 * Large scale testing campaign with lot of users to collect information on different user styles (and improve test cases)
 
 ### Long term / research projects
+* Manually clean dictionary files (i probably don't need Enron guys name)
 * Use semantic context for improving prediction. LSA (Latent Semantic Analysis) may be a good candidate, cf. this excellent paper: "Adaptive word prediction and its application in an assistive communication system" (Tonio Wandmacher) http://d-nb.info/993235727/34 (but matrix calculations may require too much CPU time on device). Also other solutions are described in this paper: "Unsupervised Methods for Language Modeling" (Tomáš Brychcín) http://www.kiv.zcu.cz/site/documents/verejne/vyzkum/publikace/technicke-zpravy/2012/tr-2012-03.pdf
 * Explore other tricks found in above paper: coefficient optimization
 * Variable length N-grams, at least for clusters: Existing research on POS (Part of Speech) can probably be reused (this is the same problem: we are just using automatically found clusters instead of manually tagged words). Exemple: Evaluate all N-grams, but don't go deeper when results converge -> a simple simulation could give us the required N-grams count
