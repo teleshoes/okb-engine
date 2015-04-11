@@ -895,7 +895,6 @@ class Predict:
 
         # these settings are completely empirical (or just random guesses), and they probably depend on end user
         coef_score_upper = self.cf('score_upper', 0.01, float)
-        coef_score_sign = self.cf('score_sign', 0.01, float)
 
         max_star_index = max([x.cls for x in words.values()] + [ -1 ])
 
@@ -926,7 +925,6 @@ class Predict:
             score = words[word].score * (max_score ** max_score_pow) + coef_score_predict * score_predict
 
             if word[0].isupper(): score -= coef_score_upper
-            if word.find("'") > -1 or word.find("-") >  1: score -= coef_score_sign
 
 
             if words[word].star: score += star_bonus
