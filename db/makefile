@@ -98,3 +98,6 @@ predict-%.db: clusters-%.txt grams-%-learn.csv.bz2 lang-%.cf db.version
 	mv -f predict-$(lang)-tmp.db $@
 	mv -f predict-$(lang)-tmp.ng predict-$(lang).ng
 
+
+clean:
+	rm -f *.tmp* *-{learn,test}.txt.bz2 grams-*.csv.bz2 *.tre *.dict clusters-*.{txt,log} predict-*.{db,ng,txt.bz2} words-*.txt
