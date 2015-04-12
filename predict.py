@@ -9,6 +9,7 @@ import re
 import math
 import cfslm, cdb
 import unicodedata
+import pickle
 
 class Wordinfo:
     def __init__(self, id, cluster_id, real_word = None):
@@ -227,6 +228,28 @@ class WordScore:
         return WordScore(old.score, old.cls, old.star)
 
 
+class HistPercentile:
+    VERSION = 2
+    def __init__(self, percent = 0.02, size = 500):
+        self.values = []
+        self.high = self.low = 0
+        self.percent = percent
+        self.size = size
+
+    def normalize(self, value, sat = 0):
+        self.values.append(value)
+        if len(self.values) < 10: self.update()
+        if not self.high or self.high <= self.low: return 0.5
+        return min(1, max(0, (1 + 2 * sat) * (value - self.low) / (self.high - self.low) - sat))
+
+    def update(self):
+        self.values = self.values[-self.size:]
+        lst = sorted(self.values)
+        l = len(lst)
+        self.low = lst[int(l * self.percent)]
+        self.high = lst[int(l * (1 - self.percent))]
+
+
 class Predict:
     def __init__(self, tools = None, cfvalues = dict()):
         self.predict_list = [ ]
@@ -245,12 +268,16 @@ class Predict:
         self.mock_time = None
         self.guess_history = dict()
         self.guess_history_last = [ ]
-        self.coef_score_predict = None
+        self.coef_score_predict = [ None, None ]
         self.last_use = 0
         self.curve_learn_info_hist = [ ]
         self.corpus_size = None
 
         self.mod_ts = time.ctime(os.stat(__file__).st_mtime)
+
+        self._score_hist = HistPercentile()
+        self._speed_hist = HistPercentile()
+        self.hist_file = None
 
     def _mock_time(self, time):
         self.mock_time = time
@@ -317,7 +344,8 @@ class Predict:
         self.refresh_db()
 
         self.half_life = self.cf('learning_half_life', 30, int)
-        self.coef_score_predict = self.cf("predict_coef", 1, float)
+        self.coef_score_predict[0] = self.cf("predict_coef_low", 0.4, float)
+        self.coef_score_predict[1] = self.cf("predict_coef_high", 0.15, float)
 
         self.corpus_size = self.db.get_grams(["-2:-1:-1"])["-2:-1:-1"][0]  # grand total #NA:#NA:#TOTAL
         self._dummy_request()
@@ -604,13 +632,21 @@ class Predict:
                 decrease = True
 
             if increase != decrease:
-                name, sign = ("increase", 1) if increase else ("decrease", -1)
-                self.coef_score_predict += sign * self.cf("score_predict_tune_increment", 0.005, float)
-                self.coef_score_predict = max(0.2, min(5, self.coef_score_predict))
-                self.log("Replacement [%s -> %s] - Predict coef %s, new value: %.3f" %
-                         (old, new, name, self.coef_score_predict))
+                quality_index = infoguess.quality_index
 
-                self.db.set_param("predict_coef", self.coef_score_predict)
+                name, sign = ("increase", 1) if increase else ("decrease", -1)
+
+                c = 1 - quality_index
+                for i in [0, 1]:
+                    old_value = self.coef_score_predict[i]
+                    self.coef_score_predict[i] += c * sign * self.cf("score_predict_tune_increment", 0.005, float)
+                    self.coef_score_predict[i] = max(0.2, min(5, self.coef_score_predict[i]))
+                    self.log("Replacement [%s -> %s] - Predict coef %s, value: %.3f -> %.3f" %
+                             (old, new, name, old_value, self.coef_score_predict[i]))
+                    c = 1 - c
+
+                self.db.set_param("predict_coef_low", self.coef_score_predict[0])
+                self.db.set_param("predict_coef_high", self.coef_score_predict[1])
 
 
     def get_predict_words(self):
@@ -796,13 +832,12 @@ class Predict:
 
                     age = current_day - last_time
                     coef_age = math.exp(-0.7 * age / float(self.half_life))
+                    real_user_count = user_count * user_count / (user_replace + user_count)
 
                     if (user_count + user_replace) * coef_age < 0.5 or context_key not in context_count:
                         proba = stock_proba  # forget this word in this context
 
                     elif total_stock_count:
-                        real_user_count = user_count * user_count / (user_replace + user_count)
-
                         target_count = context_count[context_key].avg
 
                         coef = 10 ** min(0, math.log10(total_user_count) - learning_curve)
@@ -850,8 +885,8 @@ class Predict:
         return y
 
     def _filter_final_score(self, details, score_count):
-        flt_max = self.cf('filter_max', .4, float)
-        flt_coef = self.cf('filter_coef', .3, float)
+        flt_max = self.cf('filter_max', 1, float)  # now our scores are in the [0, 1] range and their weight is controlled by ZZZ coef_score_predict parameters
+        flt_coef = self.cf('filter_coef', .75, float)
         flt_min_count = self.cf('filter_min_count', 25, int)  # @todo this is highly dependent on corpus size, so it should not be a fixed parameter
         flt_word_max_ratio = self.cf('filter_word_max_ratio', 100, float)
 
@@ -915,7 +950,7 @@ class Predict:
 
         return result
 
-    def _guess1(self, context, words, correlation_id = -1, verbose = False):
+    def _guess1(self, context, words, correlation_id = -1, verbose = False, quality_index = 0.5):
         """ internal method : prediction engine entry point (stateless)
             input : dictionary: word => WordScore
             output : dictionary: word => WordScore w/ additional attributes
@@ -949,7 +984,7 @@ class Predict:
         new_words = dict()
         for word in all_words:
             score_predict, predict_detail = all_predict_scores.get(word, (0, dict()))
-            coef_score_predict = self.coef_score_predict
+            coef_score_predict = self.coef_score_predict[0] * (1 - quality_index) + self.coef_score_predict[1] * quality_index
 
             # overall score
             score = words[word].score * (max_score ** max_score_pow) + coef_score_predict * score_predict
@@ -974,8 +1009,42 @@ class Predict:
             new_words[word].coef_score_predict = coef_score_predict
             new_words[word].score_no_predict = score - coef_score_predict * score_predict
             new_words[word].predict_detail = predict_detail
+            new_words[word].quality_index = quality_index
 
         return new_words
+
+
+    def _quality_index_update(self):
+        self._speed_hist.update()
+        self._score_hist.update()
+
+    def _quality_index(self, max_score, speed):
+        if not max_score: return 0.5, "fallback"
+        if not self.hist_file and self.dbfile:
+            self.hist_file = os.path.join(os.path.dirname(self.dbfile), "hist.pck")
+            self._quality_index_load(self.hist_file)
+
+        i_speed = 1 - self._speed_hist.normalize(speed)
+        i_score = self._score_hist.normalize(max_score)
+        self._hist_dirty = True
+
+        value = min(1, max(0, 1.6 * (i_speed + i_score) / 2 - .3))
+        return value, "sp=%.2f+sc=%.2f->%.2f" % (i_speed, i_score, value)
+
+    def _quality_index_load(self, fname):
+        try:
+            with open(fname, "rb") as f:
+                (h1, h2, version) = pickle.load(f)
+                if version == HistPercentile.VERSION:
+                    (self._speed_hist, self._score_hist) = (h1, h2)
+            self._hist_dirty = False
+        except: pass # no problem
+
+    def _quality_index_save(self, fname):
+        if self._hist_dirty:
+            with open(fname, "wb") as f:
+                pickle.dump((self._speed_hist, self._score_hist, HistPercentile.VERSION), f, pickle.HIGHEST_PROTOCOL)
+            self._hist_dirty = False
 
     def guess(self, matches, correlation_id = -1, speed = -1):
         """ main entry point for predictive guess """
@@ -994,8 +1063,11 @@ class Predict:
                 words[word] = WordScore(x[1], x[2], x[3])  # score, class, star
                 display_matches.append((word, words[word]))
 
-        self.log("ID: %d - Speed: %d - Context: %s - Matches: %s" %
-                 (correlation_id, speed,  self.last_words,
+        max_score = max( [ words[w].score for w in words ] ) if words else 0
+        quality_index, quality_detail = self._quality_index(max_score, speed)
+
+        self.log("ID: %d - Speed: %d - Context: %s - Quality: {%s} - Matches: %s" %
+                 (correlation_id, speed,  self.last_words, quality_detail,
                   ','.join("%s[%s]" % x for x in reversed(display_matches))))
 
         if not words: return
@@ -1008,7 +1080,7 @@ class Predict:
 
         self.db.clear_stats()
 
-        words = self._guess1(self.last_words, words, correlation_id)
+        words = self._guess1(self.last_words, words, correlation_id = correlation_id, quality_index = quality_index)
 
         lst = list(words.keys())
         lst.sort(key = lambda w: words[w].final_score, reverse = True)
@@ -1017,7 +1089,7 @@ class Predict:
         for w in lst:
             i += 1
             if i > 2 and not words[w].score_predict: continue
-            self.log(words[w].message)
+            self.log("- " + words[w].message)
 
         self.predict_list = lst[0:self.cf('max_predict', 30, int)]
 
@@ -1087,7 +1159,7 @@ class Predict:
             if ws1 is None or ws0 is None: return -1.0, -1.0
 
             predict_score = ws1.score_predict + ws0.score_predict
-            score = ws1.score_no_predict + ws0.score_no_predict + self.coef_score_predict * predict_score
+            score = ws1.score_no_predict + ws0.score_no_predict + ((ws0.coef_score_predict + ws1.coef_score_predict) / 2) * predict_score
             return score, predict_score
 
         t0 = time.time()
@@ -1110,7 +1182,7 @@ class Predict:
             if not w: w = h["guess"]
             if w in h["words"]:
                 sc = h["words"][w]
-                return "%s(%.3f+%.3f=%.3f)" % (w, sc.score_no_predict, self.coef_score_predict * sc.score_predict, sc.final_score)
+                return "%s(%.3f+%.3f=%.3f)" % (w, sc.score_no_predict, sc.coef_score_predict * sc.score_predict, sc.final_score)
             else:
                 return "%s(-)" % w
 
@@ -1194,7 +1266,13 @@ class Predict:
         #    self.log("Unloading in memory DB ...")
         #    self.db.clear()
 
-        return len(self.learn_history) > 0  # or self.db.loaded  # ask to be called again later
+        # quality metrics
+        self._quality_index_update()
+
+        call_me_back = (len(self.learn_history) > 0)  # or self.db.loaded  # ask to be called again later
+        if not call_me_back: self._quality_index_save(self.hist_file)
+
+        return call_me_back
 
     def close(self):
         """ Close all resources & flush data """
