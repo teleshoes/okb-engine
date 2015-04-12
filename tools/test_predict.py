@@ -10,17 +10,19 @@ sys.path.insert(0, libdir)
 
 import predict
 
-learn = False
+learn = replace = False
 lang = "en"
 db_file = None
 all = False
 
-opts, args =  getopt.getopt(sys.argv[1:], 'sl:d:a')
+opts, args =  getopt.getopt(sys.argv[1:], 'sl:d:ar')
 for o, a in opts:
     if o == "-l":
         lang = a
     elif o == "-s":
         learn = True
+    elif o == '-r':
+        replace = learn = True
     elif o == "-d":
         db_file = a
     elif o == "-a":
@@ -53,7 +55,7 @@ def run(words):
     result = p._get_all_predict_scores(last_word_choices, p.last_words)
 
     for word in last_word_choices:
-        score, details = result[word]
+        score, details = result[word] if word in result else 0,dict()
 
         print("%15s :" % word, score, re.sub(r'(\d\.0*\d\d)\d+', lambda m: m.group(1), str(details)))
 
@@ -61,7 +63,10 @@ def run(words):
             for word1, cluster in reversed(list(zip(reversed(words + [word]), details["clusters"]))):
                 print(word1, p.db.get_cluster_by_id(cluster))
 
-    if learn:
+    if replace:
+        if len(last_word_choices) < 2: raise Exception("You need at leart 2 words choices (use '+' separator)")
+        p.replace_word(last_word_choices[1], last_word_choices[0], p.last_words)
+    elif learn:
         p._learn(True, last_word_choices[0], p.last_words)  # learn first word if multiple choices
 
     print()
@@ -103,6 +108,7 @@ else:
             words.append(word)
             run(words)
 
-if learn:
+if learn or replace:
+    print("Learn history:", p.learn_history)
     p._commit_learn(commit_all = True)
     p.save_db()

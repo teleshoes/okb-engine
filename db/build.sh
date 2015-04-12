@@ -36,4 +36,4 @@ for target in $add_tgt depend all ; do
     make -j -f $mydir/makefile CORPUS_DIR=${CORPUS_DIR} TOOLS_DIR=$mydir/../tools $target
 done
 
-cp -vauf *.tre *.db *.ng $mydir/
+rsync -av *.tre *.db *.ng $mydir/

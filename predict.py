@@ -457,7 +457,7 @@ class Predict:
         key = '_'.join(wordl)
         if add:
             self.learn_history[key] = (True, wordl, now, pos)  # add occurence
-            if replaces and replaces.upper() != word.upper():  # ignore replacement by the same word
+            if replaces and replaces != word:  # ignore replacement by the same word
                 key2 = '_'.join(([ replaces ] + context)[0:3])
                 self.learn_history[key2] = (False, [ replaces ] + context, now, pos)  # add replacement occurence (failed prediction)
         else:
@@ -684,7 +684,8 @@ class Predict:
             ids_list.add(num)
             ids_list.add(den)
             if word not in todo: todo[word] = dict()
-            todo[word][score_name] = (num, den, cluster)
+            context_key = ':'.join([ score_name ] + lst[1:])
+            todo[word][score_name] = (num, den, cluster, context_key)
 
         todo = dict()
         ids_list = set(["-2:-1:-1"])
@@ -713,6 +714,26 @@ class Predict:
         # request
         sqlresult = self.db.get_grams(ids_list)
 
+        # weight each context
+        class ContextCount: pass
+
+        context_count = dict()
+        for word in todo:
+            for score_name in todo[word]:
+                num, den, cluster, ck = todo[word][score_name]
+                if num not in sqlresult: continue
+
+                stock_count = sqlresult[num][0]
+
+                if ck not in context_count:
+                    context_count[ck] = ContextCount()
+                    context_count[ck].count = context_count[ck].total = 0
+
+                context_count[ck].count += 1
+                context_count[ck].total += stock_count ** 2
+
+        for ck in context_count: context_count[ck].avg = math.sqrt(float(context_count[ck].total) / context_count[ck].count)
+
         # process request result & compute scores
         current_day = int(self._now() / 86400)
 
@@ -721,6 +742,7 @@ class Predict:
         learning_master_switch = self.cf('learning_enable', True, bool)
         learning_count = self.cf('learning_count', 10000, int)
         learning_count_min = self.cf('learning_count_min', 10, int)
+        learning_curve = self.cf('learning_curve', 100, int)
 
         score_count = dict()
 
@@ -744,7 +766,7 @@ class Predict:
             for score_name in todo[word]:
                 if score_name == "c1": continue  # useless
 
-                num_id, den_id, cluster = todo[word][score_name]
+                num_id, den_id, cluster, context_key = todo[word][score_name]
                 num = sqlresult.get(num_id, None)
                 if not num: continue
                 den = sqlresult.get(den_id, None)
@@ -753,6 +775,8 @@ class Predict:
                 # get predict DB data
                 (stock_count, user_count, user_replace, last_time) = num
                 (total_stock_count, total_user_count, dummy1, dummy2) = den
+
+                if user_replace and not total_user_count: total_user_count = 1  # hack for words that have always been replaced in this context
 
                 detail_txt = "stock=%d/%d" % (stock_count, total_stock_count)
 
@@ -770,31 +794,36 @@ class Predict:
                    and global_user_count and learning_master_switch and not cluster:
                     # use information learned from user
 
-                    if total_stock_count:
-                        age = current_day - last_time
-                        coef_age = math.exp(-0.7 * age / float(self.half_life))
+                    age = current_day - last_time
+                    coef_age = math.exp(-0.7 * age / float(self.half_life))
 
-                        # usage of this context compared to the whole corpus
-                        # for 1-grams it's always 1, <= 1 otherwise
-                        context_usage = (total_user_count / global_user_count)
-                        if global_stock_count and total_stock_count:
-                            context_usage = math.sqrt(context_usage * (total_stock_count / global_stock_count))
+                    if (user_count + user_replace) * coef_age < 0.5 or context_key not in context_count:
+                        proba = stock_proba  # forget this word in this context
 
-                        # user text input is way smaller than stock corpus, so we need a bit of scaling
-                        x = total_user_count * coef_age / max(learning_count_min, learning_count * context_usage)
+                    elif total_stock_count:
+                        real_user_count = user_count * user_count / (user_replace + user_count)
 
-                        coef_user = 1 / math.pow(1E6, 1 - min(x, 1))
-                        c = max(1, 1.0 * total_stock_count / total_user_count) * coef_user
+                        target_count = context_count[context_key].avg
 
-                        proba = ((stock_count + c * user_count * user_count / (user_count + user_replace))
+                        coef = 10 ** min(0, math.log10(total_user_count) - learning_curve)
+                        adj_total_user_count = min(10 ** learning_curve, total_user_count)
+
+                        c = max(1, coef * target_count / adj_total_user_count)
+
+                        proba = ((stock_count + c * real_user_count)
                                  / (total_stock_count + c * total_user_count))
 
-                        detail_txt += (" user=[%d-%d/%d] age=%d [c=%.2e cu=%.2e P=%.2e->%.2e]" %
+
+                        if user_count < user_replace:
+                            # user really does not like this word in this context
+                            proba *= 10 ** ((user_count - user_replace) / 2)
+
+                        detail_txt += (" user=[%d-%d/%d] age=%d [c=%.2e coef=%.2e P=%.2e->%.2e]" %
                                        (user_count, user_replace, total_user_count, current_day - last_time,
-                                        c, coef_user, stock_proba, proba))
+                                        c, coef, stock_proba, proba))
 
                     else:
-                        proba = user_count * user_count / (user_count + user_replace) / total_user_count  # @TODO user_count - user_replace ?
+                        proba = max(0, user_count * real_user_count / total_user_count)
                         detail_txt += "user=[%d-%d/%d] (no stock)" % (user_count, user_replace, total_user_count)
 
                 else:
@@ -804,7 +833,7 @@ class Predict:
                 if score_name not in score_count: score_count[score_name] = 0
                 score_count[score_name] += user_count + stock_count
 
-                detail["probas"][score_name] = proba
+                if proba > 0: detail["probas"][score_name] = proba
                 detail[score_name] = detail_txt
 
             result[word] = detail
@@ -824,6 +853,7 @@ class Predict:
         flt_max = self.cf('filter_max', .4, float)
         flt_coef = self.cf('filter_coef', .3, float)
         flt_min_count = self.cf('filter_min_count', 25, int)  # @todo this is highly dependent on corpus size, so it should not be a fixed parameter
+        flt_word_max_ratio = self.cf('filter_word_max_ratio', 100, float)
 
         all_scores = ("s3", "c3", "s2", "c2", "s1")
 
@@ -864,9 +894,9 @@ class Predict:
                 if not details[word]: continue
                 d = details[word]["filter"]
                 proba2 = d.get("proba2", 0)
-                if proba2 < max_proba2 / 100:
+                if proba2 < max_proba2 / flt_word_max_ratio:
                     d["proba_orig"] = d["proba"]
-                    d["proba"] *= 100 * proba2 / max_proba2
+                    d["proba"] *= flt_word_max_ratio * proba2 / max_proba2
 
             max_proba = max([ details[w]["filter"]["proba"] for w in details if details[w] ])
 
@@ -983,7 +1013,11 @@ class Predict:
         lst = list(words.keys())
         lst.sort(key = lambda w: words[w].final_score, reverse = True)
 
-        for w in lst: self.log(words[w].message)
+        i = 0
+        for w in lst:
+            i += 1
+            if i > 2 and not words[w].score_predict: continue
+            self.log(words[w].message)
 
         self.predict_list = lst[0:self.cf('max_predict', 30, int)]
 
@@ -1106,7 +1140,7 @@ class Predict:
             self.log("Backtrack: %s" % messages[k])
 
         message = "[%s] %s %s" % (",".join(reversed(h1["context"]))[-30:], show_score(h1), show_score(h0))
-        if found: message += " <%.3f> ==> %s %s <%.3f>" % (guess_score, show_score(h1, found[1]), show_score(h0_new[found[1]], found[0]), max_score)
+        if found: message += " <%.3f> ==> [BT-OK] %s %s <%.3f>" % (guess_score, show_score(h1, found[1]), show_score(h0_new[found[1]], found[0]), max_score)
         else: message += " ==> [no change]"
         if expected:
             message += " - Expected = %s %s <%.3f>" % (show_score(h1, expected[0]),
