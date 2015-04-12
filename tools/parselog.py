@@ -2,21 +2,20 @@
 # -*- coding: utf-8 -*-
 
 import json
-from html import HTML  # https://pypi.python.org/pypi/html (it's great!)
 import sys, re, os
-from multiprocessing.pool import ThreadPool
-import multiprocessing
 import dateutil.parser
 import calendar
 import time
-import subprocess
+import bz2
 
 if len(sys.argv) < 2:
-    print("usage:", os.basename(__file__), "<output directory>")
+    print("usage:", os.path.basename(__file__), "<output directory> [<id>]")
     exit(1)
 
 out = sys.argv[1]
 mydir = os.path.dirname(__file__)
+
+becane_id = sys.argv[2] if len(sys.argv) >= 3 else "<NO-ID>"
 
 curves = []
 predicts = []
@@ -29,10 +28,11 @@ for line in sys.stdin.readlines():
     line = line.strip()
     if line.startswith("IN:"): continue
     if line.startswith("OUT:"):
-        js = json.loads(line[4:].strip())
+        txt = line[4:].strip()
+        js = json.loads(txt)
         ts = parsedate(js["ts"])
         id = int(js["id"])
-        curves.append((ts, id, js))
+        curves.append((ts, id, js, txt))
         continue
 
     if re.search(r'^[A-Z][a-z][a-z] [A-Z][a-z][a-z] [0-9][0-9]', line):
@@ -64,60 +64,70 @@ for line in sys.stdin.readlines():
 
 if pts: predicts.append((pts, pid, ptxt, pword))
 
-# pool
-cpus = multiprocessing.cpu_count()
-pool = ThreadPool(processes = cpus)
+curfile = None
 
-# generate HTML
-title = 'OKboard logs'
+def save(x):
+    if not x or not x["modified"]: return
+    fname = x["fname"]
+    items = x["items"]
+    d = os.path.dirname(fname)
+    print("Saving:", fname)
+    if not os.path.isdir(d): os.mkdir(d)
 
-html = HTML()
-hd = html.head
-hd.title(title)
-hd.meta(charset = "utf-8")
-body = html.body
-body.h3(title)
+    with bz2.open(fname + ".tmp", 'wb') as f:
+        f.write(bytes("OKBoard log processed on %s\n\n" % time.ctime(time.time()), 'UTF-8'))
+        keys = list(items.keys())
+        keys.sort(key = lambda x: int(x.split('-')[0]))
 
-def json2html(fname, tre, js):
+        for key in keys:
+            item = items[key]
+            txt = '\n'.join(item["txt"])
+            txt = re.sub(r'^\s*\n', '', txt, re.S)
+            txt = re.sub(r'\n\s*$', '', txt, re.S)
+            if "title" in item:
+                f.write(bytes("%s\n" % item["title"], 'UTF-8'))
+            else:
+                f.write(bytes("==WORD== %s '%s' %s [%s]\n\n" % (key, item["word"], item["becane_id"], time.ctime(item["ts"])), 'UTF-8'))
+
+            if "curve" in item: f.write(bytes("OUT: %s\n\n" % item["curve"], 'UTF-8'))
+            f.write(bytes("%s\n\n" % txt, 'UTF-8'))
+
+    os.rename(fname + ".tmp", fname)
+
+def load(fname):
+    x = dict(items = dict(), modified = False, fname = fname)
     try:
-        sp = subprocess.Popen([ os.path.join(mydir, "jsonresult2html.py"), tre ],
-                              stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
-        (out, err) = sp.communicate(bytes(js, "UTF-8"))
-        with open(fname, "w") as f:
-            f.write(out.decode(encoding = 'UTF-8'))
-    except Exception as e:
-        print("BOUM", e)
+        with bz2.open(fname, 'rb') as f:
+            lines = f.readlines()
+    except: return x
+    print("Loading:", fname)
 
-for ts, id, txt, word in reversed(predicts):
-    body.h5("Word: %s [%s]" % (word, time.ctime(ts)))
+    cur = None
+    for line in lines:
+        line = line.decode('UTF-8').strip()
+        if re.match(r'^==WORD==', line):
+            cur = line.split(' ')[1]
+            x["items"][cur] = dict(title = line.strip(), txt = [])
+        elif cur:
+            x["items"][cur]["txt"].append(line)
 
+    return x
+
+for ts, id, txt, word in predicts:
     cl = [ x for x in curves if x[1] == id and abs(x[0] - ts) < 30 ]
     if cl:
-        js = cl[0][2]
-        sid = "%d-%d" % (ts, id)
-        with open(os.path.join(out, "%s.json" % sid), "w") as f:
-            f.write(json.dumps(js["input"]))
-        with open(os.path.join(out, "%s-out.json" % sid), "w") as f:
-            f.write(json.dumps(js))
-        li = body.p("Details: ")
-        li.a("json", href = "%s.json" % sid)
-        li += " - "
-        li.a("result json", href = "%s-out.json" % sid)
-        li += " - "
-        name = "%s-%d-%d.html" % (word, ts, id)
-        li.a("curve show", href = name)
-        trefile = os.path.join(mydir, "../db", os.path.basename(js["input"]["treefile"]))
-        htmlfile = os.path.join(out, name)
-        if not os.path.isfile(htmlfile):
-            print("%s -> %s" % (word, htmlfile))
-            pool.apply_async(json2html, args = (htmlfile, trefile, json.dumps(js)))
-            # json2html(htmlfile, trefile, json.dumps(js))
-    body.p
-    body.pre('\n'.join(txt))
-    body.hr
+        curve = cl[0]
+        date = time.strftime("%Y-%m-%d", time.localtime(ts))
+        fname = os.path.join(out, date[0:7], "%s.log.bz2" % date)
 
-pool.close()
-pool.join()
+        if not curfile or fname != curfile["fname"]:
+            if curfile: save(curfile)
+            curfile = load(fname)
 
-with open(os.path.join(out, "index.html"), "w") as f:
-    f.write(str(html))
+        key = "%s-%s" % (ts, id)
+        if key in curfile["items"]: continue
+        curfile["items"][key] = dict(ts = ts, becane_id = becane_id, id = id, word = word, txt = txt, curve = curve[3])
+        print("Adding item:", word)
+        curfile["modified"] = True
+
+save(curfile)
