@@ -641,8 +641,8 @@ class Predict:
                     old_value = self.coef_score_predict[i]
                     self.coef_score_predict[i] += c * sign * self.cf("score_predict_tune_increment", 0.005, float)
                     self.coef_score_predict[i] = max(0.2, min(5, self.coef_score_predict[i]))
-                    self.log("Replacement [%s -> %s] - Predict coef %s, value: %.3f -> %.3f" %
-                             (old, new, name, old_value, self.coef_score_predict[i]))
+                    self.log("Replacement [%s -> %s] - Predict coef %s, value[%d]: %.3f -> %.3f" %
+                             (old, new, name, i, old_value, self.coef_score_predict[i]))
                     c = 1 - c
 
                 self.db.set_param("predict_coef_low", self.coef_score_predict[0])
@@ -681,7 +681,7 @@ class Predict:
         return words, pos
 
 
-    def _get_all_predict_scores(self, words, context):
+    def _get_all_predict_scores(self, words, context, return_score_num_type = None):
         """ get n-gram DB information (use 2 SQL batch requests instead of a ton of smaller ones, for huge performance boost) """
         result = dict()
         if not words: return result
@@ -874,7 +874,7 @@ class Predict:
             result[word] = detail
 
         # evaluate score for all words
-        return self._filter_final_score(result, score_count)
+        return self._filter_final_score(result, score_count, return_score_num_type = return_score_num_type)
 
     def _filter_func(self, delta_proba_log):
         x = delta_proba_log
@@ -884,13 +884,13 @@ class Predict:
         y = math.pow((1 - math.cos(math.pi * min(x, 4) / 4)) / 2, 2)  # this one is prettier
         return y
 
-    def _filter_final_score(self, details, score_count):
+    def _filter_final_score(self, details, score_count, return_score_num_type = None):
         flt_max = self.cf('filter_max', 1, float)  # now our scores are in the [0, 1] range and their weight is controlled by ZZZ coef_score_predict parameters
         flt_coef = self.cf('filter_coef', .75, float)
         flt_min_count = self.cf('filter_min_count', 25, int)  # @todo this is highly dependent on corpus size, so it should not be a fixed parameter
         flt_word_max_ratio = self.cf('filter_word_max_ratio', 100, float)
 
-        all_scores = ("s3", "c3", "s2", "c2", "s1")
+        all_scores = [ "s3", "c3", "s2", "c2", "s1" ]
 
         # find which scores are relevant in the current context
         cluster_score_id = word_score_id = None
@@ -913,11 +913,16 @@ class Predict:
         # evaluate score
         result = dict()
         max_proba = max_proba2 = 0
+
+        sc2index = [ None ] + list(reversed(all_scores))
+        score_num_type = sc2index.index(sc1) * 10 + sc2index.index(sc2)  # 2 word scores can be compared if they have the same type, otherwise the smaller one is irrelevant
+        if return_score_num_type is not None: return_score_num_type.append(score_num_type)
+
         for word in details:
             if not details[word]: continue
             proba = details[word]["probas"].get(sc1, 0)
             max_proba = max(max_proba, proba)
-            details[word]["filter"] = dict(proba = proba, coef = (sc1,sc2))
+            details[word]["filter"] = dict(proba = proba, coef = (sc1,sc2), score_num_type = score_num_type)
 
             if sc2:
                 proba2 = details[word]["probas"].get(sc2, 0)
@@ -950,7 +955,7 @@ class Predict:
 
         return result
 
-    def _guess1(self, context, words, correlation_id = -1, verbose = False, quality_index = 0.5):
+    def _guess1(self, context, words, correlation_id = -1, verbose = False, quality_index = 0.5, return_score_num_type = None):
         """ internal method : prediction engine entry point (stateless)
             input : dictionary: word => WordScore
             output : dictionary: word => WordScore w/ additional attributes
@@ -979,7 +984,7 @@ class Predict:
         max_words = self.cf('predict_max_candidates', 25, int)
         all_words = all_words[-max_words:]
 
-        all_predict_scores = self._get_all_predict_scores(all_words, context)  # requests all scores using bulk requests
+        all_predict_scores = self._get_all_predict_scores(all_words, context, return_score_num_type = return_score_num_type)  # requests all scores using bulk requests
 
         new_words = dict()
         for word in all_words:
@@ -1148,11 +1153,11 @@ class Predict:
         list_lower = lambda x: [ w.lower() for w in x ]
         if list_lower(h0["context"]) != list_lower([ h1["guess"] ] + h1["context"]): return
 
-        def get_words_and_score(h, max_words):
+        def get_words_and_score(h, max_words = None):
             words = list(h["words"].keys())
             words.sort(key = lambda x: h["words"][x].score, reverse = True)  # sort by curve score only
             score = h["words"][h["guess"]].final_score
-            words = words[:max_words]
+            if max_words: words = words[:max_words]
             return words, score
 
         def add_scores(ws1, ws0):
@@ -1164,11 +1169,11 @@ class Predict:
 
         t0 = time.time()
 
-        max_words = self.cf('max_words_backtrack', 10, int)
+        max_words = self.cf('max_words_backtrack', 6, int)
         backtrack_score_threshold = self.cf('backtrack_score_threshold', 0.05, float)
         backtrack_predict_threshold = self.cf('backtrack_predict_threshold', 0.1, float)
 
-        words0, score0 = get_words_and_score(h0, max_words)
+        words0, score0 = get_words_and_score(h0)  # unfortunately with new score aggregation function, we need to check all words (result depend on the full set of possible words)
         words1, score1 = get_words_and_score(h1, max_words)
 
         dict_word0 = dict([ (w, h0["words"][w]) for w in words0 ])
@@ -1190,11 +1195,24 @@ class Predict:
         h0_new = dict()
         loops = 0
         messages = dict()
+        max_score_num_type = -1
         for w1 in words1:
             if w1 == h1["guess"]:
                 h0_new[w1] = dict(h0)
                 continue
-            words = self._guess1([ w1 ] + h1["context"], dict_word0, verbose = verbose)
+
+            tmp = [ ]
+            words = self._guess1([ w1 ] + h1["context"], dict_word0, verbose = verbose, return_score_num_type = tmp)
+            score_num_type = tmp[0]
+
+            if score_num_type > max_score_num_type:
+                # we find a higher score type, drop previous maxima
+                max_score_num_type = score_num_type
+                max_score = guess_score
+            elif score_num_type < max_score_num_type:
+                # we have a lower score type --> just ignore this score
+                continue
+
             h0_new[w1] = dict(words = words)
             for w0 in words:
                 loops += 1
