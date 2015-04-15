@@ -229,12 +229,14 @@ class WordScore:
 
 
 class HistPercentile:
-    VERSION = 2
-    def __init__(self, percent = 0.02, size = 500):
+    VERSION = 4
+    def __init__(self, percent = 0.05, size = 500, min_ratio = None):
         self.values = []
         self.high = self.low = 0
         self.percent = percent
         self.size = size
+        self.min_ratio = min_ratio
+        self.low = self.high = 0
 
     def normalize(self, value, sat = 0):
         self.values.append(value)
@@ -246,8 +248,10 @@ class HistPercentile:
         self.values = self.values[-self.size:]
         lst = sorted(self.values)
         l = len(lst)
-        self.low = lst[int(l * self.percent)]
-        self.high = lst[int(l * (1 - self.percent))]
+        if l >= 2:
+            self.high = lst[min(l - 1, int(l * (1 - self.percent)))]
+            self.low = lst[min(l - 1, int(l * self.percent))]
+        if self.min_ratio: self.low = min(self.low, self.high * self.min_ratio)
 
 
 class Predict:
@@ -276,7 +280,8 @@ class Predict:
         self.mod_ts = time.ctime(os.stat(__file__).st_mtime)
 
         self._score_hist = HistPercentile()
-        self._speed_hist = HistPercentile()
+        self._speed_hist = HistPercentile(min_ratio = 0.5)
+        self._hist_dirty = False
         self.hist_file = None
 
     def _mock_time(self, time):
@@ -885,7 +890,7 @@ class Predict:
         return y
 
     def _filter_final_score(self, details, score_count, return_score_num_type = None):
-        flt_max = self.cf('filter_max', 1, float)  # now our scores are in the [0, 1] range and their weight is controlled by ZZZ coef_score_predict parameters
+        flt_max = self.cf('filter_max', 1, float)  # now our scores are in the [0, 1] range and their weight is controlled by coef_score_predict parameters
         flt_coef = self.cf('filter_coef', .75, float)
         flt_min_count = self.cf('filter_min_count', 25, int)  # @todo this is highly dependent on corpus size, so it should not be a fixed parameter
         flt_word_max_ratio = self.cf('filter_word_max_ratio', 100, float)
@@ -1034,7 +1039,10 @@ class Predict:
         self._hist_dirty = True
 
         value = min(1, max(0, 1.6 * (i_speed + i_score) / 2 - .3))
-        return value, "sp=%.2f+sc=%.2f->%.2f" % (i_speed, i_score, value)
+        return value, "sp=%.2f(%d-%d)+sc=%.2f(%.2f-%.2f)->%.2f" % (
+            i_speed, self._speed_hist.low, self._speed_hist.high,
+            i_score, self._score_hist.low, self._score_hist.high,
+            value)
 
     def _quality_index_load(self, fname):
         try:
@@ -1071,9 +1079,9 @@ class Predict:
         max_score = max( [ words[w].score for w in words ] ) if words else 0
         quality_index, quality_detail = self._quality_index(max_score, speed)
 
-        self.log("ID: %d - Speed: %d - Context: %s - Quality: {%s} - Matches: %s" %
-                 (correlation_id, speed,  self.last_words, quality_detail,
-                  ','.join("%s[%s]" % x for x in reversed(display_matches))))
+        self.log("ID: %d - Speed: %d - Context: %s - Quality: [%s] - Settings: [cp=%.2f,%.2f]" %
+                 (correlation_id, speed,  self.last_words, quality_detail, self.coef_score_predict[0], self.coef_score_predict[1]))
+        self.log("Matches: %s" % ','.join("%s[%s]" % x for x in reversed(display_matches)))
 
         if not words: return
 
@@ -1169,7 +1177,7 @@ class Predict:
 
         t0 = time.time()
 
-        max_words = self.cf('max_words_backtrack', 6, int)
+        max_words = self.cf('max_words_backtrack', 10, int)
         backtrack_score_threshold = self.cf('backtrack_score_threshold', 0.05, float)
         backtrack_predict_threshold = self.cf('backtrack_predict_threshold', 0.1, float)
 
