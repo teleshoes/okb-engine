@@ -51,7 +51,7 @@ Howto:
 * Package all your corpora files as `$CORPUS_FILE/corpus-$LANG.txt.bz2`. Sentences must be separated by punctuation (".") or blank lines.
 * `$WORK_DIR` should point to a directory with enough space available (English + French requires 1.5 GB)
 * Create a `db/lang-$LANG.cf` configuration file (use examples from other languages)
-* Run `db/build.sh` to generate all language files
+* Run `db/build.sh` to generate all language files or `db/build.sh <language code>` to build just one language. Add '-r' option to rebuild everything from scratch (removes temporary files)
 
 
 ### Included databases (French & English)
@@ -80,7 +80,7 @@ Remember all processing is asynchronous
 * `loadKeys(QVariantList list)` Load information about keyboard geometry as a list of hashmaps with keys "x", "y", "width", "height", "caption" (a single letter string)
 * `loadTree(QString fileName)` Load dictionary file (this is run asynchronously to avoid blocking the GUI)
 * `setLogFile(QString fileName)` Choose output file. And empty string disables logging.
-** `getResultJson()` Get all results as a JSON file
+* `getResultJson()` Get all results as a JSON file
 * `setDebug(bool debug)` Makes logs much more verbose
 * `loadParameters(QString params)` Load parameters values as a JSON string
 * `getCandidates()` Return candidate list. Each item in the list is also a QVariantList with the following elements: name, score, class, star, word list (comma separated string)

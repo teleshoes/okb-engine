@@ -6,7 +6,7 @@ host="$1"
 becane_id="$2"
 
 d=`dirname "$0"`
-[ -n "$host" ] || $host=${OKBOARD_REMOTE_HOST:-jolla} # <- my jolla hostname/ip address
+[ -n "$host" ] || host=${OKBOARD_REMOTE_HOST:-jolla} # <- my jolla hostname/ip address
 
 log_dir=${OKBOARD_LOG_DIR:-/tmp/okboard-logs}
 [ -d "$log_dir" ] || mkdir "$log_dir"

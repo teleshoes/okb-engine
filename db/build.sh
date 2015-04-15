@@ -19,20 +19,45 @@ die() { echo "DIE: $*"; exit 1; }
 [ -d "$WORK_DIR" ] || die "working directory not found: $WORK_DIR"
 [ -d "$CORPUS_DIR" ] || die "corpus directory not found: $CORPUS_DIR"
 
+usage() {
+    echo "usage: "`basename "$0"`" [-r] [<language code>]"
+    exit 1
+}
+
 add_tgt=
+lang=
 if [ -n "$1" ] ; then
-    if [ "$1" = "-r" ] ; then add_tgt=clean ; else die "bad command line option: $1, only supported option is '-r' to force a full rebuild" ; fi
+    case "$1" in
+	-r) add_tgt=clean ; shift ;;
+	-*) usage ;;
+	*) lang="$1" ; shift ;;
+    esac
+    [ -n "$1" ] && [ -z "$lang" ] && lang="$1"
+fi
+
+if [ -n "$lang" ] ; then
+    echo "Building for language: $lang"
+    tgt_list="$add_tgt .depend-${lang} all-${lang}" # build a specific language
+else
+    echo "Building for all languages"
+    tgt_list="$add_tgt depend all" # build all languages
 fi
 
 cd `dirname "$0"`
 mydir=`pwd`
+
+# build python modules
+pushd ../ngrams
+python3 setup-cdb.py build
+python3 setup-fslm.py build
+popd
 
 . $mydir/../tools/env.sh
 
 cp -vauf $mydir/lang-*.cf $mydir/db.version $WORK_DIR/
 
 cd $WORK_DIR
-for target in $add_tgt depend all ; do
+for target in $tgt_list ; do
     make -j -f $mydir/makefile CORPUS_DIR=${CORPUS_DIR} TOOLS_DIR=$mydir/../tools $target
 done
 
