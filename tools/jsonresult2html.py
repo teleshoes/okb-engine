@@ -257,7 +257,7 @@ if candidates:
     t = body.table(border = "1")
     hr0 = t.tr
     hr = t.tr
-    for col in ["Word", "Score", "Min", "Err", "Gd", "Dist", "Sc-0" ]:
+    for col in ["Word", "Score", "Min", "Err", "Gd", "Dist", "Dist-2", "Sc-0", "Sc-1" ]:
         hr0.td(bgcolor="#C0FFC0", rowspan="2").font(col, size="-2")
     for typ in [ "avg_score", "min_score" ]:
         hr0.td(bgcolor="#C0FFC0", colspan = str(len(scores)), align = "center").font(typ, size="-2")
@@ -266,7 +266,8 @@ if candidates:
     for scenario in candidates:
         tr = t.tr
         for col in [ scenario["name"], scenario["score"], scenario["min_total"], scenario.get("error", ""),
-                     scenario.get("good", ""), int(scenario.get("distance", 0)), scenario.get("score_std", "") ]:
+                     scenario.get("good", ""), int(scenario.get("distance", 0)), int(scenario.get("distance", 0) / math.sqrt(len(scenario["name"]))),
+                     scenario.get("score_std", ""), scenario.get("score_v1", "") ]:
             tr.td(align = "center").font(clean_value(col), size="-2")
         for typ in [ "avg_score", "min_score" ]:
             for sc in scores: tr.td(align = "center").font(clean_value(scenario[typ][sc]), size="-2")

@@ -30,6 +30,10 @@ class Params {
   int dst_y_max;
   int error_correct;
   int error_correct_gap;
+  float final_coef_exp;
+  float final_coef_misc;
+  float final_coef_turn;
+  float final_distance_pow;
   int incremental_index_gap;
   int incremental_length_lag;
   int inf_max;
@@ -48,6 +52,7 @@ class Params {
   int max_turn_index_gap;
   int min_turn_index_gap;
   float rt_score_coef;
+  float rt_score_coef_tip;
   int rt_tip_gaps;
   int rt_total_threshold;
   int rt_turn_threshold;
@@ -125,16 +130,20 @@ static Params default_params = {
   120, // dst_y_max
   1, // error_correct
   4, // error_correct_gap
+  0.1, // final_coef_exp
+  0.8, // final_coef_misc
+  1.0, // final_coef_turn
+  0.5, // final_distance_pow
   5, // incremental_index_gap
   100, // incremental_length_lag
   120, // inf_max
   20, // inf_min
-  0.005, // lazy_loop_bias
+  0.02, // lazy_loop_bias
   0.001, // length_penalty
   7, // match_wait
   350, // max_active_scenarios
   45, // max_angle
-  25, // max_candidates
+  35, // max_candidates
   25, // max_segment_length
   8, // max_star_index
   30, // max_turn_error1
@@ -142,7 +151,8 @@ static Params default_params = {
   50, // max_turn_error3
   6, // max_turn_index_gap
   2, // min_turn_index_gap
-  1.0, // rt_score_coef
+  0.12, // rt_score_coef
+  0.01, // rt_score_coef_tip
   3, // rt_tip_gaps
   20, // rt_total_threshold
   5, // rt_turn_threshold
@@ -158,11 +168,11 @@ static Params default_params = {
   0.5, // speed_penalty
   170, // st2_max
   125, // st2_min
-  0.01, // st5_score
+  0.02, // st5_score
   1, // thumb_correction
-  0.05, // tip_small_segment
+  0.02, // tip_small_segment
   0.65, // turn_distance_ratio
-  1.0, // turn_distance_score
+  0.01, // turn_distance_score
   60, // turn_distance_threshold
   20, // turn_max_angle
   10, // turn_min_angle
@@ -175,7 +185,7 @@ static Params default_params = {
   1, // user_dict_learn
   2000, // user_dict_size
   0.45, // ut_coef
-  0.5, // ut_score
+  0.06, // ut_score
   80, // ut_total
   15, // ut_turn
   2.0, // weight_cos
@@ -214,6 +224,10 @@ void Params::toJson(QJsonObject &json) const {
   json["dst_y_max"] = dst_y_max;
   json["error_correct"] = error_correct;
   json["error_correct_gap"] = error_correct_gap;
+  json["final_coef_exp"] = final_coef_exp;
+  json["final_coef_misc"] = final_coef_misc;
+  json["final_coef_turn"] = final_coef_turn;
+  json["final_distance_pow"] = final_distance_pow;
   json["incremental_index_gap"] = incremental_index_gap;
   json["incremental_length_lag"] = incremental_length_lag;
   json["inf_max"] = inf_max;
@@ -232,6 +246,7 @@ void Params::toJson(QJsonObject &json) const {
   json["max_turn_index_gap"] = max_turn_index_gap;
   json["min_turn_index_gap"] = min_turn_index_gap;
   json["rt_score_coef"] = rt_score_coef;
+  json["rt_score_coef_tip"] = rt_score_coef_tip;
   json["rt_tip_gaps"] = rt_tip_gaps;
   json["rt_total_threshold"] = rt_total_threshold;
   json["rt_turn_threshold"] = rt_turn_threshold;
@@ -305,6 +320,10 @@ Params Params::fromJson(const QJsonObject &json) {
   p.dst_y_max = json["dst_y_max"].toDouble();
   p.error_correct = json["error_correct"].toDouble();
   p.error_correct_gap = json["error_correct_gap"].toDouble();
+  p.final_coef_exp = json["final_coef_exp"].toDouble();
+  p.final_coef_misc = json["final_coef_misc"].toDouble();
+  p.final_coef_turn = json["final_coef_turn"].toDouble();
+  p.final_distance_pow = json["final_distance_pow"].toDouble();
   p.incremental_index_gap = json["incremental_index_gap"].toDouble();
   p.incremental_length_lag = json["incremental_length_lag"].toDouble();
   p.inf_max = json["inf_max"].toDouble();
@@ -323,6 +342,7 @@ Params Params::fromJson(const QJsonObject &json) {
   p.max_turn_index_gap = json["max_turn_index_gap"].toDouble();
   p.min_turn_index_gap = json["min_turn_index_gap"].toDouble();
   p.rt_score_coef = json["rt_score_coef"].toDouble();
+  p.rt_score_coef_tip = json["rt_score_coef_tip"].toDouble();
   p.rt_tip_gaps = json["rt_tip_gaps"].toDouble();
   p.rt_total_threshold = json["rt_total_threshold"].toDouble();
   p.rt_turn_threshold = json["rt_turn_threshold"].toDouble();

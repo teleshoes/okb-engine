@@ -154,7 +154,7 @@ while(<STDIN>) {
     $p_log += $count * log($wcount / $wcount_d) if $wcount;
     $p_cluster_log += $count * (log($ccount / $ccount_d) + log($WORD_COUNT{$w3} / $CLUST_COUNT{$c3})) if $ccount; 
 
-    $w_pass += $count * $GRAM{"$w1;$w2;#TOTAL"}; # QQQ le bug c'est que je vois plusieurs fois le même 2-gram (???????)
+    $w_pass += $count * $GRAM{"$w1;$w2;#TOTAL"};
     $c_pass += $count * $CGRAM{"$c1;$c2;#TOTAL"};
 
     printf("($w1;$w2;$w3) $wcount/$wcount_d -> $ccount/$ccount_d +++ %f -> %f\n", 

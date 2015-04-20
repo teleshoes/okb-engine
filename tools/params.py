@@ -28,6 +28,10 @@ defparams = [
     [ "dst_y_max", int, 0, 200 ],
     [ "error_correct", int ],
     [ "error_correct_gap", int, 2, 10 ],
+    [ "final_coef_misc", float, 0.1, 5],
+    [ "final_coef_turn", float, 0.1, 5 ],
+    [ "final_coef_exp", float, 0.01, 2 ],
+    [ "final_distance_pow", float, 0.1, 5 ],
     [ "incremental_index_gap", int ],
     [ "incremental_length_lag", int ],  # no optimization
     [ "inf_max", int, 40, 180 ],
@@ -46,6 +50,7 @@ defparams = [
     [ "max_turn_index_gap", int, 2, 10],
     [ "min_turn_index_gap", int, 1, 5],
     [ "rt_score_coef", float, 0.01, 2 ],
+    [ "rt_score_coef_tip", float, 0.01, 2 ],
     [ "rt_tip_gaps", int, 1, 5 ],
     [ "rt_total_threshold", int, 5, 45 ],
     [ "rt_turn_threshold", int, 1, 20 ],

@@ -148,6 +148,10 @@ def score1(json_str, expected, typ):
             coef = 10 if typ == "max2" else 1
             score = - coef * sum([ c["score"] - score_ref for c in js["candidates"] if c["score"] > score_ref ])
 
+    elif typ == "good":
+        x = (score_ref - max_score) * 10
+        score = x - x ** 2 if x < 0 else x / (1 + x)
+
     else: raise Exception("unknown score type: %d", typ)
 
     return score
@@ -363,7 +367,7 @@ if __name__ == "__main__":
     print('Parameters: ' + params2str(params))
 
     if typ == "all":
-        typ_list = [ "max", "max2", "stddev", "cls" ]
+        typ_list = [ "max", "max2", "stddev", "good" ]
     elif typ.find(',') > -1:
         typ_list = typ.split(',')
     else:

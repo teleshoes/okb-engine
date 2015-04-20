@@ -143,6 +143,7 @@ class Scenario {
   float temp_score;
   float final_score;
   float final_score2;
+  float final_score_v1;
 
   float dist;
   float dist_sqr;
@@ -216,7 +217,7 @@ class Scenario {
   float distance() const;
   void setScore(float score) { final_score2 = score; }
   float getScoreOrig() const { return final_score; }
-
+  void setScoreV1(float score) { final_score_v1 = score; }
   void toJson(QJsonObject &json);
   QString toString(bool indent = false);
 };

@@ -20,6 +20,8 @@
 
 #define BUILD_TS (char*) (__DATE__ " " __TIME__)
 
+#define MISC_ACCT(word, coef_name, coef_value, value) { if (abs(value) > 1E-5) { DBG("     [*] MISC %s %s %f %f", (word), (coef_name), (float) (coef_value), (float) (value)) } }
+
 using namespace std;
 
 
@@ -229,6 +231,7 @@ Scenario::Scenario(LetterTree *tree, QuickKeys *keys, QuickCurve *curve, Params 
   temp_score = 0;
   final_score = -1;
   final_score2 = -1;
+  final_score_v1 = -1;
   last_fork = -1;
   result_class = -1;
   star = false;
@@ -267,6 +270,7 @@ void Scenario::copy_from(const Scenario &from) {
   temp_score = from.temp_score;
   final_score = from.final_score;
   final_score2 = from.final_score2;
+  final_score_v1 = from.final_score_v1;
   last_fork = from.last_fork;
   debug = from.debug;
   min_total = from.min_total;
@@ -496,7 +500,8 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &
      - 2: U-Turns --> mush exactly match a key
      - 3: Slow-down points --> treated as 1, but has les priority than type 1 & 2
      - 4: inflection points (*removed* this has proven useless or duplicating other checks)
-     - 5: Small turn -> optimally matches a key
+     - 5: Small turn -> optionally matches a key
+     - 6: (not-so) sharp turn (same as 1) but minimum distance point may be distinct from the turn point (e.g. used for loops)
   */
 
   float score = -99999;
@@ -546,14 +551,16 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &
     }
     score = new_score;
 
-    // look for sharp turns
-    int st = curve->getSharpTurn(index);
+#define MANDATORY_TURN(st) ((st) == 1 || (st) == 2 || (st) == 6)
 
-    if (st >= 3 && last_turn_point) { st = 0; } // handle slow-down point with less priority (type = 3)
+    // look for sharp turns
+    int st = curve->getSpecialPoint(index);
+
+    if (! MANDATORY_TURN(st) && last_turn_point) { st = 0; } // handle slow-down point and other types with less priority (type = 3)
 
     if (st > 0 && index > start_index) {
 
-      if (last_turn_point && curve->getSharpTurn(last_turn_point) < 3) {
+      if (last_turn_point && MANDATORY_TURN(curve->getSharpTurn(last_turn_point))) {
 	// we have already encountered a sharp turn linked with next letter so we can safely ignore this one
 	break;
       }
@@ -596,7 +603,8 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &
     } else if (max_score_index < last_turn_point - max_turn_distance) {
       new_index_list << max_score_index;
     } else if (max_score_index <= last_turn_point + max_turn_distance) {
-      if (curve->getSharpTurn(last_turn_point) == 3) {
+      int last_st = curve->getSpecialPoint(last_turn_point);
+      if (last_st == 3 || last_st == 6) {
 	new_index_list << max_score_index;
       } else {
 	if (last_turn_score > 0) { new_index_list << last_turn_point; }
@@ -1391,7 +1399,7 @@ void Scenario::check_reverse_turn(int index1, int index2, int direction1, int di
 
   int threshold = params->rt_turn_threshold;
   int total_threshold = params->rt_total_threshold;
-  float coef_score = params->rt_score_coef;
+  float coef_score = (direction1 && direction2)?params->rt_score_coef:params->rt_score_coef_tip;
   int tip_gap = params->rt_tip_gaps;
 
   int direction = direction1;
@@ -1433,6 +1441,7 @@ void Scenario::check_reverse_turn(int index1, int index2, int direction1, int di
   float score = 1.0 * bad / (i2 - i1 + 1);
   for(int i = index1; i <= index2; i ++) {
     scores[i].misc_score -= coef_score * score / (index2 - index1 + 1);
+    MISC_ACCT(getNameCharPtr(), (direction1 && direction2)?"rt_score_coef":"rt_score_coef_tip", coef_score, - score / (index2 - index1 + 1));
   }
   DBG(" [check_reverse_turn] [%d:%d]->[%d:%d] kind=[%d:%d] direction=%d:%d --> score=%.2f", index1, index2, i1, i2, kind1, kind2, direction1, direction2, score);
 }
@@ -1449,6 +1458,7 @@ float Scenario::calc_score_misc(int i) {
       (i == count - 1 && index_history[count - 1] - index_history[count - 2] <= 1)) {
     DBG("  [score misc] small segment at tip (%s)", (i?"end":"begin"));
     score -= params->tip_small_segment;
+    MISC_ACCT(getNameCharPtr(), "tip_small_segment", params->tip_small_segment, -1);
   }
 
   /* check turn relative position */
@@ -1490,8 +1500,9 @@ float Scenario::calc_score_misc(int i) {
 	float sc1 = -params->lazy_loop_bias * u / params->turn_distance_threshold; // this is just intended as a small bias when i've got close choices
 	DBG("  [score misc] %s[%d:%c] turn distance u=%.2f v=%.2f score=%.3f/%.3f",getNameCharPtr(), i, letter_history[i], u, v, sc0, sc1);
 	score += sc0 + sc1;
+	MISC_ACCT(getNameCharPtr(), "turn_distance_score", params->turn_distance_score, sc0 / params->turn_distance_score);
+	MISC_ACCT(getNameCharPtr(), "lazy_loop_bias", params->lazy_loop_bias, - u / params->turn_distance_threshold);
       }
-
 
     }
   }
@@ -1507,6 +1518,7 @@ float Scenario::calc_score_misc(int i) {
       if (curve->getSpecialPoint(j) == 3 && abs(curve->getTurnSmooth(j)) < params->speed_min_angle) {
 	DBG("  [score misc] unmatched slow down point (point=%d, index=%d:%d)", j, i0, i1);
 	score -= params->speed_penalty;
+	MISC_ACCT(getNameCharPtr(), "speed_penalty", params->speed_penalty, -1);
       }
     }
   }
@@ -1523,6 +1535,7 @@ float Scenario::calc_score_misc(int i) {
 	if (abs(index_history[i] - j) <= max_turn_distance && st != 1 && st != 2) {
 	  DBG("  [score misc] optional turn matched: index=%d -> key #%d:'%c'", j, i, letter_history[i]);
 	  score += params->st5_score;
+	  MISC_ACCT(getNameCharPtr(), "st5_score", params->st5_score, 1);
 	}
       }
     }
@@ -1556,6 +1569,7 @@ float Scenario::calc_score_misc(int i) {
 	    if (found == 3) {
 	      DBG("  [score misc] suspect turn rate maxima [%d:%d] index=%d max_turn=%d total=%d", i, i + 1, i0, max_turn, abs(total));
 	      score -= params->ut_score;
+	      MISC_ACCT(getNameCharPtr(), "ut_score", params->ut_score, -1);
 	    }
 	  }
 	}
@@ -1568,6 +1582,7 @@ float Scenario::calc_score_misc(int i) {
 }
 
 bool Scenario::postProcess() {
+  DBG("==== Postprocess: %s", getNameCharPtr());
   for(int i = 0; i < count; i++) {
     scores[i].misc_score = calc_score_misc(i);
   }
@@ -1684,6 +1699,7 @@ void Scenario::toJson(QJsonObject &json) {
   json["finished"] = finished;
   json["score"] = getScore();
   json["score_std"] = getScoreOrig();
+  json["score_v1"] = final_score_v1;
   json["distance"] = distance();
   json["class"] = result_class;
   json["star"] = star;
@@ -2213,6 +2229,12 @@ int CurveMatch::compare_scenario(Scenario *s1, Scenario *s2, bool reverse) {
   return result + result1;
 }
 
+static float signpow(float value, float exp) {
+  if (value < 0) { return - pow(- value, exp); }
+  return pow(value, exp);
+}
+ 
+
 void CurveMatch::sortCandidates() {
   /* try to find the most likely candidates by combining multiple methods :
      - score (linear combination of multiple scores)
@@ -2229,68 +2251,48 @@ void CurveMatch::sortCandidates() {
 
   int n = candidates.size();
 
-  /* new composite score */
+  /* previous composite score (v1) 
+     we keep this one as it was good for estimating curve quality */
   float min_dist = 0;
   for(int i = 0; i < n; i ++) {
     if (candidates[i].distance() < min_dist || ! min_dist) {
       min_dist = candidates[i].distance();
     }
   }
+  float quality = 0;
   for(int i = 0; i < n; i ++) {
     float new_score = candidates[i].getScore()
       - params.coef_distance * (candidates[i].distance() - min_dist) / max(15, min_dist)
       - params.coef_error * candidates[i].getErrorCount();
-    candidates[i].setScore(new_score);
+    candidates[i].setScoreV1(new_score);
+    if (new_score > quality) { quality = new_score; }
   }
+  DBG("Quality index %.3f", quality)
 
-  // classifier V3 (much simpler)
-  qSort(candidates.begin(), candidates.end(), scenarioDistanceLessThan);
-  int cls[n];
-  memset(&cls, 0, sizeof(cls));
-
+  /* new composite score */
+  float min_dist_adj = 0;
   for(int i = 0; i < n; i ++) {
-    Scenario *s1 = &candidates[i];
-
-    int remove = 0;
-    int cmp[n];
-    bool done = false;
-    for(int j = i + 1; j < n; j ++) {
-      Scenario *s2 = &candidates[j];
-      if (cls[j] < 0) { continue; }
-      if (done) { cls[j] = -50; continue; }
-
-      int result = cmp[j] = compare_scenario(s1, s2, true);
-
-      if (result > 5) {
-	done = true;
-	cls[j] = -50;
-	continue;
-      }
-
-      if (result < 0) {
-	remove = max(remove, -result);
-      }
-    }
-
-    if (remove) {
-      cls[i] = -remove;
-    }
-
-    for(int j = i + 1; j < n; j ++) {
-      if (cls[j] < 0) { continue; }
-
-      if (cmp[j] > 0) {
-	cls[j] = -cmp[j];
-      }
-    }
-
-  } /* for i */
-
-  for(int i = 0; i < n; i ++) {
-    candidates[i].setClass(cls[i]); // obsolete
-    candidates[i].setStar((cls[i] >= 0));
+    float value = candidates[i].distance() / sqrt(candidates[i].getCount());
+    if (value < min_dist_adj || ! min_dist_adj) { min_dist_adj = value; }
   }
-
+  
+  float tmpsc[n];
+  float max_score = 0;
+  for(int i = 0; i < n; i ++) {
+    score_t sc = candidates[i].getScores();
+    float new_score = (params.final_coef_misc * sc.misc_score
+		       + params.final_coef_turn * pow(max(0, sc.turn_score), params.final_coef_exp)
+		       - 0.1 * signpow(0.1 * (candidates[i].distance() / sqrt(candidates[i].getCount()) - min_dist_adj), params.final_distance_pow)
+		       ) / (1 + params.final_coef_turn)
+      - params.coef_error * candidates[i].getErrorCount();
+    tmpsc[i] = new_score;
+    if (new_score > max_score) { max_score = new_score; }
+  }
+  for(int i = 0; i < n; i ++) {
+    candidates[i].setScore(quality - max_score + tmpsc[i]);
+  }
+ 
+  /* @todo classifier replacement ? */
 
   scenarioFilter(candidates, 0.7, 10, params.max_candidates, true); // @todo add to parameter list
 
@@ -2303,7 +2305,7 @@ void CurveMatch::sortCandidates() {
       Scenario candidate = candidates[i];
       score_t smin, savg;
       candidate.getDetailedScores(savg, smin);
-      float score = candidate.getScoreOrig();
+      float score = candidate.getScore();
       float min_score = candidate.getMinScore();
       int error_count = candidate.getErrorCount();
       int good_count = candidate.getGoodCount();
