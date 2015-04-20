@@ -1,4 +1,4 @@
-#! /bin/sh -e
+#! /bin/bash -e
 # just check curve matching plugin with expected word
 # (generates far less output)
 
@@ -6,7 +6,7 @@ test="$1"
 word="$2"
 if [ ! -f "$test" ] ; then echo "usage: $0 <json test file> [<word to test>]" ; exit 1; fi
 dir=`dirname "$0"`"/.."
-dir=`realpath "$dir"`
+dir=`readlink -f "$dir"`
 [ -n "$word" ] || word=`basename "$test" .json | sed 's/^[a-z][a-z]\-//' | sed 's/[0-9]*$//'`
 
 echo "Target word: $word"

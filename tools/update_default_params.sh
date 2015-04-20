@@ -1,4 +1,4 @@
-#! /bin/sh -e
+#! /bin/bash -e
 
 overwrite="$1"
 
@@ -12,7 +12,7 @@ $mydir/update_params.py < $head > $tmp
 if cmp "$head" "$tmp" >/dev/null ; then
     rm -f "$tmp"
 else
-    echo "=== change to file "`realpath "$head"`" ==="
+    echo "=== change to file "`readlink -f "$head"`" ==="
     diff -u "$head" "$tmp" || true
     if [ -n "$overwrite" ] ; then
 	mv -fv "$tmp" "$head"

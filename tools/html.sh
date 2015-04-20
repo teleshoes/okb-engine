@@ -1,10 +1,10 @@
-#! /bin/sh -x
+#! /bin/bash -x
 
 test="$1"
 edit="$2"
 if [ ! -f "$test" ] ; then echo "usage: $0 <json test file> [<editor for log file>]" ; exit 1; fi
 dir=`dirname "$0"`"/.."
-dir=`realpath "$dir"`
+dir=`readlink -f "$dir"`
 name=`basename "$test" .json`
 
 lang="en"

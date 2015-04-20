@@ -1,4 +1,4 @@
-#! /bin/sh -e
+#! /bin/bash -e
 
 [ -f "$HOME/.okboard-test" ] && . $HOME/.okboard-test
 

@@ -1,4 +1,4 @@
-#! /bin/sh
+#! /bin/bash
 # environment setup
 
 _me=${BASH_SOURCE[0]}

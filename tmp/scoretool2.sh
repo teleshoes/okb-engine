@@ -1,10 +1,10 @@
-#! /bin/sh -e
+#! /bin/bash -e
 
 set -o pipefail
 
 OUT=${1:-/tmp/scoretool2}
 mkdir -p "$OUT"
-OUT=`realpath "$OUT"`
+OUT=`readlink -f "$OUT"`
 
 cd `dirname "$0"`
 mydir=`pwd`
