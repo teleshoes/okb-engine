@@ -46,7 +46,8 @@ Where `$LANG` is the 2-letter language ID.
 
 All tools needed to generate language files are included in `db/` directory
 
-Howto:
+Howto: all commands below should be run from a standard Linux host (not from the Sailfish SDK).
+* You need to install lbzip2 and python3 development files (package name is python3-devel on RPM distributions)
 * Define `CORPUS_FILE` and `WORK_DIR` environments variable (or set them in `~/.okboard-build` new configuration file)
 * Package all your corpora files as `$CORPUS_FILE/corpus-$LANG.txt.bz2`. Sentences must be separated by punctuation (".") or blank lines.
 * `$WORK_DIR` should point to a directory with enough space available (English + French requires 1.5 GB)

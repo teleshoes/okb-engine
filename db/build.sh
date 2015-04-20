@@ -1,4 +1,4 @@
-#! /bin/sh -e
+#! /bin/bash -e
 # build language files out of tree
 #  (just a noob-friendly wrapper for the makefile)
 
@@ -26,14 +26,14 @@ usage() {
 
 add_tgt=
 lang=
-if [ -n "$1" ] ; then
+while [ -n "$1" ] ; do
     case "$1" in
-	-r) add_tgt=clean ; shift ;;
+	-r) add_tgt=clean ;;
 	-*) usage ;;
-	*) lang="$1" ; shift ;;
+	*) lang="$1" ;;
     esac
-    [ -n "$1" ] && [ -z "$lang" ] && lang="$1"
-fi
+    shift
+done
 
 if [ -n "$lang" ] ; then
     echo "Building for language: $lang"

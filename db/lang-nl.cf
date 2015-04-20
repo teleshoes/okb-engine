@@ -1,0 +1,7 @@
+predict_words=30000
+cluster_cgrams=200000
+cluster_wgrams=200000
+cluster_depth=8
+filter_words=NO_FILTER
+
+
