@@ -13,7 +13,7 @@ else
     ngram_lib=`find "${_mydir}/ngrams/build/" -type d -name "lib.*" | grep "$machine"`
     
     export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${_mydir}/curve/build"
-    export QML2_IMPORT_PATH=`realpath "${_mydir}/${OKB_QML}"`
+    export QML2_IMPORT_PATH=`readlink -f "${_mydir}/${OKB_QML}"`
     export PATH="${PATH}:${_mydir}/cli/build:${_mydir}/tools"
     export PYTHONPATH="${ngram_lib}"
     OKBOARD_TEST_DIR=1
