@@ -28,7 +28,7 @@ defparams = [
     [ "dst_y_add", int, 0, 50 ],
     [ "dst_y_max", int, 0, 200 ],
     [ "error_correct", int ],
-    [ "error_correct_gap", int, 2, 10 ],
+    [ "error_ignore_count", int, 3, 10 ],
     [ "final_coef_misc", float, 0.1, 5],
     [ "final_coef_turn", float, 0.1, 5 ],
     [ "final_coef_exp", float, 0.01, 2 ],

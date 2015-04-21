@@ -30,7 +30,7 @@ class Params {
   int dst_y_add;
   int dst_y_max;
   int error_correct;
-  int error_correct_gap;
+  int error_ignore_count;
   float final_coef_exp;
   float final_coef_misc;
   float final_coef_turn;
@@ -131,7 +131,7 @@ static Params default_params = {
   40, // dst_y_add
   120, // dst_y_max
   1, // error_correct
-  4, // error_correct_gap
+  5, // error_ignore_count
   0.1, // final_coef_exp
   0.8, // final_coef_misc
   1.0, // final_coef_turn
@@ -226,7 +226,7 @@ void Params::toJson(QJsonObject &json) const {
   json["dst_y_add"] = dst_y_add;
   json["dst_y_max"] = dst_y_max;
   json["error_correct"] = error_correct;
-  json["error_correct_gap"] = error_correct_gap;
+  json["error_ignore_count"] = error_ignore_count;
   json["final_coef_exp"] = final_coef_exp;
   json["final_coef_misc"] = final_coef_misc;
   json["final_coef_turn"] = final_coef_turn;
@@ -323,7 +323,7 @@ Params Params::fromJson(const QJsonObject &json) {
   p.dst_y_add = json["dst_y_add"].toDouble();
   p.dst_y_max = json["dst_y_max"].toDouble();
   p.error_correct = json["error_correct"].toDouble();
-  p.error_correct_gap = json["error_correct_gap"].toDouble();
+  p.error_ignore_count = json["error_ignore_count"].toDouble();
   p.final_coef_exp = json["final_coef_exp"].toDouble();
   p.final_coef_misc = json["final_coef_misc"].toDouble();
   p.final_coef_turn = json["final_coef_turn"].toDouble();

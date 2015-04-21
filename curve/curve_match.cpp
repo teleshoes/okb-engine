@@ -726,10 +726,9 @@ bool Scenario::childScenario(LetterNode &childNode, bool endScenario, QList<Scen
        be good enough solutions. This is especially useful for long (and boring!) words
        warning: this is known to increase CPU usage by more than 50% ! */
     bool error_ignore = false;
-    if (params->error_correct && !ok && count >= 2 && ! endScenario
-	&& error_count < 1 + (count - 1) / params->error_correct_gap) {
-      if (score.distance_score > -0.45) {
-	if (score.cos_score >= 0 || score.curve_score >= 0) {
+    if (params->error_correct && !ok && count >= 2 && (error_count < 1 || count >= params->error_ignore_count)) {
+      if (score.distance_score > (endScenario?0:-0.45)) {
+	if (score.cos_score >= 0 || score.curve_score >= 0 || count >= params->error_ignore_count) {
 	  error_ignore = ok = true;
 	}
       }
@@ -2260,7 +2259,7 @@ void CurveMatch::sortCandidates() {
   for(int i = 0; i < n; i ++) {
     float new_score = candidates[i].getScore()
       - params.coef_distance * (candidates[i].distance() - min_dist) / max(15, min_dist)
-      - params.coef_error * candidates[i].getErrorCount();
+      - params.coef_error * min(2, candidates[i].getErrorCount());
     candidates[i].setScoreV1(new_score);
     if (new_score > quality) { quality = new_score; }
   }
