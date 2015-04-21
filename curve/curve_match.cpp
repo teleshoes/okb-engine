@@ -1898,6 +1898,7 @@ void CurveMatch::curvePreprocess1(int /* unused parmeter for the moment */) {
   int max_pts = params.atp_max_pts;
   int tip_gap = 0;
   int opt_gap = params.atp_opt_gap;
+  int excl_gap = params.atp_excl_gap;
   bool st_found = false;
   for(int i = tip_gap; i < l - tip_gap; i ++) {
     int turn = curve[i].turn_smooth; // take care of jagged curves
@@ -1914,9 +1915,9 @@ void CurveMatch::curvePreprocess1(int /* unused parmeter for the moment */) {
 	// turn end
 	int end_index = i;
 	if (i == l - 1 - tip_gap) { total += turn; }
-	for(int j = 1; j <= 2; j ++) {
-	  if (start_index - j > 0) { st_found |= (curve[start_index - j].sharp_turn != 0); }
-	  if (end_index + j < l) { st_found |= (curve[end_index + j].sharp_turn != 0); }
+
+	for(int j = max(max_index - excl_gap, tip_gap); j < min(max_index + excl_gap, l - tip_gap); j ++) {
+	  if (curve[j].sharp_turn) { st_found = true; }
 	}
 	DBG("New turn %d->%d total=%d max_index=%d st_found=%d", start_index, end_index, total, max_index, st_found);
 	if (abs(total) > min_angle1 &&
@@ -2175,10 +2176,6 @@ void CurveMatch::scenarioFilter(QList<Scenario> &scenarios, float score_ratio, i
     DBG("filtering(size): %s (%.3f/%.3f)", QSTRING2PCHAR(s.getName()), s.getScore(), max_score);
   }
 
-}
-
-static int scenarioDistanceLessThan(Scenario &s1, Scenario &s2) {
-  return s1.distance() < s2.distance();
 }
 
 int CurveMatch::compare_scenario(Scenario *s1, Scenario *s2, bool reverse) {

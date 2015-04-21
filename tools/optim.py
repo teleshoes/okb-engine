@@ -66,7 +66,7 @@ def parallel(lst):
         handle[key] = pool.apply_async(func, args = tuple(args))
     result = dict()
     for key, func, args in lst:
-        result[key] = handle[key].get(timeout = 10)
+        result[key] = handle[key].get(timeout = 60)
     return result
 
 

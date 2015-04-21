@@ -2,7 +2,8 @@
 
 [default]
 anisotropy_ratio = 1.5
-atp_max_pts = 8
+atp_excl_gap = 7
+atp_max_pts = 5
 atp_min_angle1 = 30
 atp_min_turn1 = 12
 atp_opt_gap = 4

@@ -5,6 +5,7 @@
 
 defparams = [
     [ "anisotropy_ratio", float, 1, 2 ],
+    [ "atp_excl_gap", int, 2, 10],
     [ "atp_max_pts", int, 3, 12],
     [ "atp_min_angle1", int, 10, 45],
     [ "atp_min_turn1", int, 5, 25],

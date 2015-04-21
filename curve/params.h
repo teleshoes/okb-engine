@@ -7,6 +7,7 @@ class Params {
  public:
   /* BEGIN DECL */
   float anisotropy_ratio;
+  int atp_excl_gap;
   int atp_max_pts;
   int atp_min_angle1;
   int atp_min_turn1;
@@ -107,7 +108,8 @@ class Params {
 static Params default_params = {
   /* BEGIN DEFAULT */
   1.5, // anisotropy_ratio
-  8, // atp_max_pts
+  7, // atp_excl_gap
+  5, // atp_max_pts
   30, // atp_min_angle1
   12, // atp_min_turn1
   4, // atp_opt_gap
@@ -201,6 +203,7 @@ static Params default_params = {
 void Params::toJson(QJsonObject &json) const {
   /* BEGIN TOJSON */
   json["anisotropy_ratio"] = anisotropy_ratio;
+  json["atp_excl_gap"] = atp_excl_gap;
   json["atp_max_pts"] = atp_max_pts;
   json["atp_min_angle1"] = atp_min_angle1;
   json["atp_min_turn1"] = atp_min_turn1;
@@ -297,6 +300,7 @@ Params Params::fromJson(const QJsonObject &json) {
 
   /* BEGIN FROMJSON */
   p.anisotropy_ratio = json["anisotropy_ratio"].toDouble();
+  p.atp_excl_gap = json["atp_excl_gap"].toDouble();
   p.atp_max_pts = json["atp_max_pts"].toDouble();
   p.atp_min_angle1 = json["atp_min_angle1"].toDouble();
   p.atp_min_turn1 = json["atp_min_turn1"].toDouble();
