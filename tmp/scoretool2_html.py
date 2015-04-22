@@ -82,10 +82,21 @@ def act_final_score_calc(test):
 def act_final_score(test):
     return check_max(test, lambda c: c["score"], "final_score", colors = COLORS)
 
+def act_threshold(test):
+    expected = test["ch"].get(test["expected"], None)
+    if not expected: return dict(txt="Word not found", color="red", count=[ "not_found" ])
+    candidates = test["ch"].values()
+
+    return dict(txt="%.3f:%.3f" % (
+        expected["score"] - max([ c["score"] for c in candidates ]),
+        expected["score_v1"] - max([ c["score_v1"] for c in candidates ])
+    ))
+
 all_actions = dict(distance=act_distance,
                    distance_adj=act_distance_adj,
                    score_turn=act_score_turn,
                    score_misc=act_score_misc,
+                   threshold=act_threshold,
                    # score_cos=act_score_cos,
                    # score_curve=act_score_curve,
                    # score_turn_min=act_score_turn_min,

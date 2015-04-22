@@ -13,16 +13,11 @@ import gen_curve
 import json
 import re
 
-mydir = os.path.dirname(os.path.abspath(__file__))
-libdir = os.path.join(mydir, '..')
+mydir = os.path.dirname(__file__)
+libdir = os.path.realpath(os.path.join(mydir, '..'))
 sys.path.insert(0, libdir)
 
 import predict
-
-os.chdir(os.path.dirname(__file__))
-
-jsonfile = '../test/hello.json'
-js = json.loads(open(jsonfile, "r").read())
 
 error = 50
 curviness = 150
@@ -48,6 +43,15 @@ for o, a in opts:
     else:
         print("Bad option: %s" % o)
         exit(1)
+
+
+db_file = os.path.realpath(os.path.join(mydir, "../db/predict-%s.db" % lang))
+
+os.chdir(os.path.dirname(__file__))
+
+jsonfile = '../test/hello.json'
+js = json.loads(open(jsonfile, "r").read())
+
 
 cache_home = "/tmp/e2e-cache"
 cache_dir = os.path.join(cache_home, "%d-%d" % (error, curviness))
@@ -129,7 +133,6 @@ class Tools():
 
 p = predict.Predict(tools = Tools())
 
-db_file = os.path.join(mydir, "../db/predict-%s.db" % lang)
 p.set_dbfile(db_file)
 p.load_db()
 

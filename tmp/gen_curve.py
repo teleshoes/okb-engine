@@ -10,6 +10,10 @@ import unicodedata
 import getopt
 import random
 
+mydir = os.path.dirname(__file__)
+libdir = os.path.join(mydir, '..', 'tools')
+sys.path.insert(0, libdir)
+
 import optim
 
 #  --- Bézier curve stuff (from https://stackoverflow.com/questions/12643079/bézier-curve-fitting-with-scipy)
