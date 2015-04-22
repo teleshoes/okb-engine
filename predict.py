@@ -230,6 +230,7 @@ class WordScore:
 
 class HistPercentile:
     VERSION = 4
+
     def __init__(self, percent = 0.05, size = 500, min_ratio = None):
         self.values = []
         self.high = self.low = 0
@@ -325,7 +326,6 @@ class Predict:
         words = [ w for w in words if w ]
         context = [ words.pop(0), words.pop(1) ]
         words = dict([ (w, WordScore(0.8, 0, False)) for w in words ])
-        t0 = time.time()
         self._guess1(context, words)
 
     def refresh_db(self):
@@ -631,7 +631,7 @@ class Predict:
 
             # update coefficients
             increase = decrease = False
-            if infoguess.coef_score_predict * infoguess.score_predict < infoguess.coef_score_predict * infonew.score_predict:
+            if infoguess.score_predict < infonew.score_predict:
                 increase = True
             if infoguess.score_no_predict < infonew.score_no_predict:
                 decrease = True
@@ -644,7 +644,7 @@ class Predict:
                 c = 1 - quality_index
                 for i in [0, 1]:
                     old_value = self.coef_score_predict[i]
-                    self.coef_score_predict[i] += c * sign * self.cf("score_predict_tune_increment", 0.005, float)
+                    self.coef_score_predict[i] += c * sign * self.cf("score_predict_tune_increment", 0.01, float)
                     self.coef_score_predict[i] = max(0.2, min(5, self.coef_score_predict[i]))
                     self.log("Replacement [%s -> %s] - Predict coef %s, value[%d]: %.3f -> %.3f" %
                              (old, new, name, i, old_value, self.coef_score_predict[i]))
@@ -672,7 +672,13 @@ class Predict:
         # if no context available, handle this as isolated words instead of the beginning of a new sentence (so no #START)
         if self.cursor_pos == -1: return [], -1
 
-        text_before = self.surrounding_text[0:self.cursor_pos] + (" " + self.preedit) if include_preedit else ""
+        st = self.surrounding_text[0:self.cursor_pos]
+        if self.cursor_pos > 0 and self.cursor_pos < len(self.surrounding_text) \
+           and re.match(r'[\w\'\-]+', self.surrounding_text[self.cursor_pos - 1:self.cursor_pos + 1]):
+            # we are in the middle of a word, don't include it in the context
+            st = re.sub(r'[\w\'\-]+$', '', st)
+
+        text_before = st + (" " + self.preedit) if include_preedit else ""
         text_before = re.sub(r'^.*[\.\!\?]', '', text_before)
 
         words = reversed(re.split(r'[^\w\'\-]+', text_before))
@@ -781,8 +787,6 @@ class Predict:
         (global_stock_count, global_user_count) = sqlresult["-2:-1:-1"][0:2]  # grand total #NA:#NA:#TOTAL
 
         learning_master_switch = self.cf('learning_enable', True, bool)
-        learning_count = self.cf('learning_count', 10000, int)
-        learning_count_min = self.cf('learning_count_min', 10, int)
         learning_curve = self.cf('learning_curve', 100, int)
 
         score_count = dict()
@@ -920,21 +924,23 @@ class Predict:
         max_proba = max_proba2 = 0
 
         sc2index = [ None ] + list(reversed(all_scores))
-        score_num_type = sc2index.index(sc1) * 10 + sc2index.index(sc2)  # 2 word scores can be compared if they have the same type, otherwise the smaller one is irrelevant
+
+        # 2 word scores can be compared if they have the same type, otherwise the smaller one is irrelevant
+        score_num_type = sc2index.index(sc1) * 10 + sc2index.index(sc2)
         if return_score_num_type is not None: return_score_num_type.append(score_num_type)
 
         for word in details:
             if not details[word]: continue
             proba = details[word]["probas"].get(sc1, 0)
             max_proba = max(max_proba, proba)
-            details[word]["filter"] = dict(proba = proba, coef = (sc1,sc2), score_num_type = score_num_type)
+            details[word]["filter"] = dict(proba = proba, coef = (sc1, sc2), score_num_type = score_num_type)
 
             if sc2:
                 proba2 = details[word]["probas"].get(sc2, 0)
                 if proba2: details[word]["filter"]["proba2"] = proba2
                 max_proba2 = max(max_proba2, proba2)
 
-        if sc2: # prevent high cluster probability to bring very rare words
+        if sc2:  # prevent high cluster probability to bring very rare words
             for word in details:
                 if not details[word]: continue
                 d = details[word]["filter"]
@@ -989,7 +995,8 @@ class Predict:
         max_words = self.cf('predict_max_candidates', 25, int)
         all_words = all_words[-max_words:]
 
-        all_predict_scores = self._get_all_predict_scores(all_words, context, return_score_num_type = return_score_num_type)  # requests all scores using bulk requests
+        # requests all scores using bulk requests
+        all_predict_scores = self._get_all_predict_scores(all_words, context, return_score_num_type = return_score_num_type)
 
         new_words = dict()
         for word in all_words:
@@ -1181,7 +1188,8 @@ class Predict:
         backtrack_score_threshold = self.cf('backtrack_score_threshold', 0.05, float)
         backtrack_predict_threshold = self.cf('backtrack_predict_threshold', 0.1, float)
 
-        words0, score0 = get_words_and_score(h0)  # unfortunately with new score aggregation function, we need to check all words (result depend on the full set of possible words)
+        # unfortunately with new score aggregation function, we need to check all words (result depend on the full set of possible words)
+        words0, score0 = get_words_and_score(h0)  # no limitation to 'maw_words', cf. above comment
         words1, score1 = get_words_and_score(h1, max_words)
 
         dict_word0 = dict([ (w, h0["words"][w]) for w in words0 ])
@@ -1288,7 +1296,7 @@ class Predict:
             self.log("Flushing DB ...")
             self.db.save()  # commit changes to DB
 
-        #if self.last_use < now - 120:
+        # if self.last_use < now - 120:
         #    self.log("Unloading in memory DB ...")
         #    self.db.clear()
 
