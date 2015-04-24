@@ -1256,6 +1256,12 @@ void Scenario::calc_turn_score_all() {
 	score = min(abs(actual) / 180, 1); // @todo add as a parameter
       }
 
+      if ((i == 0 && d->length_before < params -> turn_min_tip_len) ||
+	  (i == turn_count - 1 && d->length_after < params -> turn_min_tip_len)) {
+	// this probably conflict with turn_tip_min_distance above
+	score -= params -> turn_tip_len_penalty;
+      }
+
       if (score < 0) { score = 0.01; } // we can keep this scenario in case other are even worse
 
       int index = d -> index;
@@ -1472,14 +1478,17 @@ float Scenario::calc_score_misc(int i) {
 	dk01 > 2 * params->curve_score_min_dist &&
 	dk12 > 2 * params->curve_score_min_dist) {
       int i1 = -1;
+      int ih = index_history[i];
       for(int d = 0; d <= params->max_turn_index_gap && i1 == -1; d ++) {
-	if (curve->getSharpTurn(index_history[i] - d)) {
+	if (ih - d > 0 && curve->getSharpTurn(ih - d)) {
 	  i1 = index_history[i] - d;
-	} else if (curve->getSharpTurn(index_history[i] + d)) {
+	} else if (ih + d < curve->size() - 1 && curve->getSharpTurn(ih + d)) {
 	  i1 = index_history[i] + d;
 	}
       }
-      if (i1 == -1) {
+      if (dk01 < 1 || dk12 < 1) {
+	DBG("  [score misc] can't compute u,v: d=[%.3f, %.3f] --> ignored", dk01, dk12);
+      } else if (i1 == -1) {
 	/* turn point not found: this may happen when user draw very round curves :-) */
 	DBG("  [score misc] %s[%d:%c] turn distance -> turn not found (this is not an error)",getNameCharPtr(), i, letter_history[i])
       } else {

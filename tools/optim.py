@@ -152,6 +152,10 @@ def score1(json_str, expected, typ):
         x = (score_ref - max_score) * 10
         score = x - x ** 2 if x < 0 else x / (1 + x)
 
+    elif typ == "tanh":
+        x = (score_ref - max_score) * 20
+        score = math.tanh(x)
+
     else: raise Exception("unknown score type: %d", typ)
 
     return score
@@ -367,7 +371,7 @@ if __name__ == "__main__":
     print('Parameters: ' + params2str(params))
 
     if typ == "all":
-        typ_list = [ "max", "max2", "stddev", "good" ]
+        typ_list = [ "max", "max2", "stddev", "good", "tanh" ]
     elif typ.find(',') > -1:
         typ_list = typ.split(',')
     else:

@@ -82,7 +82,7 @@ if __name__ == "__main__":
 
     c = Color(fname = args[0] if len(args) >= 1 else None, color_ok = color)
 
-    for typ in ["max", "max2", "stddev", "good" ]:
+    for typ in ["max", "max2", "stddev", "good", "tanh" ]:
         detail = dict()
         score = optim.run_all(tests, params, typ, fail_on_bad_score = False, return_dict = detail, silent = True, dump = dump_dir)
 

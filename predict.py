@@ -353,7 +353,10 @@ class Predict:
         self.coef_score_predict[1] = self.cf("predict_coef_high", 0.15, float)
 
         self.corpus_size = self.db.get_grams(["-2:-1:-1"])["-2:-1:-1"][0]  # grand total #NA:#NA:#TOTAL
-        self._dummy_request()
+        try:
+            self._dummy_request()
+        except Exception as e:
+            self.log("Dummy request failed (not fatal but probably wrong): " + e)
 
         return True
 
@@ -692,7 +695,7 @@ class Predict:
         return words, pos
 
 
-    def _get_all_predict_scores(self, words, context, return_score_num_type = None):
+    def _get_all_predict_scores(self, words, context, return_score_num_type = None, curve_scores = None):
         """ get n-gram DB information (use 2 SQL batch requests instead of a ton of smaller ones, for huge performance boost) """
         result = dict()
         if not words: return result
@@ -786,14 +789,9 @@ class Predict:
 
         (global_stock_count, global_user_count) = sqlresult["-2:-1:-1"][0:2]  # grand total #NA:#NA:#TOTAL
 
-        learning_master_switch = self.cf('learning_enable', True, bool)
-        learning_curve = self.cf('learning_curve', 100, int)
-
-        score_count = dict()
-
         # evaluate score components
         for word in todo:
-            detail = dict(probas = dict(), filter = dict())
+            detail = dict(probas = dict(), filter = dict(), count = dict())
 
             if word in word2cid:
                 detail["clusters"] = [ word2cid[word] ] + last_cids[0:2]
@@ -808,7 +806,8 @@ class Predict:
                 if num_w and num_c and num_c[0] and num_w[0]:
                     coef_wc = 1.0 * num_w[0] / num_c[0]
 
-            for score_name in todo[word]:
+            for score_name in [ "s3", "c3", "s2", "c2", "s1" ]:
+                if score_name not in todo[word]: continue
                 if score_name == "c1": continue  # useless
 
                 num_id, den_id, cluster, context_key = todo[word][score_name]
@@ -823,6 +822,7 @@ class Predict:
 
                 if user_replace and not total_user_count: total_user_count = 1  # hack for words that have always been replaced in this context
 
+
                 detail_txt = "stock=%d/%d" % (stock_count, total_stock_count)
 
                 # add P(Wi|Ci) term for cluster n-grams
@@ -833,49 +833,16 @@ class Predict:
                     coef = coef_wc
                     detail_txt += " coef=%.5f" % coef
 
-                stock_proba = 1.0 * coef * stock_count / total_stock_count if total_stock_count > 0 else 0
+                proba = stock_proba = 1.0 * coef * stock_count / total_stock_count if total_stock_count > 0 else 0
 
                 if total_user_count and (user_count or user_replace) \
-                   and global_user_count and learning_master_switch and not cluster:
-                    # use information learned from user
+                    and global_user_count and not cluster:
+                    detail_txt += (" user=[%d-%d/%d age=%d]" % (user_count, user_replace, total_user_count, current_day - last_time))
 
-                    age = current_day - last_time
-                    coef_age = math.exp(-0.7 * age / float(self.half_life))
-                    real_user_count = user_count * user_count / (user_replace + user_count)
-
-                    if (user_count + user_replace) * coef_age < 0.5 or context_key not in context_count:
-                        proba = stock_proba  # forget this word in this context
-
-                    elif total_stock_count:
-                        target_count = context_count[context_key].avg
-
-                        coef = 10 ** min(0, math.log10(total_user_count) - learning_curve)
-                        adj_total_user_count = min(10 ** learning_curve, total_user_count)
-
-                        c = max(1, coef * target_count / adj_total_user_count)
-
-                        proba = ((stock_count + c * real_user_count)
-                                 / (total_stock_count + c * total_user_count))
-
-
-                        if user_count < user_replace:
-                            # user really does not like this word in this context
-                            proba *= 10 ** ((user_count - user_replace) / 2)
-
-                        detail_txt += (" user=[%d-%d/%d] age=%d [c=%.2e coef=%.2e P=%.2e->%.2e]" %
-                                       (user_count, user_replace, total_user_count, current_day - last_time,
-                                        c, coef, stock_proba, proba))
-
-                    else:
-                        proba = max(0, user_count * real_user_count / total_user_count)
-                        detail_txt += "user=[%d-%d/%d] (no stock)" % (user_count, user_replace, total_user_count)
-
-                else:
-                    # only use stock information
-                    proba = stock_proba
-
-                if score_name not in score_count: score_count[score_name] = 0
-                score_count[score_name] += user_count + stock_count
+                c = detail["count"]
+                if stock_count: c[score_name] = stock_count
+                if user_count or user_replace:
+                    c["%s-user" % score_name ] = (user_count, user_replace, total_user_count, current_day - last_time)
 
                 if proba > 0: detail["probas"][score_name] = proba
                 detail[score_name] = detail_txt
@@ -883,29 +850,76 @@ class Predict:
             result[word] = detail
 
         # evaluate score for all words
-        return self._filter_final_score(result, score_count, return_score_num_type = return_score_num_type)
+        return self._filter_final_score(result,
+                                        return_score_num_type = return_score_num_type,
+                                        curve_scores = curve_scores)
 
     def _filter_func(self, delta_proba_log):
         x = delta_proba_log
 
         # Old formula: y = math.pow(x, 4) / (3 + math.pow(x, 3)) / (0.2 + x / 4)
 
-        y = math.pow((1 - math.cos(math.pi * min(x, 4) / 4)) / 2, 2)  # this one is prettier
+        y = (1 - math.cos(math.pi * min(x, 4) / 4)) / 2  # this one is prettier
+
         return y
 
-    def _filter_final_score(self, details, score_count, return_score_num_type = None):
+    def _filter_final_score(self, details, return_score_num_type = None, curve_scores = None):
         flt_max = self.cf('filter_max', 1, float)  # now our scores are in the [0, 1] range and their weight is controlled by coef_score_predict parameters
         flt_coef = self.cf('filter_coef', .75, float)
         flt_min_count = self.cf('filter_min_count', 25, int)  # @todo this is highly dependent on corpus size, so it should not be a fixed parameter
+        flt_curve_score_threshold = self.cf('filter_curve_score_threshold', 0.08, float)
+        flt_c2s_backoff = self.cf('filter_c2s_backoff', 0.5, float)
         flt_word_max_ratio = self.cf('filter_word_max_ratio', 100, float)
+        flt_user_min_count = self.cf('filter_user_min_count', 10, float)
+        flt_user_rank_factor = self.cf('filter_user_rank_factor', 3.16, float)
 
         all_scores = [ "s3", "c3", "s2", "c2", "s1" ]
+
+        if curve_scores: max_curve_score = max([ curve_scores.get(w, 0) for w in details ] + [ 0 ])
+        max_s1 = max([ details[w]["probas"].get("s1", 0) for w in details if details[w] ] + [ 0 ])
+
+        # -- user score: very basic stuff (on purpose) --
+        learning_master_switch = self.cf('learning_enable', True, bool)
+        max_user_proba = 0
+        if learning_master_switch:
+            for word in details:
+                if not details[word]: continue
+                N = flt_user_min_count
+                for sc in [ "s3", "s2", "s1" ]:
+                    (user_count, user_replace, total_user_count, age) = details[word]["count"].get("%s-user" % sc, (0, 0, 0, 0))
+                    if user_count or user_replace: break
+                    N *= flt_user_rank_factor
+                    # @todo backoff or linear combination ?
+
+                count = (user_count - user_replace)
+                age_coef = age / float(self.half_life)
+
+                if count > 0:
+                    base_user_proba = count / total_user_count
+                    max_user_proba = max(base_user_proba, max_user_proba)
+                    user_proba = base_user_proba * min(1, (count / N) * math.exp(-0.7 * age_coef))
+                    details[word]["user_proba"] = user_proba
+
+                elif count < 0:
+                    details[word]["user_proba_dec"] = 1 / 3.16 ** (abs(count) * math.exp(-0.7 * age_coef))
+
+        # -- stock probability --
+        score_count = dict()
+        for sc in all_scores:
+            score_count[sc] = 0
+            for word in details:
+                if not details[word]: continue
+                if curve_scores and curve_scores[word] < max_curve_score - flt_curve_score_threshold:
+                    continue  # you should have typed it better :-)
+                if details[word]["probas"].get("s1", 0) < max_s1 / flt_word_max_ratio: continue
+
+                score_count[sc] += details[word]["count"].get(sc, 0)
 
         # find which scores are relevant in the current context
         cluster_score_id = word_score_id = None
 
         for sc in all_scores:
-            count = float(score_count.get(sc, 0))
+            count = score_count.get(sc, 0)
             if count > flt_min_count:
                 if sc.startswith("c"):
                     if not cluster_score_id: cluster_score_id = sc
@@ -921,45 +935,49 @@ class Predict:
 
         # evaluate score
         result = dict()
-        max_proba = max_proba2 = 0
+        max_proba = 0
 
         sc2index = [ None ] + list(reversed(all_scores))
 
         # 2 word scores can be compared if they have the same type, otherwise the smaller one is irrelevant
         score_num_type = sc2index.index(sc1) * 10 + sc2index.index(sc2)
-        if return_score_num_type is not None: return_score_num_type.append(score_num_type)
+        if return_score_num_type is not None: return_score_num_type.append(score_num_type) # @todo this is probably invalid if we use user scores (?)
 
         for word in details:
             if not details[word]: continue
             proba = details[word]["probas"].get(sc1, 0)
-            max_proba = max(max_proba, proba)
             details[word]["filter"] = dict(proba = proba, coef = (sc1, sc2), score_num_type = score_num_type)
 
-            if sc2:
-                proba2 = details[word]["probas"].get(sc2, 0)
-                if proba2: details[word]["filter"]["proba2"] = proba2
-                max_proba2 = max(max_proba2, proba2)
+            # if sc2 and proba:
+            #     proba2 = details[word]["probas"].get(sc2, 0)
+            # ...
+            # (this case will be probably taken care with the "s1" filter above
+            #  so wait for real-life occurence of a bad-s2, good-s1 case)
 
-        if sc2:  # prevent high cluster probability to bring very rare words
-            for word in details:
-                if not details[word]: continue
-                d = details[word]["filter"]
-                proba2 = d.get("proba2", 0)
-                if proba2 < max_proba2 / flt_word_max_ratio:
-                    d["proba_orig"] = d["proba"]
-                    d["proba"] *= flt_word_max_ratio * proba2 / max_proba2
+            proba *= details[word].get("user_proba_dec", 1)  # reduce probability if user has refused this word in this context
 
-            max_proba = max([ details[w]["filter"]["proba"] for w in details if details[w] ])
+            details[word]["filter"]["proba_stock"] = proba
 
+            details[word]["filter"]["proba"] = proba
+            max_proba = max(max_proba, proba)
+
+        # -- aggregation between user and stock probabilities --
         for word in details:
             final_score = 0
             if not details[word]: continue
             proba = details[word]["filter"]["proba"]
-            if proba:
-                x = math.log10(max_proba / proba)
+            user_proba = details[word].get("user_proba", None)
+            if proba or user_proba:
+                xs = math.log10(max_proba / proba) if proba else 1000
+                xu = math.log10(max_user_proba / user_proba) if user_proba and user_proba > 0 else 1000
+
+                x = min(xu, xs)
+                if xu < xs: details[word]["filter"]["use_user_proba"] = 1
+
                 y = self._filter_func(x)
                 final_score = flt_max - flt_coef * y
-                details[word]["filter"]["x"] = x
+                details[word]["filter"]["xu"] = xu
+                details[word]["filter"]["xs"] = xs
                 details[word]["filter"]["y"] = y
 
             result[word] = (final_score, details[word])
@@ -996,7 +1014,9 @@ class Predict:
         all_words = all_words[-max_words:]
 
         # requests all scores using bulk requests
-        all_predict_scores = self._get_all_predict_scores(all_words, context, return_score_num_type = return_score_num_type)
+        all_predict_scores = self._get_all_predict_scores(all_words, context,
+                                                          return_score_num_type = return_score_num_type,
+                                                          curve_scores = dict([ (w, s.score) for w, s in words.items() ]))
 
         new_words = dict()
         for word in all_words:
@@ -1211,7 +1231,10 @@ class Predict:
         h0_new = dict()
         loops = 0
         messages = dict()
-        max_score_num_type = -1
+
+        _d0 = h0["words"][h0["guess"]].predict_detail.get("filter", None)
+        max_score_num_type = _d0["score_num_type"] if _d0 else -1
+
         for w1 in words1:
             if w1 == h1["guess"]:
                 h0_new[w1] = dict(h0)
@@ -1224,7 +1247,7 @@ class Predict:
             if score_num_type > max_score_num_type:
                 # we find a higher score type, drop previous maxima
                 max_score_num_type = score_num_type
-                max_score = guess_score
+                max_score = 0
             elif score_num_type < max_score_num_type:
                 # we have a lower score type --> just ignore this score
                 continue

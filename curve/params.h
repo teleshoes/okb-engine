@@ -77,11 +77,13 @@ class Params {
   int turn_distance_threshold;
   int turn_max_angle;
   int turn_min_angle;
+  int turn_min_tip_len;
   int turn_optim;
   int turn_separation;
   int turn_threshold;
   int turn_threshold2;
   int turn_threshold3;
+  float turn_tip_len_penalty;
   int turn_tip_min_distance;
   int user_dict_learn;
   int user_dict_size;
@@ -178,11 +180,13 @@ static Params default_params = {
   60, // turn_distance_threshold
   20, // turn_max_angle
   10, // turn_min_angle
+  20, // turn_min_tip_len
   120, // turn_optim
   120, // turn_separation
   75, // turn_threshold
   140, // turn_threshold2
   115, // turn_threshold3
+  0.5, // turn_tip_len_penalty
   30, // turn_tip_min_distance
   1, // user_dict_learn
   2000, // user_dict_size
@@ -273,11 +277,13 @@ void Params::toJson(QJsonObject &json) const {
   json["turn_distance_threshold"] = turn_distance_threshold;
   json["turn_max_angle"] = turn_max_angle;
   json["turn_min_angle"] = turn_min_angle;
+  json["turn_min_tip_len"] = turn_min_tip_len;
   json["turn_optim"] = turn_optim;
   json["turn_separation"] = turn_separation;
   json["turn_threshold"] = turn_threshold;
   json["turn_threshold2"] = turn_threshold2;
   json["turn_threshold3"] = turn_threshold3;
+  json["turn_tip_len_penalty"] = turn_tip_len_penalty;
   json["turn_tip_min_distance"] = turn_tip_min_distance;
   json["user_dict_learn"] = user_dict_learn;
   json["user_dict_size"] = user_dict_size;
@@ -370,11 +376,13 @@ Params Params::fromJson(const QJsonObject &json) {
   p.turn_distance_threshold = json["turn_distance_threshold"].toDouble();
   p.turn_max_angle = json["turn_max_angle"].toDouble();
   p.turn_min_angle = json["turn_min_angle"].toDouble();
+  p.turn_min_tip_len = json["turn_min_tip_len"].toDouble();
   p.turn_optim = json["turn_optim"].toDouble();
   p.turn_separation = json["turn_separation"].toDouble();
   p.turn_threshold = json["turn_threshold"].toDouble();
   p.turn_threshold2 = json["turn_threshold2"].toDouble();
   p.turn_threshold3 = json["turn_threshold3"].toDouble();
+  p.turn_tip_len_penalty = json["turn_tip_len_penalty"].toDouble();
   p.turn_tip_min_distance = json["turn_tip_min_distance"].toDouble();
   p.user_dict_learn = json["user_dict_learn"].toDouble();
   p.user_dict_size = json["user_dict_size"].toDouble();
