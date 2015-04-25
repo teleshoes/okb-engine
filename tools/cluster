@@ -2,5 +2,14 @@
 
 CL_DIR=`dirname "$0"`/../cluster
 
-( cd $CL_DIR && make )
-exec $CL_DIR/build/cluster "$@"
+EXE="$CL_DIR/build/cluster"
+
+if [ ! -x "$EXE" ] ; then
+    pushd "$CL_DIR"
+    mkdir -p build
+    qmake
+    make
+    popd
+fi
+
+exec $EXE "$@"
