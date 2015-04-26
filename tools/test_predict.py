@@ -55,7 +55,7 @@ def run(words):
     result = p._get_all_predict_scores(last_word_choices, p.last_words)
 
     for word in last_word_choices:
-        score, details = result[word] if word in result else 0,dict()
+        (score, details) = result[word] if word in result else (0, dict())
 
         print("%15s :" % word, score, re.sub(r'(\d\.0*\d\d)\d+', lambda m: m.group(1), str(details)))
 

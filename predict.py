@@ -273,7 +273,7 @@ class Predict:
         self.mock_time = None
         self.guess_history = dict()
         self.guess_history_last = [ ]
-        self.coef_score_predict = [ None, None ]
+        self.coef_score_predict = [ None, None, None ]
         self.last_use = 0
         self.curve_learn_info_hist = [ ]
         self.corpus_size = None
@@ -349,8 +349,9 @@ class Predict:
         self.refresh_db()
 
         self.half_life = self.cf('learning_half_life', 30, int)
-        self.coef_score_predict[0] = self.cf("predict_coef_low", 0.4, float)
+        self.coef_score_predict[0] = self.cf("predict_coef_low",   0.4, float)
         self.coef_score_predict[1] = self.cf("predict_coef_high", 0.15, float)
+        self.coef_score_predict[2] = self.cf("predict_coef_l2",   0.05, float)
 
         self.corpus_size = self.db.get_grams(["-2:-1:-1"])["-2:-1:-1"][0]  # grand total #NA:#NA:#TOTAL
         try:
@@ -644,17 +645,23 @@ class Predict:
 
                 name, sign = ("increase", 1) if increase else ("decrease", -1)
 
-                c = 1 - quality_index
-                for i in [0, 1]:
+                if quality_index:
+                    weights = { 2: 1 }
+                else:
+                    c = 1 - quality_index
+                    weights = dict()
+                    for i in [0, 1]: (weights[i], c) = (c, 1 - c)
+
+                for i, weight in weights.items():
                     old_value = self.coef_score_predict[i]
-                    self.coef_score_predict[i] += c * sign * self.cf("score_predict_tune_increment", 0.01, float)
+                    self.coef_score_predict[i] += weight * sign * self.cf("score_predict_tune_increment", 0.01, float)
                     self.coef_score_predict[i] = max(0.2, min(5, self.coef_score_predict[i]))
                     self.log("Replacement [%s -> %s] - Predict coef %s, value[%d]: %.3f -> %.3f" %
                              (old, new, name, i, old_value, self.coef_score_predict[i]))
-                    c = 1 - c
 
-                self.db.set_param("predict_coef_low", self.coef_score_predict[0])
+                self.db.set_param("predict_coef_low",  self.coef_score_predict[0])
                 self.db.set_param("predict_coef_high", self.coef_score_predict[1])
+                self.db.set_param("predict_coef_l2",   self.coef_score_predict[2])
 
 
     def get_predict_words(self):
@@ -836,7 +843,7 @@ class Predict:
                 proba = stock_proba = 1.0 * coef * stock_count / total_stock_count if total_stock_count > 0 else 0
 
                 if total_user_count and (user_count or user_replace) \
-                    and global_user_count and not cluster:
+                   and global_user_count and not cluster:
                     detail_txt += (" user=[%d-%d/%d age=%d]" % (user_count, user_replace, total_user_count, current_day - last_time))
 
                 c = detail["count"]
@@ -941,7 +948,7 @@ class Predict:
 
         # 2 word scores can be compared if they have the same type, otherwise the smaller one is irrelevant
         score_num_type = sc2index.index(sc1) * 10 + sc2index.index(sc2)
-        if return_score_num_type is not None: return_score_num_type.append(score_num_type) # @todo this is probably invalid if we use user scores (?)
+        if return_score_num_type is not None: return_score_num_type.append(score_num_type)  # @todo this is probably invalid if we use user scores (?)
 
         for word in details:
             if not details[word]: continue
@@ -1021,7 +1028,10 @@ class Predict:
         new_words = dict()
         for word in all_words:
             score_predict, predict_detail = all_predict_scores.get(word, (0, dict()))
-            coef_score_predict = self.coef_score_predict[0] * (1 - quality_index) + self.coef_score_predict[1] * quality_index
+            if quality_index == -1:
+                coef_score_predict = self.coef_score_predict[2]
+            else:
+                coef_score_predict = self.coef_score_predict[0] * (1 - quality_index) + self.coef_score_predict[1] * quality_index
 
             # overall score
             score = words[word].score * (max_score ** max_score_pow) + coef_score_predict * score_predict
@@ -1078,7 +1088,7 @@ class Predict:
                 if version == HistPercentile.VERSION:
                     (self._speed_hist, self._score_hist) = (h1, h2)
             self._hist_dirty = False
-        except: pass # no problem
+        except: pass  # no problem
 
     def _quality_index_save(self, fname):
         if self._hist_dirty:
@@ -1104,10 +1114,15 @@ class Predict:
                 display_matches.append((word, words[word]))
 
         max_score = max( [ words[w].score for w in words ] ) if words else 0
-        quality_index, quality_detail = self._quality_index(max_score, speed)
 
-        self.log("ID: %d - Speed: %d - Context: %s - Quality: [%s] - Settings: [cp=%.2f,%.2f]" %
-                 (correlation_id, speed,  self.last_words, quality_detail, self.coef_score_predict[0], self.coef_score_predict[1]))
+        l2_mode_threshold = self.cf('l2_mode_threshold', .025, float)
+        if max([ len(w) for w in words if words[w].score >= max_score - l2_mode_threshold ]) <= 2:
+            quality_index, quality_detail = -1, "l2_mode"
+        else:
+            quality_index, quality_detail = self._quality_index(max_score, speed)
+
+        self.log("ID: %d - Speed: %d - Context: %s - Quality: [%s] - Settings: [cp=%.2f,%.2f,%.2f]" %
+                 (correlation_id, speed,  self.last_words, quality_detail, self.coef_score_predict[0], self.coef_score_predict[1], self.coef_score_predict[2]))
         self.log("Matches: %s" % ','.join("%s[%s]" % x for x in reversed(display_matches)))
 
         if not words: return
@@ -1166,7 +1181,7 @@ class Predict:
             may have invalidated the new guess) """
 
         if not self.db: return
-        if not self.cf("backtrack_enable", 1, int): return
+        if not self.cf("backtrack_enable", 0, int): return  # broken for now --> disabled by default
 
         self.db.clear_stats()
 
@@ -1204,7 +1219,7 @@ class Predict:
 
         t0 = time.time()
 
-        max_words = self.cf('max_words_backtrack', 10, int)
+        max_words = self.cf('max_words_backtrack', 15, int)
         backtrack_score_threshold = self.cf('backtrack_score_threshold', 0.05, float)
         backtrack_predict_threshold = self.cf('backtrack_predict_threshold', 0.1, float)
 
