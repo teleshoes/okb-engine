@@ -1,15 +1,5 @@
 #! /bin/bash -e
 
 CL_DIR=`dirname "$0"`/../cluster
-
 EXE="$CL_DIR/build/cluster"
-
-if [ ! -x "$EXE" ] ; then
-    pushd "$CL_DIR"
-    mkdir -p build
-    qmake
-    make
-    popd
-fi
-
 exec $EXE "$@"

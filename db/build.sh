@@ -2,6 +2,8 @@
 # build language files out of tree
 #  (just a noob-friendly wrapper for the makefile)
 
+set -o pipefail
+
 cf="$HOME/.okboard-build"
 
 [ -f "$cf" ] && . $cf
@@ -20,24 +22,27 @@ die() { echo "DIE: $*"; exit 1; }
 [ -d "$CORPUS_DIR" ] || die "corpus directory not found: $CORPUS_DIR"
 
 usage() {
-    echo "usage: "`basename "$0"`" [-r] [<language code>]"
+    echo "usage: "`basename "$0"`" [-r] [<language codes 1> [ ... <langage code N> ] ]"
     exit 1
 }
 
 add_tgt=
-lang=
+langs=
 while [ -n "$1" ] ; do
     case "$1" in
 	-r) add_tgt=clean ;;
 	-*) usage ;;
-	*) lang="$1" ;;
+	*) langs="$langs $1" ;;
     esac
     shift
 done
 
-if [ -n "$lang" ] ; then
-    echo "Building for language: $lang"
-    tgt_list="$add_tgt .depend-${lang} all-${lang}" # build a specific language
+if [ -n "$langs" ] ; then
+    echo "Building for languages: $langs"
+    tgt_list="$add_tgt"
+    for lang in $langs ; do
+	tgt_list="${tgt_list} .depend-${lang} all-${lang}" # build a specific language
+    done
 else
     echo "Building for all languages"
     tgt_list="$add_tgt depend all" # build all languages
@@ -50,6 +55,17 @@ mydir=`pwd`
 pushd ../ngrams
 python3 setup-cdb.py build
 python3 setup-fslm.py build
+popd
+
+# build clustering tool
+pushd ../cluster
+if [ ! -f "Makefile" ] ; then
+    qmake=${QMAKE:-qmake}
+    $qmake -query QT_VERSION | grep '^5.' >/dev/null || die "QT5 + qmake is required"
+    mkdir -p build
+    $qmake
+fi
+make
 popd
 
 . $mydir/../tools/env.sh

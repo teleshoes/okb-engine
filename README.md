@@ -46,13 +46,18 @@ Where `$LANG` is the 2-letter language ID.
 
 All tools needed to generate language files are included in `db/` directory
 
-Howto: all commands below should be run from a standard Linux host (not from the Sailfish SDK).
-* You need to install lbzip2 and python3 development files (package name is python3-devel on RPM distributions)
+Commands below should be run from a standard Linux host (not from the Sailfish SDK).
+
+Pre-requisites:
+* You need to install lbzip2, python3 development files, QT5 (including qmake). Package name are `lbzip2` `python3-devel` `qt5-qmake` on RPM distributions
+* Build requires at least 4Gb of RAM and a fast CPU. Language file generation lasts one hour and a half on a 2.8Ghz Core i7 860
+
+Howto:
 * Define `CORPUS_FILE` and `WORK_DIR` environments variable (or set them in `~/.okboard-build` new configuration file)
 * Package all your corpora files as `$CORPUS_FILE/corpus-$LANG.txt.bz2`. Sentences must be separated by punctuation (".") or blank lines.
 * `$WORK_DIR` should point to a directory with enough space available (English + French requires 1.5 GB)
 * Create a `db/lang-$LANG.cf` configuration file (use examples from other languages)
-* Run `db/build.sh` to generate all language files or `db/build.sh <language code>` to build just one language. Add '-r' option to rebuild everything from scratch (removes temporary files)
+* Run `db/build.sh` to generate all language files or `db/build.sh <language code>` to build just one language. Add `-r` option to rebuild everything from scratch (this removes all temporary files)
 
 
 ### Included databases (French & English)
