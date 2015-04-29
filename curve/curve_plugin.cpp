@@ -11,12 +11,13 @@ using namespace std;
 #endif /* THREAD */
 
 /* thread callback handler */
+#ifdef THREAD
 PluginCallBack::PluginCallBack(CurveKB *p) : plugin(p) {}
 
-void PluginCallBack::call(QList<Scenario> l) {
+void PluginCallBack::call(QList<ScenarioType> l) {
   plugin->sendSignal(l);
 }
-
+#endif /* THREAD */
 
 /* registered class */
 CurveKB::CurveKB(QObject *parent) : QObject(parent)
@@ -45,43 +46,50 @@ void CurveKB::learn(QString letters, QString word)
 #endif /* THREAD */
 }
 
-void CurveKB::startCurve(int x, int y)
+void CurveKB::startCurve(int x, int y, int curve_id)
 {
 #ifdef THREAD
   thread.clearCurve();
-  thread.addPoint(Point(x,y));
+  thread.addPoint(Point(x,y), curve_id);
 #else
   curveMatch.clearCurve();
-  curveMatch.addPoint(Point(x,y));
+  curveMatch.addPoint(Point(x,y), curve_id);
 #endif /* THREAD */
 }
 
-void CurveKB::addPoint(int x, int y) 
+void CurveKB::addPoint(int x, int y, int curve_id) 
 {
 #ifdef THREAD
-  thread.addPoint(Point(x,y));
+  thread.addPoint(Point(x,y), curve_id);
 #else
-  curveMatch.addPoint(Point(x,y));
+  curveMatch.addPoint(Point(x,y), curve_id);
 #endif /* THREAD */
 }
 
-void CurveKB::endCurve(int id)
+void CurveKB::endOneCurve(int curve_id) {
+#ifdef THREAD
+  thread.endOneCurve(curve_id);
+#else
+  curveMatch.endOneCurve(curve_id);
+#endif /* THREAD */
+}
+
+void CurveKB::endCurve(int correlation_id)
 {
 #ifdef THREAD
-  thread.endCurve(id);
+  thread.endCurve(correlation_id);
   WF_IDLE; // synchronous call, so we have to wait until completion
 #else
-  curveMatch.endCurve(id);
+  curveMatch.endCurve(correlation_id);
 #endif /* THREAD */
 }
  
-void CurveKB::endCurveAsync(int id)
+void CurveKB::endCurveAsync(int correlation_id)
 {
 #ifdef THREAD
-  thread.endCurve(id);
+  thread.endCurve(correlation_id);
 #else
-  curveMatch.endCurve(id);
-  callBack(curveMatch.getCandidates());
+  curveMatch.endCurve(correlation_id); // there will be no callback
 #endif /* THREAD */
 }
 
@@ -94,14 +102,14 @@ void CurveKB::resetCurve()
 #endif /* THREAD */
 }
  
-void CurveKB::sendSignal(QList<Scenario> &candidates) 
+void CurveKB::sendSignal(QList<ScenarioType> &candidates) 
 {
   emit matchingDone(scenarioList2QVariantList(candidates));
 }
 
-QVariantList CurveKB::scenarioList2QVariantList(QList<Scenario> &candidates) {
+QVariantList CurveKB::scenarioList2QVariantList(QList<ScenarioType> &candidates) {
   QVariantList ret;
-  foreach (Scenario scenario, candidates) {
+  foreach (ScenarioType scenario, candidates) {
     QVariantList item;
     item << scenario.getName() << scenario.getScore() << scenario.getClass() << scenario.getStar() << scenario.getWordList();
     ret.append((QVariant) item); // avoid list flattening
@@ -171,7 +179,7 @@ void CurveKB::loadParameters(QString params)
 QVariantList CurveKB::getCandidates()
 {
   WF_IDLE;
-  QList<Scenario> candidates = curveMatch.getCandidates();
+  QList<ScenarioType> candidates = curveMatch.getCandidates();
   return scenarioList2QVariantList(candidates);
 }
 

@@ -4,9 +4,8 @@
 #include <QtQml>
 #include <QQmlExtensionPlugin>
 
+#include "config.h"
 #include "curve_match.h"
-
-#define THREAD 1
 
 #ifdef THREAD
 #include "thread.h"
@@ -23,7 +22,7 @@ class PluginCallBack : public ThreadCallBack {
   CurveKB *plugin;
  public:
   PluginCallBack(CurveKB *plugin);
-  void call(QList<Scenario>);
+  void call(QList<ScenarioType>);
 };
 #endif /* THREAD */
 
@@ -44,10 +43,11 @@ class CurveKB : public QObject {
     CurveKB(QObject *parent = 0);
     virtual ~CurveKB();
 
-    Q_INVOKABLE void startCurve(int x, int y);
-    Q_INVOKABLE void addPoint(int x, int y);
-    Q_INVOKABLE void endCurve(int id);
-    Q_INVOKABLE void endCurveAsync(int id);
+    Q_INVOKABLE void startCurve(int x, int y, int curve_id);
+    Q_INVOKABLE void addPoint(int x, int y, int curve_id);
+    Q_INVOKABLE void endOneCurve(int curve_id);
+    Q_INVOKABLE void endCurve(int correlation_id);
+    Q_INVOKABLE void endCurveAsync(int correlation_id);
     Q_INVOKABLE void resetCurve();
 
     Q_INVOKABLE void loadKeys(QVariantList list);
@@ -62,11 +62,11 @@ class CurveKB : public QObject {
 
     Q_INVOKABLE void learn(QString letters, QString word);
 
-    void sendSignal(QList<Scenario> &candidates);
+    void sendSignal(QList<ScenarioType> &candidates);
 
  private:
     QObject m_keyboard;
-    QVariantList scenarioList2QVariantList(QList<Scenario> &candidates);
+    QVariantList scenarioList2QVariantList(QList<ScenarioType> &candidates);
 
  signals:
     void matchingDone(QVariantList candidates);

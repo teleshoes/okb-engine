@@ -12,6 +12,9 @@
 #include <QTime>
 #include <QDebug>
 
+#include "config.h"
+
+#ifdef THREAD
 
 #define AUTO_UNLOAD_DELAY 120
 
@@ -70,5 +73,7 @@ protected:
 enum thread_cmd_t {
   CMD_END = -1001, CMD_CLEAR = -1002, CMD_QUIT = -1003, CMD_LOAD_TRE = - 1004, CMD_LEARN = - 1005
 };
+
+#endif /* THREAD */
 
 #endif /* THREAD_H */

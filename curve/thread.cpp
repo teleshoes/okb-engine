@@ -1,4 +1,7 @@
 #include "thread.h"
+
+#ifdef THREAD 
+
 #include "log.h"
 
 #include <sys/time.h>
@@ -239,3 +242,4 @@ void CurveThread::setIdle(bool value) {
   idle = value;
 }
 
+#endif /* THREAD */

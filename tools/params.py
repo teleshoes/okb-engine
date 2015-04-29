@@ -50,6 +50,7 @@ defparams = [
     [ "max_turn_error3", int, 10, 60 ],
     [ "max_turn_index_gap", int, 2, 10],
     [ "min_turn_index_gap", int, 1, 5],
+    [ "multi_max_time_rewind", int ],  # impact is not continuous
     [ "rt_score_coef", float, 0.01, 2 ],
     [ "rt_score_coef_tip", float, 0.01, 2 ],
     [ "rt_tip_gaps", int, 1, 5 ],

@@ -37,8 +37,12 @@ class Point {
 
 class CurvePoint : public Point {
  public:
-  CurvePoint(Point p, int msec, int length = 0, bool dummy = false);
+  CurvePoint(Point p, int curve_id, int msec, int length = 0, bool dummy = false);
+  void toJson(QJsonObject &json) const;
+  bool operator<(const CurvePoint &other) const;
+  static CurvePoint fromJson(const QJsonObject &json);
   int t;
+  int curve_id; // for multi-touch swipes
   int speed;
   int sharp_turn; // points with significant direction change -> they show user intention and must be correlated with a letter in a word
   int turn_angle;
@@ -46,6 +50,12 @@ class CurvePoint : public Point {
   float normalx, normaly;
   int length;
   bool dummy;
+  bool end_marker;
+};
+
+class EndMarker : public CurvePoint {
+ public:
+  EndMarker(int curve_id) : CurvePoint(Point(), curve_id, 0) {};
 };
 
 /* just a key */
@@ -77,13 +87,17 @@ class QuickCurve {
   int *normalx;
   int *normaly;
   int *speed;
+  int *length;
+  int *timestamp;
+  int *ts;
   Point *points;
+
   int count;
  public:
-  QuickCurve(QList<CurvePoint> &curve);
+  QuickCurve(QList<CurvePoint> &curve, int curve_id = 0);
   QuickCurve();
   ~QuickCurve();
-  void setCurve(QList<CurvePoint> &curve);
+  void setCurve(QList<CurvePoint> &curve, int curve_id = 0);
   void clearCurve();
   inline Point const& point(int index) const;
   inline int getX(int index);
@@ -92,12 +106,17 @@ class QuickCurve {
   inline int getTurnSmooth(int index);
   inline int getSharpTurn(int index);
   inline int getSpecialPoint(int index);
+  inline Point getNormal(int index);
   inline int getNormalX(int index);
   inline int getNormalY(int index);
   inline int getSpeed(int index);
-  inline Point getNormal(int index);
+  inline int getCurveId(int index);
+  inline int getLength(int index);
   inline int size();
+  inline int getTimestamp(int index);
   /* inline is probably useless nowadays */
+
+  bool finished;
 };
 
 /* quick key information implementation */
@@ -127,6 +146,7 @@ typedef struct {
 #define SCORE_T_OFFSET (sizeof(float))
 #define SCORE_T_COUNT ((int) (sizeof(score_t) / SCORE_T_OFFSET))
 #define SCORE_T_GET(score, i) (((float*) &(score))[i])
+
 
 /* scenario (describe word candidates) */
 class Scenario {
@@ -186,6 +206,7 @@ class Scenario {
 
  public:
   Scenario(LetterTree *tree, QuickKeys *keys, QuickCurve *curve, Params *params);
+  Scenario(LetterTree *tree, QuickKeys *keys, QuickCurve **curves, Params *params);
   Scenario(const Scenario &from);
   Scenario& operator=( const Scenario &from );
   ~Scenario();
@@ -220,6 +241,9 @@ class Scenario {
   void setScoreV1(float score) { final_score_v1 = score; }
   void toJson(QJsonObject &json);
   QString toString(bool indent = false);
+  float getDistSqr() { return dist_sqr; }
+  int getTimestamp();
+  score_t getScoreIndex(int i);
 };
 
 typedef struct {

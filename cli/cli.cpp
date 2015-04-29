@@ -1,9 +1,16 @@
 /* curve matching command line interface for tests */
 
+#include "config.h"
 #include "curve_match.h"
-#include "incr_match.h"
 #include "tree.h"
+
+#ifdef INCREMENTAL
+#include "incr_match.h"
+#endif /* INCREMENTAL */
+
+#ifdef THREAD
 #include "thread.h"
+#endif
 
 #include <QString>
 #include <QFile>
@@ -43,7 +50,9 @@ int main(int argc, char* argv[]) {
   int implem = 0;
   bool showscore = false;
   bool debug = true;
+#ifdef THREAD
   int delay = 0;
+#endif /* THREAD */
   int repeat = 1;
   bool act_learn = false;
   bool act_dump = false;
@@ -60,7 +69,9 @@ int main(int argc, char* argv[]) {
     case 'l': logfile = optarg; break;
     case 's': showscore = true; break;
     case 'g': debug = false; break;
+#ifdef THREAD
     case 'm': delay = 1000 * atoi(optarg); break;
+#endif /* THREAD */
     case 'r': repeat = atoi(optarg); break;
     case 'L': act_learn = true; break;
     case 'D': act_dump = true; break;
@@ -100,8 +111,13 @@ int main(int argc, char* argv[]) {
     break;
   case 1: 
   case 2:
+#ifdef INCREMENTAL
     // hey this is my first new :-)
     cm = new IncrementalMatch();
+#else
+    qDebug("Incremental support not compiled in");
+    return 1;
+#endif /* INCREMENTAL */
     break;
   default:
     usage(argv[0]);
@@ -127,7 +143,9 @@ int main(int argc, char* argv[]) {
     return 0;
   }
 
+#ifdef THREAD 
   CurveThread t;
+#endif /* THREAD */
 
   if (implem == 2) { repeat = 1; }
 
@@ -145,29 +163,34 @@ int main(int argc, char* argv[]) {
       // also useful for testing smoothing implemented in addPoint
       cm->clearCurve();
       foreach(CurvePoint p, points) {
-	cm->addPoint(p, p.t);
+	cm->addPoint(p, p.curve_id, p.t);
       }
       cm->endCurve(-1);      
       break;
     case 2:
+#ifdef THREAD
       t.setMatcher((IncrementalMatch*) cm);
       t.start();
       t.clearCurve();
       foreach(CurvePoint p, points) {
 	if (delay) { usleep(delay); }
-	t.addPoint(p, p.t);
+	t.addPoint(p, p.curve_id, p.t);
       }
       t.endCurve(-1);
       qDebug("Waiting for thread ...");
       t.waitForIdle();
       qDebug("Thread is idle ...");
+#else
+      qDebug("Thread support not compiled in");
+      return 1;
+#endif /* THREAD */
       break;
     }
     
     cm->log(QString("OUT: ") + cm->resultToString());
     if (showscore) {
-      QList<Scenario> candidates = cm->getCandidates();
-      foreach(Scenario s, candidates) {
+      QList<ScenarioType> candidates = cm->getCandidates();
+      foreach(ScenarioType s, candidates) {
 	cout << s.getName().toLocal8Bit().constData() << " " << s.getScore() << endl;
       }
     } else {
@@ -177,9 +200,11 @@ int main(int argc, char* argv[]) {
     }
   }
 
+#ifdef THREAD
   if (implem == 2) {
     t.stopThread();
   }
+#endif /* THREAD */
 
   return 0;
 }

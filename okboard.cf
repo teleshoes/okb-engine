@@ -47,6 +47,7 @@ max_turn_error2 = 70
 max_turn_error3 = 50
 max_turn_index_gap = 6
 min_turn_index_gap = 2
+multi_max_time_rewind = 100
 rt_score_coef = 0.12
 rt_score_coef_tip = 0.01
 rt_tip_gaps = 3		   

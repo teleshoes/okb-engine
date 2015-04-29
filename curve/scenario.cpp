@@ -43,9 +43,9 @@ QuickCurve::QuickCurve() {
   count = -1;
 }
 
-QuickCurve::QuickCurve(QList<CurvePoint> &curve) {
+QuickCurve::QuickCurve(QList<CurvePoint> &curve, int curve_id) {
   count = -1;
-  setCurve(curve);
+  setCurve(curve, curve_id);
 }
 
 void QuickCurve::clearCurve() {
@@ -59,12 +59,16 @@ void QuickCurve::clearCurve() {
     delete[] normaly;
     delete[] speed;
     delete[] points;
+    delete[] timestamp;
+    delete[] length;
   }
   count = -1;
 }
 
-void QuickCurve::setCurve(QList<CurvePoint> &curve) {
+void QuickCurve::setCurve(QList<CurvePoint> &curve, int curve_id) {
   clearCurve();
+  finished = false;
+
   count = curve.size();
   if (! count) { return; }
 
@@ -77,19 +81,37 @@ void QuickCurve::setCurve(QList<CurvePoint> &curve) {
   normaly = new int[count];
   speed = new int[count];
   points = new Point[count];
+  timestamp = new int[count];
+  length = new int[count];
+
+  int l = 0;
+  int j = 0;
   for (int i = 0; i < count; i++) {
     CurvePoint p = curve[i];
-    x[i] = p.x;
-    y[i] = p.y;
-    turn[i] = p.turn_angle;
-    turnsmooth[i] = p.turn_smooth;
-    sharpturn[i] = p.sharp_turn;
-    normalx[i] = p.normalx;
-    normaly[i] = p.normaly;
-    speed[i] = p.speed;
-    points[i].x = p.x;
-    points[i].y = p.y;
+    if (p.curve_id != curve_id) { continue; }
+    if (p.end_marker) { finished = true; break; }
+
+    x[j] = p.x;
+    y[j] = p.y;
+    turn[j] = p.turn_angle;
+    turnsmooth[j] = p.turn_smooth;
+    sharpturn[j] = p.sharp_turn;
+    normalx[j] = p.normalx;
+    normaly[j] = p.normaly;
+    speed[j] = p.speed;
+    points[j].x = p.x;
+    points[j].y = p.y;
+    timestamp[j] = p.t;
+    length[j] = l;
+
+    if (j > 0) {
+      l += distance(x[j - 1], y[j - 1], x[j], y[j]);
+      length[j] = l;
+    }
+
+    j ++;
   }
+  count = j;
 }
 
 QuickCurve::~QuickCurve() {
@@ -108,6 +130,8 @@ int QuickCurve::size() { return count; }
 int QuickCurve::getNormalX(int index) { return normalx[index]; }
 int QuickCurve::getNormalY(int index) { return normaly[index]; }
 int QuickCurve::getSpeed(int index) { return speed[index]; }
+int QuickCurve::getLength(int index) { return length[index]; }
+int QuickCurve::getTimestamp(int index) { return timestamp[index]; }
 
 /* optimized keys information */
 QuickKeys::QuickKeys() {
@@ -170,7 +194,7 @@ Point const Point::operator*(const float &other) const {
   return Point(x * other, y * other);
 }
 
-CurvePoint::CurvePoint(Point p, int t, int l, bool dummy) : Point(p.x, p.y) {
+CurvePoint::CurvePoint(Point p, int curve_id, int t, int l, bool dummy) : Point(p.x, p.y) {
   this -> t = t;
   this -> speed = 1;
   this -> sharp_turn = false;
@@ -179,6 +203,43 @@ CurvePoint::CurvePoint(Point p, int t, int l, bool dummy) : Point(p.x, p.y) {
   this -> normalx = this -> normaly = 0;
   this -> length = l;
   this -> dummy = dummy;
+  this -> curve_id = curve_id;
+  this -> end_marker = false;
+}
+
+bool CurvePoint::operator<(const CurvePoint &other) const {
+  return this->t < other.t;
+}
+
+void CurvePoint::toJson(QJsonObject &json) const {
+  json["curve_id"] = curve_id;
+  if (end_marker) {
+    json["end_marker"] = 1;
+  } else {
+    json["x"] = x;
+    json["y"] = y;
+    json["t"] = t;
+    json["speed"] = speed;
+    json["turn_angle"] = turn_angle;
+    json["turn_smooth"] = turn_smooth;
+    json["sharp_turn"] = sharp_turn;
+    if (normalx || normaly) {
+      json["normalx" ] = normalx;
+      json["normaly" ] = normaly;
+    }
+    if (dummy) { json["dummy"] = 1; }
+  }
+}
+
+CurvePoint CurvePoint::fromJson(const QJsonObject &json) {
+  CurvePoint p(Point(), json["curve_id"].toDouble(), json["t"].toDouble());
+  p.end_marker = json["end_marker"].toDouble();
+  if (p.end_marker) { return p; }
+  p.x = json["x"].toDouble();
+  p.y = json["y"].toDouble();
+  p.t = json["t"].toDouble();
+  // other attributes are only output attribute and will be recomputed after loading curves from a JSON string
+  return p;
 }
 
 /* --- key --- */
@@ -220,7 +281,7 @@ Key Key::fromJson(const QJsonObject &json) {
 
 /* --- scenario --- */
 Scenario::Scenario(LetterTree *tree, QuickKeys *keys, QuickCurve *curve, Params *params) {
-  this -> node = tree -> getRoot();
+  if (tree) { this -> node = tree -> getRoot(); } // @todo remove
   this -> keys = keys;
   this -> curve = curve;
   finished = false;
@@ -247,12 +308,14 @@ Scenario::Scenario(LetterTree *tree, QuickKeys *keys, QuickCurve *curve, Params 
   letter_history[0] = 0;
 }
 
+Scenario::Scenario(LetterTree *tree, QuickKeys *keys, QuickCurve **curves, Params *params) : Scenario(tree, keys, curves[0], params) {}
+
 Scenario::Scenario(const Scenario &from) {
   // overriden copy to take care of dynamically allocated stuff
   copy_from(from);
 }
 
-Scenario& Scenario::operator=( const Scenario &from) {
+Scenario& Scenario::operator=(const Scenario &from) {
   // overriden copy to take care of dynamically allocated stuff
   delete[] index_history;
   delete[] letter_history;
@@ -1752,4 +1815,11 @@ float Scenario::distance() const {
   return dist;
 }
 
+int Scenario::getTimestamp() {
+  return index?curve->getTimestamp(index - 1):0;
+}
+
+score_t Scenario::getScoreIndex(int i) {
+  return scores[i];
+}
 

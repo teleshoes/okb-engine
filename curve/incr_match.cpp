@@ -3,6 +3,8 @@
 #include <iostream>
 #include <cstdlib>
 
+#ifdef INCREMENTAL
+
 bool DelayedScenario::operator<(const DelayedScenario &other) const {
   return (this -> scenario < other.scenario);
 }
@@ -330,4 +332,6 @@ void IncrementalMatch::endCurve(int id) {
   
   CurveMatch::endCurve(id);
 }
+
+#endif /* INCREMENTAL */
 

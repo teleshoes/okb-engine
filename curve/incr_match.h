@@ -4,6 +4,10 @@
 #ifndef INCR_MATCH_H
 #define INCR_MATCH_H
 
+#include "config.h"
+
+#ifdef INCREMENTAL
+
 #include "curve_match.h"
 #include "tree.h"
 
@@ -66,5 +70,7 @@ class IncrementalMatch : public CurveMatch {
   virtual void endCurve(int id);
   void aggressiveMatch();
 };
+
+#endif /* INCREMENTAL */
 
 #endif /* INCR_MATCH_H */

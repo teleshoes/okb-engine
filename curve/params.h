@@ -52,6 +52,7 @@ class Params {
   int max_turn_error3;
   int max_turn_index_gap;
   int min_turn_index_gap;
+  int multi_max_time_rewind;
   float rt_score_coef;
   float rt_score_coef_tip;
   int rt_tip_gaps;
@@ -155,6 +156,7 @@ static Params default_params = {
   50, // max_turn_error3
   6, // max_turn_index_gap
   2, // min_turn_index_gap
+  100, // multi_max_time_rewind
   0.12, // rt_score_coef
   0.01, // rt_score_coef_tip
   3, // rt_tip_gaps
@@ -252,6 +254,7 @@ void Params::toJson(QJsonObject &json) const {
   json["max_turn_error3"] = max_turn_error3;
   json["max_turn_index_gap"] = max_turn_index_gap;
   json["min_turn_index_gap"] = min_turn_index_gap;
+  json["multi_max_time_rewind"] = multi_max_time_rewind;
   json["rt_score_coef"] = rt_score_coef;
   json["rt_score_coef_tip"] = rt_score_coef_tip;
   json["rt_tip_gaps"] = rt_tip_gaps;
@@ -351,6 +354,7 @@ Params Params::fromJson(const QJsonObject &json) {
   p.max_turn_error3 = json["max_turn_error3"].toDouble();
   p.max_turn_index_gap = json["max_turn_index_gap"].toDouble();
   p.min_turn_index_gap = json["min_turn_index_gap"].toDouble();
+  p.multi_max_time_rewind = json["multi_max_time_rewind"].toDouble();
   p.rt_score_coef = json["rt_score_coef"].toDouble();
   p.rt_score_coef_tip = json["rt_score_coef_tip"].toDouble();
   p.rt_tip_gaps = json["rt_tip_gaps"].toDouble();

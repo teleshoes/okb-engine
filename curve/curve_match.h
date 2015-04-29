@@ -20,7 +20,13 @@
 
 #include "params.h"
 
-#include "scenario.h"
+#include "multi.h"
+
+#ifdef MULTI
+typedef MultiScenario ScenarioType;
+#else
+typedef Scenario ScenarioType;
+#endif /* MULTI */
 
 /* user dictionary entry */
 class UserDictEntry {
@@ -39,8 +45,8 @@ class UserDictEntry {
 /* main processing for curve matching */
 class CurveMatch {
  protected:
-  QList<Scenario> scenarios;
-  QList<Scenario> candidates;
+  QList<ScenarioType> scenarios;
+  QList<ScenarioType> candidates;
   QList<CurvePoint> curve;
   QHash<unsigned char, Key> keys;
   Params params;
@@ -55,6 +61,7 @@ class CurveMatch {
   bool debug;
   bool done;
   int curve_length;
+  int curve_count;
 
   stats_t st;
 
@@ -62,12 +69,12 @@ class CurveMatch {
 
   QHash<QString, UserDictEntry> userDictionary;
 
-  void scenarioFilter(QList<Scenario> &scenarios, float score_ratio, int min_size, int max_size = -1, bool finished = false);
-  void curvePreprocess1(int last_curve_index = -1);
+  void scenarioFilter(QList<ScenarioType> &scenarios, float score_ratio, int min_size, int max_size = -1, bool finished = false);
+  void curvePreprocess1(int curve_id = 0);
   void curvePreprocess2();
   void sortCandidates();
 
-  int compare_scenario(Scenario *s1, Scenario *s2, bool reverse = false);
+  int compare_scenario(ScenarioType *s1, ScenarioType *s2, bool reverse = false);
 
  public:
   CurveMatch();
@@ -75,10 +82,11 @@ class CurveMatch {
   void clearKeys();
   void addKey(Key key);
   virtual void clearCurve();
-  virtual void addPoint(Point point, int timestamp = -1);
-  virtual void endCurve(int id);
+  virtual void addPoint(Point point, int curve_id, int timestamp = -1);
+  virtual void endOneCurve(int curve_id);
+  virtual void endCurve(int correlation_id);
   bool match();
-  QList<Scenario> getCandidates();
+  QList<ScenarioType> getCandidates();
   QList<CurvePoint> getCurve();
 
   void setLogFile(QString fileName);
