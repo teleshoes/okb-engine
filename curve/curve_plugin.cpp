@@ -46,14 +46,12 @@ void CurveKB::learn(QString letters, QString word)
 #endif /* THREAD */
 }
 
-void CurveKB::startCurve(int x, int y, int curve_id)
+void CurveKB::startCurve()
 {
 #ifdef THREAD
   thread.clearCurve();
-  thread.addPoint(Point(x,y), curve_id);
 #else
   curveMatch.clearCurve();
-  curveMatch.addPoint(Point(x,y), curve_id);
 #endif /* THREAD */
 }
 

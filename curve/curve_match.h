@@ -15,6 +15,8 @@
 #include <QDebug>
 #include <QTime>
 
+#include "config.h"
+
 #include "tree.h"
 #include "log.h"
 
@@ -63,6 +65,8 @@ class CurveMatch {
   int curve_length;
   int curve_count;
 
+  bool curve_started[MAX_CURVES];
+
   stats_t st;
 
   bool kb_preprocess;
@@ -72,7 +76,6 @@ class CurveMatch {
   void scenarioFilter(QList<ScenarioType> &scenarios, float score_ratio, int min_size, int max_size = -1, bool finished = false);
   void curvePreprocess1(int curve_id = 0);
   void curvePreprocess2();
-  void sortCandidates();
 
   int compare_scenario(ScenarioType *s1, ScenarioType *s2, bool reverse = false);
 

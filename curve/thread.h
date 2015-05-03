@@ -6,15 +6,15 @@
 #ifndef THREAD_H
 #define THREAD_H
 
+#include "config.h"
+
+#ifdef THREAD
+
 #include <QThread>
 #include <QMutex>
 #include <QWaitCondition>
 #include <QTime>
 #include <QDebug>
-
-#include "config.h"
-
-#ifdef THREAD
 
 #define AUTO_UNLOAD_DELAY 120
 

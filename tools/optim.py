@@ -273,6 +273,7 @@ def load_tests():
         mo = re.match('^([a-z][a-z])\-(.*)', letters)
         if mo: lang, letters = mo.group(1), mo.group(2)
 
+        letters = re.sub(r'-.*$', '', letters)
         letters = ''.join(c for c in unicodedata.normalize('NFD', letters) if unicodedata.category(c) != 'Mn')
         letters = re.sub(r'[^a-z]', '', letters.lower())
         letters = re.sub(r'(.)\1+', lambda m: m.group(1), letters)

@@ -2,11 +2,11 @@
 
 #ifdef THREAD 
 
-#include "log.h"
-
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <stdio.h>
+
+#include "log.h"
 
 static float cpu_user(struct rusage &start, struct rusage &stop) {
   return (float) (stop.ru_utime.tv_sec - start.ru_utime.tv_sec) +

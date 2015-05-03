@@ -163,7 +163,11 @@ int main(int argc, char* argv[]) {
       // also useful for testing smoothing implemented in addPoint
       cm->clearCurve();
       foreach(CurvePoint p, points) {
-	cm->addPoint(p, p.curve_id, p.t);
+	if (p.end_marker) {
+	  cm->endOneCurve(p.curve_id);
+	} else {
+	  cm->addPoint(p, p.curve_id, p.t);
+	}
       }
       cm->endCurve(-1);      
       break;
@@ -174,7 +178,11 @@ int main(int argc, char* argv[]) {
       t.clearCurve();
       foreach(CurvePoint p, points) {
 	if (delay) { usleep(delay); }
-	t.addPoint(p, p.curve_id, p.t);
+	if (p.end_marker) {
+	  t.endOneCurve(p.curve_id);
+	} else {
+	  t.addPoint(p, p.curve_id, p.t);
+	}	  
       }
       t.endCurve(-1);
       qDebug("Waiting for thread ...");

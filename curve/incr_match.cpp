@@ -1,9 +1,11 @@
 #include "incr_match.h"
-#include "functions.h"
+
+#ifdef INCREMENTAL
+
 #include <iostream>
 #include <cstdlib>
 
-#ifdef INCREMENTAL
+#include "functions.h"
 
 bool DelayedScenario::operator<(const DelayedScenario &other) const {
   return (this -> scenario < other.scenario);

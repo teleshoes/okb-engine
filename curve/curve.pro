@@ -20,4 +20,5 @@ MOC_DIR = $$DESTDIR
 RCC_DIR = $$DESTDIR
 UI_DIR = $$DESTDIR
 
-QMAKE_CXXFLAGS += -Wno-psabi
+QMAKE_CXXFLAGS += -Wno-psabi -std=c++11
+

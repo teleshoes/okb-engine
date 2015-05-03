@@ -4,13 +4,18 @@
 #ifndef MULTI_H
 #define MULTI_H
 
-#define MAX_CURVES 20
+#include "config.h"
+
+#ifdef MULTI
 
 #include <QString>
 #include <QList>
 #include <QSharedPointer>
 
+#include "log.h"
 #include "scenario.h"
+
+#define MAX_CURVES 20
 
 class NextLetter {
  public:
@@ -33,7 +38,7 @@ typedef struct {
 class MultiScenario {
  private:
   QuickKeys *keys;
-  QuickCurve **curves;
+  QuickCurve *curves;
   Params *params;
 
   // MultiScenario instances can have child which share basic scenarios with 
@@ -49,16 +54,19 @@ class MultiScenario {
   int curve_count;
 
   int ts;
+  int id;
 
-  float final_score, final_score2, final_score_v1, temp_score;
+float final_score, final_score_v1;
 
   history_t *history;
   unsigned char *letter_history;
 
   void copy_from(const MultiScenario &from);
 
+  static int global_id; /* yuck global variable to track current global id */
+
  public:
-  MultiScenario(LetterTree *tree, QuickKeys *keys, QuickCurve **curves, Params *params);
+  MultiScenario(LetterTree *tree, QuickKeys *keys, QuickCurve *curves, Params *params);
   MultiScenario(const MultiScenario &from);
   MultiScenario& operator=( const MultiScenario &from );
   ~MultiScenario();
@@ -69,7 +77,7 @@ class MultiScenario {
 
   // @todo QHash<unsigned char, NextLetter> getNextLettersWaitInfo();
 
-  QString getId() const;
+  QString getName() const;
   void setCurveCount(int count) { this -> curve_count = count; }
   void setDebug(bool debug) { this -> debug = debug; }
   bool operator<(const MultiScenario &other) const;
@@ -81,20 +89,19 @@ class MultiScenario {
   bool postProcess();
   float getCount() const;
   bool forkLast();
-  void getDetailedScores(score_t &avg, score_t &min) const;
   float getTempScore() const;
   int getErrorCount();
-  void evalScore(float &score, float &min_score, score_t &avg, score_t &min) const;
-  float getMinScore();
-  score_t getMinScores();
-  score_t getScores();
   int getGoodCount();
   float distance() const;
-  void setScore(float score) { final_score2 = score; }
-  float getScoreOrig() const { return final_score; }
-  void setScoreV1(float score) { final_score_v1 = score; }
   void toJson(QJsonObject &json);
   QString toString(bool indent = false);
+  void PostProcess();
+  void setScoreV1(float score) { this -> final_score_v1 = score; }
+  void setScore(float score) { this -> final_score = score; }
+  score_t getScores();
+  QString getId() const;
+
+  static void sortCandidates(QList<MultiScenario *> candidates, Params &params, int debug);
 
   /* deprecated */
   int getClass() { return 0; }
@@ -105,6 +112,8 @@ class DelayedScenario : public MultiScenario {
   // @todo
 };
 
+
+#endif /* MULTI */
 
 #endif /* MULTI_H */
 

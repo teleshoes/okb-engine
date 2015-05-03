@@ -233,12 +233,18 @@ void CurvePoint::toJson(QJsonObject &json) const {
 
 CurvePoint CurvePoint::fromJson(const QJsonObject &json) {
   CurvePoint p(Point(), json["curve_id"].toDouble(), json["t"].toDouble());
+
+  // these attributes are only output attributes and will be recomputed after loading curves from a JSON string
+  p.speed = p.length = p.turn_angle = p.sharp_turn = p.normalx = p.normaly = 0;
+
+  p.curve_id = json["curve_id"].toDouble();
   p.end_marker = json["end_marker"].toDouble();
-  if (p.end_marker) { return p; }
+  if (p.end_marker) { p.x = p.y = p.t = p.dummy = 0; return p; }
+
   p.x = json["x"].toDouble();
   p.y = json["y"].toDouble();
   p.t = json["t"].toDouble();
-  // other attributes are only output attribute and will be recomputed after loading curves from a JSON string
+  p.dummy = json["dummy"].toDouble();
   return p;
 }
 
@@ -307,8 +313,6 @@ Scenario::Scenario(LetterTree *tree, QuickKeys *keys, QuickCurve *curve, Params 
 
   letter_history[0] = 0;
 }
-
-Scenario::Scenario(LetterTree *tree, QuickKeys *keys, QuickCurve **curves, Params *params) : Scenario(tree, keys, curves[0], params) {}
 
 Scenario::Scenario(const Scenario &from) {
   // overriden copy to take care of dynamically allocated stuff
@@ -909,7 +913,7 @@ float Scenario::getCount() const {
   return count;
 }
 
-QString Scenario::getName() {
+QString Scenario::getName() const {
   QString ret;
   ret.append((char*) getNameCharPtr());
   return ret;
@@ -1823,3 +1827,90 @@ score_t Scenario::getScoreIndex(int i) {
   return scores[i];
 }
 
+static float signpow(float value, float exp) {
+  if (value < 0) { return - pow(- value, exp); }
+  return pow(value, exp);
+}
+
+void Scenario::sortCandidates(QList<Scenario*> candidates, Params &params, int debug) {
+  /* try to find the most likely candidates by combining multiple methods :
+     - score (linear combination of multiple scores)
+     - classifier: compare relative scores in pairs, scenario "worse" than another one can be eliminated
+     - distance (sum of square distance between expected keys and curve), as calculated by Scenario::distance()
+  */
+
+  if (candidates.size() == 0) { return; }
+
+  QElapsedTimer timer;
+  timer.start();
+
+  int n = candidates.size();
+
+  /* previous composite score (v1)
+     we keep this one as it was good for estimating curve quality */
+  float min_dist = 0;
+  for(int i = 0; i < n; i ++) {
+    if (candidates[i]->distance() < min_dist || ! min_dist) {
+      min_dist = candidates[i]->distance();
+    }
+  }
+  float quality = 0;
+  for(int i = 0; i < n; i ++) {
+    float new_score = candidates[i]->getScore()
+      - params.coef_distance * (candidates[i]->distance() - min_dist) / max(15, min_dist)
+      - params.coef_error * min(2, candidates[i]->getErrorCount());
+    candidates[i]->setScoreV1(new_score);
+    if (new_score > quality) { quality = new_score; }
+  }
+  DBG("Quality index %.3f", quality)
+
+  /* new composite score */
+  float min_dist_adj = 0;
+  for(int i = 0; i < n; i ++) {
+    float value = candidates[i]->distance() / sqrt(candidates[i]->getCount());
+    if (value < min_dist_adj || ! min_dist_adj) { min_dist_adj = value; }
+  }
+
+  float tmpsc[n];
+  float max_score = 0;
+  for(int i = 0; i < n; i ++) {
+    score_t sc = candidates[i]->getScores();
+    float new_score = (params.final_coef_misc * sc.misc_score
+		       + params.final_coef_turn * pow(max(0, sc.turn_score), params.final_coef_exp)
+		       - 0.1 * signpow(0.1 * (candidates[i]->distance() / sqrt(candidates[i]->getCount()) - min_dist_adj), params.final_distance_pow)
+		       ) / (1 + params.final_coef_turn)
+      - params.coef_error * candidates[i]->getErrorCount();
+    tmpsc[i] = new_score;
+    if (new_score > max_score) { max_score = new_score; }
+  }
+  for(int i = 0; i < n; i ++) {
+    candidates[i]->setScore(quality - max_score + tmpsc[i]);
+  }
+
+  /* @todo classifier replacement ? */
+
+  int elapsed = timer.elapsed();
+  DBG("Sort time: %d", elapsed);
+
+  if (debug) {
+    logdebug("SORT>                                     | ----------[average]---------- | ------------[min]------------ |     |       |");
+    logdebug("SORT> ## =word======= =score =min E G dst | =cos curv dist =len misc turn | =cos curv dist =len misc turn | cls | final |");
+    for(int i = n - 1; i >=0 && i >= n - params.max_candidates; i --) {
+      Scenario *candidate = candidates[i];
+      score_t smin, savg;
+      candidate->getDetailedScores(savg, smin);
+      float score = candidate->getScore();
+      float min_score = candidate->getMinScore();
+      int error_count = candidate->getErrorCount();
+      int good_count = candidate->getGoodCount();
+      int dist = (int) candidate->distance();
+      float new_score = candidate->getScore();
+      unsigned char *name = candidate->getNameCharPtr();
+      logdebug("SORT> %2d %12s %5.2f %5.2f %1d %1d%4d |%5.2f%5.2f%5.2f%5.2f%5.2f%5.2f |%5.2f%5.2f%5.2f%5.2f%5.2f%5.2f |%3d%c |%6.3f |",
+	       i, name, score, min_score, error_count, good_count, dist,
+	       savg.cos_score, savg.curve_score, savg.distance_score, savg.length_score, savg.misc_score, savg.turn_score,
+	       smin.cos_score, smin.curve_score, smin.distance_score, smin.length_score, smin.misc_score, smin.turn_score,
+	       candidate->getClass(), candidate->getStar()?'*':' ', new_score);
+    }
+  }
+}

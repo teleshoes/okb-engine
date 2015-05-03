@@ -42,22 +42,23 @@ void CurveMatch::curvePreprocess1(int curve_id) {
   QList<CurvePoint> oneCurve = QList<CurvePoint>();
   QList<int> idxmap = QList<int>();
 
+  bool end_flag = false;
   for(int i = 0; i < curve.size(); i++) {
-    if (curve[i].curve_id != curve_id || curve[i].end_marker) { continue; }
+    if (curve[i].curve_id != curve_id) { continue; }
+    if (curve[i].end_marker) {
+      end_flag = true;
+      break;
+    }
     oneCurve.append(curve[i]);
     idxmap.append(i);
   }
   int l = oneCurve.size();
 
-  if (l < 8) {
-    return; // too small, probably a simple 2-letter words @TODO handle this case in multi mode
-  }
-
   for (int i = 1; i < l - 1; i ++) {
     oneCurve[i].turn_angle = (int) int(angle(oneCurve[i].x - oneCurve[i-1].x,
-					  oneCurve[i].y - oneCurve[i-1].y,
-					  oneCurve[i+1].x - oneCurve[i].x,
-					  oneCurve[i+1].y - oneCurve[i].y) * 180 / M_PI + 0.5); // degrees
+					     oneCurve[i].y - oneCurve[i-1].y,
+					     oneCurve[i+1].x - oneCurve[i].x,
+					     oneCurve[i+1].y - oneCurve[i].y) * 180 / M_PI + 0.5); // degrees
 
 
   }
@@ -108,166 +109,173 @@ void CurveMatch::curvePreprocess1(int curve_id) {
     oneCurve[i].sharp_turn = 0;
   }
 
-  /* rotation / turning points */
-  int sharp_turn_index = -1;
-  int last_total_turn = -1;
-  int last_turn_index = -100;
-  int range = 1;
-  for(int i = 2 ; i < l - 2; i ++) {
-    float total = 0;
-    float t_index = 0;
-    for(int j = i - range; j <= i + range; j ++) {
-      total += oneCurve[j].turn_angle;
-      t_index += oneCurve[j].turn_angle * j;
-    }
+  if (l >= 8) { // do not process small curves, probably a simple 2-letter words @TODO handle this case in multi mode
 
-    if (abs(total) < last_total_turn && last_total_turn > params.turn_threshold) {
-      if (sharp_turn_index >= 2 && sharp_turn_index < l - 2) {
+    /* rotation / turning points */
+    int sharp_turn_index = -1;
+    int last_total_turn = -1;
+    int last_turn_index = -100;
+    int range = 1;
+    for(int i = 2 ; i < l - 2; i ++) {
+      float total = 0;
+      float t_index = 0;
+      for(int j = i - range; j <= i + range; j ++) {
+	total += oneCurve[j].turn_angle;
+	t_index += oneCurve[j].turn_angle * j;
+      }
 
-  	for(int j = i - range; j <= i + range; j ++) {
-  	  if (abs(oneCurve[j].turn_angle) > params.turn_threshold2) {
-  	    sharp_turn_index = j;
-  	  }
-  	}
+      if (abs(total) < last_total_turn && last_total_turn > params.turn_threshold) {
+	if (sharp_turn_index >= 2 && sharp_turn_index < l - 2) {
 
-	int st_value = 1 + (last_total_turn > params.turn_threshold2 ||
-			    abs(oneCurve[sharp_turn_index].turn_angle) > params.turn_threshold3);
-
-  	int diff = sharp_turn_index - last_turn_index;
-  	if (diff <= 1) {
-  	  sharp_turn_index = -1;
-  	} else if (diff == 2) {
-  	  sharp_turn_index --;
-  	  oneCurve[sharp_turn_index - 1].sharp_turn = 0;
-  	} else if (diff <= 4) {
-	  bool remove_old = false, remove_new = false;
-	  int old_value = oneCurve[last_turn_index].sharp_turn;
-
-	  if (old_value < st_value) { remove_old = true; }
-	  else if (old_value > st_value) { remove_new = true; }
-	  else if (st_value == 1) {
-	    remove_new = (abs(oneCurve[sharp_turn_index].turn_smooth) < abs(oneCurve[last_turn_index].turn_smooth));
-	    remove_old = ! remove_new;
+	  for(int j = i - range; j <= i + range; j ++) {
+	    if (abs(oneCurve[j].turn_angle) > params.turn_threshold2) {
+	      sharp_turn_index = j;
+	    }
 	  }
 
-	  DBG("Sharp-turns too close: %d[%d] -> %d[%d] ---> remove_old=%d remove_new=%d",
-	      last_turn_index, old_value, sharp_turn_index, st_value, remove_old, remove_new);
+	  int st_value = 1 + (last_total_turn > params.turn_threshold2 ||
+			      abs(oneCurve[sharp_turn_index].turn_angle) > params.turn_threshold3);
 
-	  if (remove_old) { oneCurve[last_turn_index].sharp_turn = 0; }
-	  if (remove_new) { sharp_turn_index = -1; }
+	  int diff = sharp_turn_index - last_turn_index;
+	  if (diff <= 1) {
+	    sharp_turn_index = -1;
+	  } else if (diff == 2) {
+	    sharp_turn_index --;
+	    oneCurve[sharp_turn_index - 1].sharp_turn = 0;
+	  } else if (diff <= 4) {
+	    bool remove_old = false, remove_new = false;
+	    int old_value = oneCurve[last_turn_index].sharp_turn;
+
+	    if (old_value < st_value) { remove_old = true; }
+	    else if (old_value > st_value) { remove_new = true; }
+	    else if (st_value == 1) {
+	      remove_new = (abs(oneCurve[sharp_turn_index].turn_smooth) < abs(oneCurve[last_turn_index].turn_smooth));
+	      remove_old = ! remove_new;
+	    }
+
+	    DBG("Sharp-turns too close: %d[%d] -> %d[%d] ---> remove_old=%d remove_new=%d",
+		last_turn_index, old_value, sharp_turn_index, st_value, remove_old, remove_new);
+
+	    if (remove_old) { oneCurve[last_turn_index].sharp_turn = 0; }
+	    if (remove_new) { sharp_turn_index = -1; }
+	  }
+
+	  if (sharp_turn_index >= 0) {
+	    oneCurve[sharp_turn_index].sharp_turn = st_value;
+
+	    last_turn_index = sharp_turn_index;
+
+	    DBG("Special point[%d]=%d", sharp_turn_index, oneCurve[sharp_turn_index].sharp_turn);
+
+	    sharp_turn_index = -1;
+	  }
 	}
+      }
 
-  	if (sharp_turn_index >= 0) {
-  	  oneCurve[sharp_turn_index].sharp_turn = st_value;
+      if (abs(total) > params.turn_threshold) {
+	sharp_turn_index = int(0.5 + abs(t_index / total));
+      }
 
-  	  last_turn_index = sharp_turn_index;
+      last_total_turn = abs(total);
+    }
 
-  	  DBG("Special point[%d]=%d", sharp_turn_index, oneCurve[sharp_turn_index].sharp_turn);
+    // alternate way of finding turning points
+    int cur = 0;
+    int total, start_index, max_turn, max_index;
+    int threshold = params.atp_threshold;
+    int min_angle1 = params.atp_min_angle1;
+    int min_turn1 = params.atp_min_turn1;
+    int max_pts = params.atp_max_pts;
+    int tip_gap = 0;
+    int opt_gap = params.atp_opt_gap;
+    int excl_gap = params.atp_excl_gap;
+    bool st_found = false;
+    for(int i = tip_gap; i < l - tip_gap; i ++) {
+      int turn = oneCurve[i].turn_smooth; // take care of jagged curves
+      if (cur) {
+	st_found |= (oneCurve[i].sharp_turn != 0);
+	if (abs(turn) >= threshold && cur * turn > 0 && i < l - 1 - tip_gap) {
+	  // turn continues
+	  total += turn;
+	  if (abs(turn) > abs(max_turn)) {
+	    max_turn = turn;
+	    max_index = i;
+	  }
+	} else {
+	  // turn end
+	  int end_index = i;
+	  if (i == l - 1 - tip_gap) { total += turn; }
 
-	  sharp_turn_index = -1;
-  	}
+	  for(int j = max(max_index - excl_gap, tip_gap); j < min(max_index + excl_gap, l - tip_gap); j ++) {
+	    if (oneCurve[j].sharp_turn) { st_found = true; }
+	  }
+	  DBG("New turn %d->%d total=%d max_index=%d st_found=%d", start_index, end_index, total, max_index, st_found);
+	  if (abs(total) > min_angle1 &&
+	      abs(oneCurve[max_index].turn_smooth) >= min_turn1 &&
+	      end_index - start_index <= max_pts &&
+	      ! st_found) {
+	    int value = 1;
+	    if (start_index <= opt_gap || end_index >= l - opt_gap) { value = 5; }
+	    DBG("Special point[%d]=%d (try 2)", max_index, value);
+	    oneCurve[max_index].sharp_turn = value;
+	  }
+	  cur = 0;
+	}
+      } else if (abs(turn) > threshold) {
+	cur = (turn > 0) - (turn < 0);
+	total = turn;
+	start_index = i;
+	max_index = i;
+	max_turn = turn;
+	st_found = (oneCurve[i].sharp_turn != 0);
       }
     }
 
-    if (abs(total) > params.turn_threshold) {
-      sharp_turn_index = int(0.5 + abs(t_index / total));
-    }
+    // compute "normal" vector for turns (really lame algorithm)
+    for(int i = 2; i < l - 2; i ++) {
+      if (oneCurve[i].sharp_turn) {
+	int sharp_turn_index = i;
 
-    last_total_turn = abs(total);
-  }
-
-  // alternate way of finding turning points
-  int cur = 0;
-  int total, start_index, max_turn, max_index;
-  int threshold = params.atp_threshold;
-  int min_angle1 = params.atp_min_angle1;
-  int min_turn1 = params.atp_min_turn1;
-  int max_pts = params.atp_max_pts;
-  int tip_gap = 0;
-  int opt_gap = params.atp_opt_gap;
-  int excl_gap = params.atp_excl_gap;
-  bool st_found = false;
-  for(int i = tip_gap; i < l - tip_gap; i ++) {
-    int turn = oneCurve[i].turn_smooth; // take care of jagged curves
-    if (cur) {
-      st_found |= (oneCurve[i].sharp_turn != 0);
-      if (abs(turn) >= threshold && cur * turn > 0 && i < l - 1 - tip_gap) {
-	// turn continues
-	total += turn;
-	if (abs(turn) > abs(max_turn)) {
-	  max_turn = turn;
-	  max_index = i;
-	}
-      } else {
-	// turn end
-	int end_index = i;
-	if (i == l - 1 - tip_gap) { total += turn; }
-
-	for(int j = max(max_index - excl_gap, tip_gap); j < min(max_index + excl_gap, l - tip_gap); j ++) {
-	  if (oneCurve[j].sharp_turn) { st_found = true; }
-	}
-	DBG("New turn %d->%d total=%d max_index=%d st_found=%d", start_index, end_index, total, max_index, st_found);
-	if (abs(total) > min_angle1 &&
-	    abs(oneCurve[max_index].turn_smooth) >= min_turn1 &&
-	    end_index - start_index <= max_pts &&
-	    ! st_found) {
-	  int value = 1;
-	  if (start_index <= opt_gap || end_index >= l - opt_gap) { value = 5; }
-	  DBG("Special point[%d]=%d (try 2)", max_index, value);
-	  oneCurve[max_index].sharp_turn = value;
-	}
-	cur = 0;
+	int i1 = sharp_turn_index - 1;
+	int i2 = sharp_turn_index + 1;
+	float x1 = oneCurve[i1].x - oneCurve[i1 - 1].x;
+	float y1 = oneCurve[i1].y - oneCurve[i1 - 1].y;
+	float x2 = oneCurve[i2 + 1].x - oneCurve[i2].x;
+	float y2 = oneCurve[i2 + 1].y - oneCurve[i2].y;
+	float l1 = sqrt(x1 * x1 + y1 * y1);
+	float l2 = sqrt(x2 * x2 + y2 * y2);
+	oneCurve[sharp_turn_index].normalx = 100 * (x1 / l1 - x2 / l2); // integer vs. float snafu -> don't loose too much precision
+	oneCurve[sharp_turn_index].normaly = 100 * (y1 / l1 - y2 / l2);
       }
-    } else if (abs(turn) > threshold) {
-      cur = (turn > 0) - (turn < 0);
-      total = turn;
-      start_index = i;
-      max_index = i;
-      max_turn = turn;
-      st_found = (oneCurve[i].sharp_turn != 0);
+    }
+
+
+    // slow down point search
+    int maxd = params.max_turn_index_gap;
+    for(int i = max(maxd, 0); i < l - maxd; i ++) {
+      int spd0 = oneCurve[i].speed;
+      if (spd0 < max_speed * params.slow_down_min) { continue; }
+      int ok = 0;
+      for(int j = -maxd; j <= maxd; j ++) {
+	int spd = oneCurve[i + j].speed;
+	if (spd < spd0 || oneCurve[i + j].sharp_turn) { ok = 0; break; }
+	if (spd > params.slow_down_ratio * spd0) { ok |= (1 << (j>0)); }
+      }
+      if (ok == 3) {
+	oneCurve[i].sharp_turn = 3;
+	DBG("Special point[%d]=3", i);
+      }
     }
   }
 
-  // compute "normal" vector for turns (really lame algorithm)
-  for(int i = 2; i < l - 2; i ++) {
-    if (oneCurve[i].sharp_turn) {
-      int sharp_turn_index = i;
-
-      int i1 = sharp_turn_index - 1;
-      int i2 = sharp_turn_index + 1;
-      float x1 = oneCurve[i1].x - oneCurve[i1 - 1].x;
-      float y1 = oneCurve[i1].y - oneCurve[i1 - 1].y;
-      float x2 = oneCurve[i2 + 1].x - oneCurve[i2].x;
-      float y2 = oneCurve[i2 + 1].y - oneCurve[i2].y;
-      float l1 = sqrt(x1 * x1 + y1 * y1);
-      float l2 = sqrt(x2 * x2 + y2 * y2);
-      oneCurve[sharp_turn_index].normalx = 100 * (x1 / l1 - x2 / l2); // integer vs. float snafu -> don't loose too much precision
-      oneCurve[sharp_turn_index].normaly = 100 * (y1 / l1 - y2 / l2);
-    }
-  }
-
-
-  // slow down point search
-  int maxd = params.max_turn_index_gap;
-  for(int i = max(maxd, 0); i < l - maxd; i ++) {
-    int spd0 = oneCurve[i].speed;
-    if (spd0 < max_speed * params.slow_down_min) { continue; }
-    int ok = 0;
-    for(int j = -maxd; j <= maxd; j ++) {
-      int spd = oneCurve[i + j].speed;
-      if (spd < spd0 || oneCurve[i + j].sharp_turn) { ok = 0; break; }
-      if (spd > params.slow_down_ratio * spd0) { ok |= (1 << (j>0)); }
-    }
-    if (ok == 3) {
-      oneCurve[i].sharp_turn = 3;
-      DBG("Special point[%d]=3", i);
-    }
+  if (end_flag) {
+    oneCurve << EndMarker(curve_id);
   }
 
   // update aggregated curve (for logs, replay ...)
   for(int i = 0; i < idxmap.size(); i++) {
     curve[idxmap[i]] = oneCurve[i];
-  }  
+  }
 }
 
 void CurveMatch::curvePreprocess2() {
@@ -303,6 +311,7 @@ void CurveMatch::clearCurve() {
   done = false;
   memset(&st, 0, sizeof(st));
   curve_count = 0;
+  memset(curve_started, 0, sizeof(curve_started));
 }
 
 void CurveMatch::addPoint(Point point, int curve_id, int timestamp) {
@@ -370,6 +379,8 @@ void CurveMatch::addPoint(Point point, int curve_id, int timestamp) {
     }
 
   }
+
+  curve_started[curve_id] = true;
   curve_count = max(curve_count, curve_id + 1);
 
   curve << CurvePoint(point, curve_id, ts, curve_length);
@@ -378,6 +389,7 @@ void CurveMatch::addPoint(Point point, int curve_id, int timestamp) {
 void CurveMatch::endOneCurve(int curve_id) {
   if (curve_id < 0 || curve_id > MAX_CURVES) { return; }
   curve << EndMarker(curve_id);
+  curve_started[curve_id] = false;
 }
 
 
@@ -488,97 +500,6 @@ void CurveMatch::scenarioFilter(QList<ScenarioType> &scenarios, float score_rati
 
 }
 
-static float signpow(float value, float exp) {
-  if (value < 0) { return - pow(- value, exp); }
-  return pow(value, exp);
-}
-
-
-void CurveMatch::sortCandidates() {
-  /* try to find the most likely candidates by combining multiple methods :
-     - score (linear combination of multiple scores)
-     - classifier: compare relative scores in pairs, scenario "worse" than another one can be eliminated
-     - distance (sum of square distance between expected keys and curve), as calculated by Scenario::distance()
-  */
-
-  if (candidates.size() < 2) { return; }
-
-  QElapsedTimer timer;
-  timer.start();
-
-  scenarioFilter(candidates, 0.5, 10, 3 * params.max_candidates, true); // @todo add to parameter list
-
-  int n = candidates.size();
-
-  /* previous composite score (v1)
-     we keep this one as it was good for estimating curve quality */
-  float min_dist = 0;
-  for(int i = 0; i < n; i ++) {
-    if (candidates[i].distance() < min_dist || ! min_dist) {
-      min_dist = candidates[i].distance();
-    }
-  }
-  float quality = 0;
-  for(int i = 0; i < n; i ++) {
-    float new_score = candidates[i].getScore()
-      - params.coef_distance * (candidates[i].distance() - min_dist) / max(15, min_dist)
-      - params.coef_error * min(2, candidates[i].getErrorCount());
-    candidates[i].setScoreV1(new_score);
-    if (new_score > quality) { quality = new_score; }
-  }
-  DBG("Quality index %.3f", quality)
-
-  /* new composite score */
-  float min_dist_adj = 0;
-  for(int i = 0; i < n; i ++) {
-    float value = candidates[i].distance() / sqrt(candidates[i].getCount());
-    if (value < min_dist_adj || ! min_dist_adj) { min_dist_adj = value; }
-  }
-
-  float tmpsc[n];
-  float max_score = 0;
-  for(int i = 0; i < n; i ++) {
-    score_t sc = candidates[i].getScores();
-    float new_score = (params.final_coef_misc * sc.misc_score
-		       + params.final_coef_turn * pow(max(0, sc.turn_score), params.final_coef_exp)
-		       - 0.1 * signpow(0.1 * (candidates[i].distance() / sqrt(candidates[i].getCount()) - min_dist_adj), params.final_distance_pow)
-		       ) / (1 + params.final_coef_turn)
-      - params.coef_error * candidates[i].getErrorCount();
-    tmpsc[i] = new_score;
-    if (new_score > max_score) { max_score = new_score; }
-  }
-  for(int i = 0; i < n; i ++) {
-    candidates[i].setScore(quality - max_score + tmpsc[i]);
-  }
-
-  /* @todo classifier replacement ? */
-
-  scenarioFilter(candidates, 0.7, 10, params.max_candidates, true); // @todo add to parameter list
-
-  int elapsed = timer.elapsed();
-
-  if (debug) {
-    DBG("SORT> [time:%4d]                         | ----------[average]---------- | ------------[min]------------ |     |       |", elapsed);
-    DBG("SORT> ## =word======= =score =min E G dst | =cos curv dist =len misc turn | =cos curv dist =len misc turn | cls | final |");
-    for(int i = candidates.size() - 1; i >=0; i --) {
-      ScenarioType candidate = candidates[i];
-      score_t smin, savg;
-      candidate.getDetailedScores(savg, smin);
-      float score = candidate.getScore();
-      float min_score = candidate.getMinScore();
-      int error_count = candidate.getErrorCount();
-      int good_count = candidate.getGoodCount();
-      int dist = (int) candidate.distance();
-      float new_score = candidate.getScore();
-      unsigned char *name = candidate.getNameCharPtr();
-      DBG("SORT> %2d %12s %5.2f %5.2f %1d %1d%4d |%5.2f%5.2f%5.2f%5.2f%5.2f%5.2f |%5.2f%5.2f%5.2f%5.2f%5.2f%5.2f |%3d%c |%6.3f |",
-	  i, name, score, min_score, error_count, good_count, dist,
-	  savg.cos_score, savg.curve_score, savg.distance_score, savg.length_score, savg.misc_score, savg.turn_score,
-	  smin.cos_score, smin.curve_score, smin.distance_score, smin.length_score, smin.misc_score, smin.turn_score,
-	  candidate.getClass(), candidate.getStar()?'*':' ', new_score);
-    }
-  }
-}
 
 bool CurveMatch::match() {
   /* run the full "one-shot algorithm */
@@ -593,7 +514,7 @@ bool CurveMatch::match() {
   // change order for equal items: qSort(curve.begin(), curve.end()); // in multi mode we may lose point ordering
 
   QuickKeys quickKeys(keys);
-  QuickCurve *quickCurves = new QuickCurve[curve_count];
+  QuickCurve quickCurves[curve_count + 1];
 
   for (int i = 0; i < curve_count; i ++) {
     curvePreprocess1(i);
@@ -602,7 +523,7 @@ bool CurveMatch::match() {
 
   curvePreprocess2();
 
-  ScenarioType root = ScenarioType(&wordtree, &quickKeys, &quickCurves, &params);
+  ScenarioType root = ScenarioType(&wordtree, &quickKeys, quickCurves, &params);
   root.setDebug(debug);
   scenarios.append(root);
 
@@ -621,6 +542,7 @@ bool CurveMatch::match() {
       foreach(ScenarioType child, childs) {
 	if (child.isFinished()) {
 	  if (child.postProcess()) {
+	    DBG("New candidate: %s (score=%.3f)", QSTRING2PCHAR(child.getId()), child.getScore());
 	    candidates.append(child);
 	  }
 	} else {
@@ -641,9 +563,15 @@ bool CurveMatch::match() {
   st.st_time = (int) timer.elapsed();
   st.st_count = count;
 
-  sortCandidates();
+  scenarioFilter(candidates, 0.5, 10, 3 * params.max_candidates, true); // @todo add to parameter list
+  QList <ScenarioType *> pcandidates = QList<ScenarioType *>();
+  QListIterator<ScenarioType> it(candidates);
+  while(it.hasNext()) {
+    pcandidates.append((ScenarioType*) &(it.next()));
+  }
 
-  delete[] quickCurves;
+  ScenarioType::sortCandidates(pcandidates, params, debug);
+  scenarioFilter(candidates, 0.7, 10, params.max_candidates, true); // @todo add to parameter list
 
   logdebug("Candidates: %d (time=%d, nodes=%d, forks=%d, skim=%d, speed=%d, special=%d)", candidates.size(), st.st_time, st.st_count, st.st_fork, st.st_skim, st.st_speed, st.st_special);
 
@@ -653,6 +581,12 @@ bool CurveMatch::match() {
 }
 
 void CurveMatch::endCurve(int correlation_id) {
+  for (int i = 0; i < MAX_CURVES; i ++) {
+    if (curve_started[i]) {
+      curve << EndMarker(i);
+      DBG("Implicit curve end #%d", i);
+    }
+  }
   this -> id = correlation_id;
   log(QString("IN: ") + toString());
   if (! done) { match(); }

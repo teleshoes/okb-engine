@@ -55,7 +55,7 @@ class CurvePoint : public Point {
 
 class EndMarker : public CurvePoint {
  public:
-  EndMarker(int curve_id) : CurvePoint(Point(), curve_id, 0) {};
+  EndMarker(int curve_id) : CurvePoint(Point(), curve_id, 0) { this -> end_marker = true; };
 };
 
 /* just a key */
@@ -91,8 +91,8 @@ class QuickCurve {
   int *timestamp;
   int *ts;
   Point *points;
-
   int count;
+
  public:
   QuickCurve(QList<CurvePoint> &curve, int curve_id = 0);
   QuickCurve();
@@ -117,6 +117,7 @@ class QuickCurve {
   /* inline is probably useless nowadays */
 
   bool finished;
+  int getCount() { return count; }
 };
 
 /* quick key information implementation */
@@ -206,7 +207,6 @@ class Scenario {
 
  public:
   Scenario(LetterTree *tree, QuickKeys *keys, QuickCurve *curve, Params *params);
-  Scenario(LetterTree *tree, QuickKeys *keys, QuickCurve **curves, Params *params);
   Scenario(const Scenario &from);
   Scenario& operator=( const Scenario &from );
   ~Scenario();
@@ -216,7 +216,7 @@ class Scenario {
   bool childScenario(LetterNode &child, bool endScenario, QList<Scenario> &result, int &st_fork, bool incremental = false);
   bool operator<(const Scenario &other) const;
   bool isFinished() { return finished; };
-  QString getName();
+  QString getName() const;
   unsigned char* getNameCharPtr() const;
   QString getWordList();
   float getScore() const;
@@ -244,6 +244,9 @@ class Scenario {
   float getDistSqr() { return dist_sqr; }
   int getTimestamp();
   score_t getScoreIndex(int i);
+  QString getId() const { return getName(); }
+
+  static void sortCandidates(QList<Scenario *> candidates, Params &params, int debug);
 };
 
 typedef struct {

@@ -43,7 +43,7 @@ class CurveKB : public QObject {
     CurveKB(QObject *parent = 0);
     virtual ~CurveKB();
 
-    Q_INVOKABLE void startCurve(int x, int y, int curve_id);
+    Q_INVOKABLE void startCurve();
     Q_INVOKABLE void addPoint(int x, int y, int curve_id);
     Q_INVOKABLE void endOneCurve(int curve_id);
     Q_INVOKABLE void endCurve(int correlation_id);
