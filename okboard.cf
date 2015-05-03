@@ -99,5 +99,4 @@ thumb_correction = 1
 [landscape]
 dist_max_start = 90
 dist_max_next = 110
-disable_orientation = 1
 thumb_correction = 0
