@@ -17,15 +17,6 @@
 
 #define MAX_CURVES 20
 
-class NextLetter {
- public:
-  LetterNode letter_node;
-  int next_length_min;
-  int next_length_max;
-  NextLetter(LetterNode, int, int);
-  NextLetter();
-};
-
 typedef struct {
   char curve_id;
   char index;
@@ -33,10 +24,18 @@ typedef struct {
   bool end_curve;
 } history_t;
 
+#ifdef INCREMENTAL
+class DelayedScenario;
+#endif /* INCREMENTAL */
+
 /* a "MultiScenario" is a scenario that aggregate multiple scenarios (one for
    each curve drawn in a multi-touch context) */
 class MultiScenario {
- private:
+#ifdef INCREMENTAL
+  friend class DelayedScenario;
+#endif /* INCREMENTAL */
+
+ protected:
   QuickKeys *keys;
   QuickCurve *curves;
   Params *params;
@@ -47,7 +46,7 @@ class MultiScenario {
   
   LetterNode node;
 
-  bool dead, finished, debug;
+  bool finished, debug;
   float dist, dist_sqr;
 
   int count;
@@ -56,7 +55,7 @@ class MultiScenario {
   int ts;
   int id;
 
-float final_score, final_score_v1;
+  float final_score, final_score_v1;
 
   history_t *history;
   unsigned char *letter_history;
@@ -65,17 +64,17 @@ float final_score, final_score_v1;
 
   static int global_id; /* yuck global variable to track current global id */
 
+  void addSubScenarios();
+
  public:
   MultiScenario(LetterTree *tree, QuickKeys *keys, QuickCurve *curves, Params *params);
   MultiScenario(const MultiScenario &from);
   MultiScenario& operator=( const MultiScenario &from );
   ~MultiScenario();
     
-  bool childScenario(LetterNode &child, bool endScenario, QList<MultiScenario> &result, int &st_fork, bool incremental = false);
+  bool childScenario(LetterNode &child, QList<MultiScenario> &result, int &st_fork, int curve_id = -1, bool incremental = false);
   void nextKey(QList<MultiScenario> &result, int &st_fork);
   QList<LetterNode> getNextKeys();
-
-  // @todo QHash<unsigned char, NextLetter> getNextLettersWaitInfo();
 
   QString getName() const;
   void setCurveCount(int count) { this -> curve_count = count; }
@@ -100,6 +99,7 @@ float final_score, final_score_v1;
   void setScore(float score) { this -> final_score = score; }
   score_t getScores();
   QString getId() const;
+  bool nextLength(unsigned char next_letter, int curve_id, int &min, int &max);
 
   static void sortCandidates(QList<MultiScenario *> candidates, Params &params, int debug);
 
@@ -107,11 +107,6 @@ float final_score, final_score_v1;
   int getClass() { return 0; }
   int getStar() { return 0; }
 };
-
-class DelayedScenario : public MultiScenario {
-  // @todo
-};
-
 
 #endif /* MULTI */
 

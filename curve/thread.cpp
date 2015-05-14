@@ -44,7 +44,7 @@ void CurveThread::clearCurve() {
   first = true;
 }
 
-void CurveThread::addPoint(Point point, int timestamp) {
+void CurveThread::addPoint(Point point, int curve_id, int timestamp) {
   if (! isRunning()) { start(); }
   QTime now = QTime::currentTime();
   if (first) {
@@ -52,11 +52,15 @@ void CurveThread::addPoint(Point point, int timestamp) {
     first = false;
   }
   mutex.lock();
-  curvePending.append(CurvePoint(point, (timestamp >= 0)?timestamp:startTime.msecsTo(now)));
+  curvePending.append(CurvePoint(point, curve_id, (timestamp >= 0)?timestamp:startTime.msecsTo(now)));
   if (waiting) {
     pointsAvailable.wakeOne();
   }
   mutex.unlock();
+}
+
+void CurveThread::endOneCurve(int curve_id) {
+  addPoint(Point(CMD_END_CURVE, curve_id));
 }
 
 void CurveThread::endCurve(int id) {
@@ -201,7 +205,7 @@ void CurveThread::run() {
 		 (float)(t_completed.msecsTo(t_matched)) / 1000);
 
 	started = false;
-	if (callback) { callback->call(matcher->getCandidates()); }
+	if (callback) { callback->call(matcher->getCandidatesDto()); }
 
       } else if (point.x == CMD_QUIT) {
 	matcher->saveUserDict();
@@ -221,12 +225,16 @@ void CurveThread::run() {
 	}
 	learnQueue.clear();
 
+      } else if (point.x == CMD_END_CURVE) {
+	int curve_id = point.y;
+	matcher->endOneCurve(curve_id);
+
       } else {
 	if (! started) {
 	  getrusage(RUSAGE_THREAD, &ru_started);
 	}
 	started = true;
-	matcher->addPoint(point);
+	matcher->addPoint(point, point.curve_id);
       }
     }
 

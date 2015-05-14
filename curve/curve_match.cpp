@@ -63,46 +63,50 @@ void CurveMatch::curvePreprocess1(int curve_id) {
 
   }
   // avoid some side effects on curve_score (because there is often a delay before the second point)
-  oneCurve[0].turn_angle = 0;
-  oneCurve[l-1].turn_angle = 0;
+  if (l > 1) {
+    oneCurve[0].turn_angle = 0;
+    oneCurve[l-1].turn_angle = 0;
 
-  for (int i = 1; i < l - 1 ; i ++) {
-    int t1 = oneCurve[i-1].turn_angle;
-    int t2 = oneCurve[i].turn_angle;
-    int t3 = oneCurve[i+1].turn_angle;
-
-    if (abs(t2) > 160 && t1 * t2 < 0 && t2 * t3 < 0) {
-      oneCurve[i].turn_angle += 360 * ((t2 < 0) - (t2 > 0));
+    for (int i = 1; i < l - 1 ; i ++) {
+      int t1 = oneCurve[i-1].turn_angle;
+      int t2 = oneCurve[i].turn_angle;
+      int t3 = oneCurve[i+1].turn_angle;
+      
+      if (abs(t2) > 160 && t1 * t2 < 0 && t2 * t3 < 0) {
+	oneCurve[i].turn_angle += 360 * ((t2 < 0) - (t2 > 0));
+      }
     }
+    
+    for (int i = 1; i < l - 1 ; i ++) {
+      oneCurve[i].turn_smooth = int(0.5 * oneCurve[i].turn_angle + 0.25 * oneCurve[i-1].turn_angle + 0.25 * oneCurve[i+1].turn_angle);
+    }
+    oneCurve[0].turn_smooth = oneCurve[1].turn_angle / 4;
+    oneCurve[l-1].turn_smooth = oneCurve[l-2].turn_angle / 4;
   }
-
-  for (int i = 1; i < l - 1 ; i ++) {
-    oneCurve[i].turn_smooth = int(0.5 * oneCurve[i].turn_angle + 0.25 * oneCurve[i-1].turn_angle + 0.25 * oneCurve[i+1].turn_angle);
-  }
-  oneCurve[0].turn_smooth = oneCurve[1].turn_angle / 4;
-  oneCurve[l-1].turn_smooth = oneCurve[l-2].turn_angle / 4;
 
   // speed evaluation
   int max_speed = 0;
-  for(int i = 0; i < l; i ++) {
-    int i1 = i - 2, i2 = i + 2;
-    if (i1 < 1) { i1 = 1; i2 = 5; }
-    if (i2 > l - 1) { i1 = l - 5; i2 = l - 1; }
-
-    while(oneCurve[i1].t - oneCurve[0].t < 50 && i2 < l - 1) { i1 ++; i2 ++; }
-    while(oneCurve[i2].t - oneCurve[i1].t < 40 && i2 < l - 1 && i1 > 1 ) { i2 ++; i1 --; }
-
-    float dist = 0;
-    for (int j = i1; j < i2; j ++) {
-      dist += distancep(oneCurve[j], oneCurve[j+1]);
+  if (l > 5) {
+    for(int i = 0; i < l; i ++) {
+      int i1 = i - 2, i2 = i + 2;
+      if (i1 < 1) { i1 = 1; i2 = 5; }
+      if (i2 > l - 1) { i1 = l - 5; i2 = l - 1; }
+      
+      while(oneCurve[i1].t - oneCurve[0].t < 50 && i2 < l - 1) { i1 ++; i2 ++; }
+      while(oneCurve[i2].t - oneCurve[i1].t < 40 && i2 < l - 1 && i1 > 1 ) { i2 ++; i1 --; }
+      
+      float dist = 0;
+      for (int j = i1; j < i2; j ++) {
+	dist += distancep(oneCurve[j], oneCurve[j+1]);
+      }
+      if (oneCurve[i2].t > oneCurve[i1].t) {
+	oneCurve[i].speed = 1000.0 * dist / (oneCurve[i2].t - oneCurve[i1].t);
+      } else {
+	// compatibility with old test cases, should not happen often :-)
+	if (i > 0) { oneCurve[i].speed = oneCurve[i - 1].speed; } else { oneCurve[i].speed = 1; }
+      }
+      if (oneCurve[i].speed > max_speed) { max_speed = oneCurve[i].speed; }
     }
-    if (oneCurve[i2].t > oneCurve[i1].t) {
-      oneCurve[i].speed = 1000.0 * dist / (oneCurve[i2].t - oneCurve[i1].t);
-    } else {
-      // compatibility with old test cases, should not happen often :-)
-      if (i > 0) { oneCurve[i].speed = oneCurve[i - 1].speed; } else { oneCurve[i].speed = 1; }
-    }
-    if (oneCurve[i].speed > max_speed) { max_speed = oneCurve[i].speed; }
   }
 
   for(int i = 0 ; i < l; i ++) {
@@ -437,6 +441,15 @@ QList<ScenarioType> CurveMatch::getCandidates() {
   return candidates;
 }
 
+QList<ScenarioDto> CurveMatch::getCandidatesDto() {
+  QList<ScenarioDto> result;
+  foreach(ScenarioType s, candidates) {
+    ScenarioDto dto(s.getName(), s.getWordList(), s.getScore(), s.getClass(), s.getStar());
+    result.append(dto);
+  }
+  return result;
+}
+
 void CurveMatch::scenarioFilter(QList<ScenarioType> &scenarios, float score_ratio, int min_size, int max_size, bool finished) {
   /* "skim" any scenario list based on number and/or score
 
@@ -462,7 +475,7 @@ void CurveMatch::scenarioFilter(QList<ScenarioType> &scenarios, float score_rati
     if (sc < max_score * score_ratio && scenarios.size() > min_size) {
       // remove scenarios with lowest scores
       st.st_skim ++;
-      DBG("filtering(score): %s (%.3f/%.3f)", QSTRING2PCHAR(scenarios[i].getName()), sc, max_score);
+      DBG("filtering(score): \"%s\" %s (%.3f/%.3f)", QSTRING2PCHAR(scenarios[i].getName()), QSTRING2PCHAR(scenarios[i].getId()), sc, max_score);
       scenarios.takeAt(i);
 
     } else if (finished || ! scenarios[i].forkLast()) {
@@ -495,11 +508,17 @@ void CurveMatch::scenarioFilter(QList<ScenarioType> &scenarios, float score_rati
   while (max_size > 1 && scenarios.size() > max_size) {
     st.st_skim ++;
     ScenarioType s = scenarios.takeAt(0);
-    DBG("filtering(size): %s (%.3f/%.3f)", QSTRING2PCHAR(s.getName()), s.getScore(), max_score);
+    DBG("filtering(size): \"%s\" %s (%.3f/%.3f)", QSTRING2PCHAR(s.getName()), QSTRING2PCHAR(s.getId()), s.getScore(), max_score);
   }
 
 }
 
+void CurveMatch::setCurves() {
+  for (int i = 0; i < curve_count; i ++) {
+    curvePreprocess1(i);
+    quickCurves[i].setCurve(curve, i);
+  }
+}
 
 bool CurveMatch::match() {
   /* run the full "one-shot algorithm */
@@ -514,13 +533,8 @@ bool CurveMatch::match() {
   // change order for equal items: qSort(curve.begin(), curve.end()); // in multi mode we may lose point ordering
 
   QuickKeys quickKeys(keys);
-  QuickCurve quickCurves[curve_count + 1];
 
-  for (int i = 0; i < curve_count; i ++) {
-    curvePreprocess1(i);
-    quickCurves[i].setCurve(curve, i);
-  }
-
+  setCurves();
   curvePreprocess2();
 
   ScenarioType root = ScenarioType(&wordtree, &quickKeys, quickCurves, &params);
@@ -544,6 +558,8 @@ bool CurveMatch::match() {
 	  if (child.postProcess()) {
 	    DBG("New candidate: %s (score=%.3f)", QSTRING2PCHAR(child.getId()), child.getScore());
 	    candidates.append(child);
+	  } else {
+	    DBG("Failed candidate: %s", QSTRING2PCHAR(child.getId()));
 	  }
 	} else {
 	  new_scenarios.append(child);
@@ -564,13 +580,7 @@ bool CurveMatch::match() {
   st.st_count = count;
 
   scenarioFilter(candidates, 0.5, 10, 3 * params.max_candidates, true); // @todo add to parameter list
-  QList <ScenarioType *> pcandidates = QList<ScenarioType *>();
-  QListIterator<ScenarioType> it(candidates);
-  while(it.hasNext()) {
-    pcandidates.append((ScenarioType*) &(it.next()));
-  }
-
-  ScenarioType::sortCandidates(pcandidates, params, debug);
+  sortCandidates();
   scenarioFilter(candidates, 0.7, 10, params.max_candidates, true); // @todo add to parameter list
 
   logdebug("Candidates: %d (time=%d, nodes=%d, forks=%d, skim=%d, speed=%d, special=%d)", candidates.size(), st.st_time, st.st_count, st.st_fork, st.st_skim, st.st_speed, st.st_special);
@@ -578,6 +588,16 @@ bool CurveMatch::match() {
   done = true;
 
   return candidates.size() > 0;
+}
+
+void CurveMatch::sortCandidates() {
+  QList <ScenarioType *> pcandidates = QList<ScenarioType *>();
+  QListIterator<ScenarioType> it(candidates);
+  while(it.hasNext()) {
+    pcandidates.append((ScenarioType*) &(it.next()));
+  }
+
+  ScenarioType::sortCandidates(pcandidates, params, debug);
 }
 
 void CurveMatch::endCurve(int correlation_id) {

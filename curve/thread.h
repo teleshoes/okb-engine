@@ -23,7 +23,7 @@
 class ThreadCallBack {
  public:
   virtual ~ThreadCallBack();
-  virtual void call(QList<Scenario>) = 0;
+  virtual void call(QList<ScenarioDto>) = 0;
 };
 
 class CurveThread : public QThread
@@ -34,7 +34,8 @@ class CurveThread : public QThread
   CurveThread(QObject *parent = 0);
     
   void clearCurve();
-  void addPoint(Point point, int timestamp = -1);
+  void addPoint(Point point, int curve_id = -1, int timestamp = -1);
+  void endOneCurve(int curve_id);
   void endCurve(int id);
   
   void stopThread();
@@ -71,7 +72,7 @@ protected:
 };
 
 enum thread_cmd_t {
-  CMD_END = -1001, CMD_CLEAR = -1002, CMD_QUIT = -1003, CMD_LOAD_TRE = - 1004, CMD_LEARN = - 1005
+  CMD_END = -1001, CMD_CLEAR = -1002, CMD_QUIT = -1003, CMD_LOAD_TRE = - 1004, CMD_LEARN = - 1005, CMD_END_CURVE = - 1006
 };
 
 #endif /* THREAD */

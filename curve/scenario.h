@@ -94,10 +94,10 @@ class QuickCurve {
   int count;
 
  public:
-  QuickCurve(QList<CurvePoint> &curve, int curve_id = 0);
+  QuickCurve(QList<CurvePoint> &curve, int curve_id = 0, int min_length = 1);
   QuickCurve();
   ~QuickCurve();
-  void setCurve(QList<CurvePoint> &curve, int curve_id = 0);
+  void setCurve(QList<CurvePoint> &curve, int curve_id = 0, int min_length = 1);
   void clearCurve();
   inline Point const& point(int index) const;
   inline int getX(int index);
@@ -111,13 +111,16 @@ class QuickCurve {
   inline int getNormalY(int index);
   inline int getSpeed(int index);
   inline int getCurveId(int index);
-  inline int getLength(int index);
   inline int size();
   inline int getTimestamp(int index);
   /* inline is probably useless nowadays */
 
   bool finished;
+  bool isDot;
+
   int getCount() { return count; }
+  int getTotalLength();
+  int getLength(int index);
 };
 
 /* quick key information implementation */
@@ -150,8 +153,34 @@ typedef struct {
 
 
 /* scenario (describe word candidates) */
-class Scenario {
+class ScenarioDto {
  private:
+  QString name;
+  QString wordList;
+  float score;
+  int cls;
+  bool star;
+
+ public:
+  ScenarioDto(QString name, QString wordlist, float score, int cls, bool star) : name(name), wordList(wordlist), score(score), cls(cls), star(star) {}
+
+  float getScore() { return score; }
+  QString getName() { return name; }
+  int getClass() { return cls; }
+  bool getStar() { return star; }
+  QString getWordList() { return wordList; }
+};
+
+#ifdef INCREMENTAL
+class DelayedScenario;
+#endif /* INCREMENTAL */
+
+class Scenario {
+#ifdef INCREMENTAL
+  friend class DelayedScenario;
+#endif /* INCREMENTAL */
+
+ protected:
   unsigned char *index_history; // let's not implement >255 letters words :-)
   unsigned char *letter_history;
   score_t *scores;
@@ -204,6 +233,7 @@ class Scenario {
   float get_next_key_match(unsigned char letter, int index, QList<int> &new_index, bool incremental, bool &overflow);
   float evalScore();
   void copy_from(const Scenario &from);
+  bool childScenarioInternal(LetterNode &child, QList<Scenario> &result, int &st_fork, bool incremental, bool endScenario);
 
  public:
   Scenario(LetterTree *tree, QuickKeys *keys, QuickCurve *curve, Params *params);
@@ -213,7 +243,8 @@ class Scenario {
   void setDebug(bool debug);
   void nextKey(QList<Scenario> &result, int &st_fork);
   QList<LetterNode> getNextKeys();
-  bool childScenario(LetterNode &child, bool endScenario, QList<Scenario> &result, int &st_fork, bool incremental = false);
+  bool childScenario(LetterNode &child, QList<Scenario> &result, int &st_fork, int curve_id = -1, bool incremental = false);
+  bool childScenario(LetterNode &child, QList<Scenario> &result, int &st_fork, int curve_id, bool incremental, bool hasPayload, bool isLeaf);
   bool operator<(const Scenario &other) const;
   bool isFinished() { return finished; };
   QString getName() const;
@@ -245,6 +276,7 @@ class Scenario {
   int getTimestamp();
   score_t getScoreIndex(int i);
   QString getId() const { return getName(); }
+  bool nextLength(unsigned char next_letter, int curve_id, int &min, int &max);
 
   static void sortCandidates(QList<Scenario *> candidates, Params &params, int debug);
 };

@@ -22,6 +22,7 @@
 
 #include "params.h"
 
+#include "scenario.h"
 #include "multi.h"
 
 #ifdef MULTI
@@ -79,6 +80,10 @@ class CurveMatch {
 
   int compare_scenario(ScenarioType *s1, ScenarioType *s2, bool reverse = false);
 
+  QuickCurve quickCurves[MAX_CURVES + 1];
+
+  void setCurves();
+
  public:
   CurveMatch();
   bool loadTree(QString file);
@@ -90,6 +95,7 @@ class CurveMatch {
   virtual void endCurve(int correlation_id);
   bool match();
   QList<ScenarioType> getCandidates();
+  QList<ScenarioDto> getCandidatesDto();
   QList<CurvePoint> getCurve();
 
   void setLogFile(QString fileName);
@@ -113,6 +119,8 @@ class CurveMatch {
   void purgeUserDict();
   void dumpDict();
   char* getPayload(unsigned char *letters);
+
+  void sortCandidates();
 };
 
 #endif /* CURVE_MATCH_H */

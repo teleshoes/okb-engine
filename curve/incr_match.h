@@ -13,60 +13,72 @@
 
 #include <QElapsedTimer>
 
-/* A delayed scenario is a scenario with a minimal length for each possible child scenario
-   it will be triggered when the actual curve lenght is greater than the miniman length
- */
+/* A delayed scenario is a scenario which childs can not be evaluated right now because
+   the user has only drawn a small part of the gesture (mono or multi-touch), so we
+   have to wait until he draws more before evaluating child scenarios 
+   -> this used for incremental mode */
+
 class NextLetter {
  public:
   LetterNode letter_node;
-  int next_length_min;
-  int next_length_max;
-  NextLetter(LetterNode, int, int);
+  QList<int> next_length;
+  NextLetter(LetterNode);
   NextLetter();
 };
 
 class DelayedScenario {
  private:
-  bool dead;
+  void updateNextLetters();
+  bool debug;
 
  public:
-  Scenario scenario;
+  ScenarioType scenario;
+  bool dead;
   QHash<unsigned char, NextLetter> next;
+  bool nextOk;
 
-  DelayedScenario(Scenario &s, QHash<unsigned char, NextLetter> &h);
+  DelayedScenario(LetterTree *tree, QuickKeys *keys, QuickCurve *curves, Params *params);
+  DelayedScenario(const DelayedScenario &from);
+  DelayedScenario(const ScenarioType &from);
+  DelayedScenario& operator=(const DelayedScenario &from);
+  ~DelayedScenario();
+
   bool operator<(const DelayedScenario &other) const;
-  bool isDead() { return dead; }
   void die() { dead = true; }
-};
 
+  void updateNextLength();
+  void getChildsIncr(QList<DelayedScenario> &childs, bool finished, stats_t &st, bool recursive = true, bool aggressive = false);
+  int getNextLength(int curve_id, bool aggressive = false);
+
+  void setDebug(bool value) { debug = scenario.debug = value; }
+
+  void display(char *prefix = NULL);
+};
 
 class IncrementalMatch : public CurveMatch {
  protected:
   void incrementalMatchBegin();
   void incrementalMatchUpdate(bool finished, bool aggressive = false);
+  QString getLengthStr();
 
-  void incrementalNextKeys(Scenario &scenario, QList<DelayedScenario> &result, bool finished);
-  bool evalChildScenario(Scenario &scenario, LetterNode &childNode, QList<DelayedScenario> &result, bool finished);
+  void update_next_iteration_length(bool aggressive);
 
-  void update_next_iteration_length(int length);
-
-  void displayDelayedScenario(DelayedScenario &ds);
   void delayedScenariosFilter();
 
-  QList<DelayedScenario> delayed_scenarios; 
-  int cumulative_length;
-  int next_iteration_length;
-  int last_curve_index;
   int next_iteration_index;
+  int next_iteration_length[MAX_CURVES];
+  int current_length[MAX_CURVES];
+  int last_curve_count;
 
   QElapsedTimer timer;
 
-  QuickCurve quickCurve;
   QuickKeys quickKeys;
 
+  QList<DelayedScenario> delayed_scenarios;
+
  public:
-  virtual void clearCurve();
-  virtual void addPoint(Point point, int timestamp = -1);
+  virtual void addPoint(Point point, int curve_id, int timestamp = -1);
+  virtual void endOneCurve(int curve_id);
   virtual void endCurve(int id);
   void aggressiveMatch();
 };

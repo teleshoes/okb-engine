@@ -18,7 +18,7 @@ MultiScenario::MultiScenario(LetterTree *tree, QuickKeys *keys, QuickCurve *curv
   this -> curves = curves;
   this -> params = params;
 
-  debug = dead = finished = false;
+  debug = finished = false;
   count = 0;
   dist = dist_sqr = 0;
   curve_count = 0;
@@ -59,7 +59,9 @@ void MultiScenario::copy_from(const MultiScenario &from) {
   curve_count = from.curve_count;
 
   debug = from.debug;
-  dead = from.dead; // probably useless :-)
+
+  dist = from.dist;
+  dist_sqr = from.dist_sqr;
 
   ts = from.ts;
 
@@ -77,7 +79,7 @@ void MultiScenario::copy_from(const MultiScenario &from) {
 
   scenarios = from.scenarios; // just copy smart pointers
 
-  id = (MultiScenario::global_id ++);
+  id = from.id;
 }
 
 MultiScenario::~MultiScenario() {
@@ -88,7 +90,7 @@ MultiScenario::~MultiScenario() {
 QString MultiScenario::getId() const {
   QString ret;
   QTextStream ts(& ret);
-  
+
   ts << "@" << id << " ";
 
   int last_curve = -1;
@@ -108,92 +110,96 @@ QString MultiScenario::getId() const {
   return ret;
 }
 
-bool MultiScenario::childScenario(LetterNode &childNode, bool endScenario, QList<MultiScenario> &result, int &st_fork, bool incremental) {
-  unsigned char letter = childNode.getChar();
-
-  while (curve_count < MAX_CURVES && (curves[curve_count].getCount() > 0)) { 
-    // find how many curve we've got (ugly)
-    DBG("[MULTI] new curve added (index=#%d)", curve_count);
-    curve_count ++;
-  }
-
+void MultiScenario::addSubScenarios() {
   while (curve_count > scenarios.size()) {
     Scenario *s = new Scenario((LetterTree*) NULL /* no more needed? */, keys, &(curves[scenarios.size()]), params);
     s->setDebug(debug);
     scenarios.append(QSharedPointer<Scenario>(s));
   }
+}
+
+bool MultiScenario::childScenario(LetterNode &childNode, QList<MultiScenario> &result, int &st_fork, int filter_curve_id, bool incremental) {
+  unsigned char letter = childNode.getChar();
+
+  while (curve_count < MAX_CURVES && (curves[curve_count].getCount() > 0)) {
+    // find how many curve we've got (ugly)
+    DBG("[MULTI] new curve added (index=#%d)", curve_count);
+    curve_count ++;
+  }
+
+  addSubScenarios();
+
+  bool hasPayload = childNode.hasPayload();
+  bool isLeaf = childNode.isLeaf();
 
   int in_progress = 0;
   for (int curve_id = 0; curve_id < curve_count; curve_id ++) {
     in_progress += (! S(curve_id)->isFinished());
   }
-  if (endScenario && in_progress >= 2) { return true; } // last iteration and 2 curves still in progress
+  if (! in_progress) { return true; }
+  if (isLeaf && in_progress >= 2) { return true; } // last iteration and 2 curves still in progress
 
-  if (curve_count >= 2) { DBG("[MULTI] current scenario: %s + '%c' \"%s:%c\" [endScenario=%d]", QSTRING2PCHAR(getId()), letter, getNameCharPtr(), letter, endScenario); }
+  if (curve_count >= 2) { DBG("[MULTI] current scenario: %s + '%c' \"%s:%c\"", QSTRING2PCHAR(getId()), letter, getNameCharPtr(), letter); }
 
-  for (int curve_id = 0; curve_id < curve_count; curve_id ++) {    
+  for (int curve_id = 0; curve_id < curve_count; curve_id ++) {
+    if (filter_curve_id >=0 && curve_id != filter_curve_id) { continue; }
+
     Scenario *scenario = S(curve_id);
     if (scenario->isFinished()) { continue; } // we have entirely matched this curve
 
     QuickCurve *curve = &(curves[curve_id]);
 
-    for(int end = 0; end <= 1; end ++) {
-      if (endScenario && ! end) { continue; }
-      if (curve_count <= 1 && end && ! endScenario) { continue; }
-      if (end && ! curve->finished) { continue; } // we assume we were not called before min length (in incremental mode)
+    bool chld_hasPayload = (in_progress > 1)?true:hasPayload;
+    bool chld_isLeaf = isLeaf;
+    /* if (curve_count >= 2) */ { DBG("[MULTI] %s + '%c' curve_id=%d [hasPayload=%d->%d isLeaf=%d] in_progress=%d curve_finished=%d count=%d", 
+				      QSTRING2PCHAR(getId()), letter, curve_id, hasPayload, chld_hasPayload, chld_isLeaf, in_progress, curve->finished, count); }
 
-      if (curve_count >= 2) { DBG("[MULTI] %s + '%c' curve_id=%d end=%d endScenario=%d curve_finished=%d count=%d", QSTRING2PCHAR(getId()), letter, curve_id, end, endScenario, curve->finished, count); }
+    QList<Scenario> childs;
+    if (! scenario -> childScenario(childNode, childs, st_fork, 0, incremental, chld_hasPayload, chld_isLeaf)) { return false; }
 
-      // @todo heuristics to be added here (or we may explore too much)
-      // @todo evaluate most likely scenario first, and ignore other if it succeed
-      // @todo evaluate metrics for incremental mode (min / max length for next checks
-      // @todo handle one-key curves (simple clicks)
-      // @todo remove too old scenarios (if they are stuck there is a reason) -> probably has to be done from caller
-      // @todo no end=1 test for first letter
+    // @todo heuristics to be added here (or we may explore too much)
+    // @todo handle one-key curves (simple clicks)
+    // @todo optional zone notion. e.g. left & right half keyboard. A curve is contained in a single region (should reduce tree width)
 
-      QList<Scenario> childs;
-      if (! scenario -> childScenario(childNode, end == 1, childs, st_fork, incremental)) { return false; }
+    foreach(Scenario child, childs) {
+      int new_ts = child.getTimestamp();
+      if (new_ts < ts - params->multi_max_time_rewind) { continue; } // we accept small infraction with events ordering :-)
+      
+      bool endScenario = child.isFinished();
 
-      foreach(Scenario child, childs) {
-	int new_ts = child.getTimestamp();
-	if (new_ts < ts - params->multi_max_time_rewind) { continue; } // we accept small infraction with ordering :-)
+      MultiScenario new_ms(*this);
+      new_ms.scenarios[curve_id] = QSharedPointer<Scenario>(new Scenario(child)); // useless copy -> @todo Scenario::childScenario return pointers to dynamically allocated objects
+      new_ms.node = childNode;
+      new_ms.history[count].curve_id = curve_id;
+      new_ms.history[count].curve_index = child.getCurveIndex();
+      new_ms.history[count].index = child.getCount() - 1;
+      new_ms.history[count].end_curve = endScenario;
+      new_ms.letter_history[count] = letter;
+      new_ms.count = count + 1;
+      new_ms.finished = endScenario && (in_progress == 1); // we've just matched the last point in the last curve
+      new_ms.dist_sqr = dist_sqr + child.getDistSqr() - scenario->getDistSqr();
+      new_ms.dist = sqrt(new_ms.dist_sqr);
+      new_ms.ts = new_ts;
+      new_ms.id = (MultiScenario::global_id ++);
+      
+      /* if (curve_count >= 2) */ { DBG("[MULTI] -> child scenario: %s [end=%d]", QSTRING2PCHAR(new_ms.getId()), endScenario); }
 
-	MultiScenario new_ms(*this);
-	new_ms.scenarios[curve_id] = QSharedPointer<Scenario>(new Scenario(child)); // useless copy -> @todo Scenario::childScenario return pointers to dynamically allocated objects
-	new_ms.node = childNode;
-	new_ms.history[count].curve_id = curve_id;
-	new_ms.history[count].curve_index = child.getCurveIndex();
-	new_ms.history[count].index = child.getCount() - 1;
-	new_ms.history[count].end_curve = (end == 1);
-	new_ms.letter_history[count] = letter;
-	new_ms.count = count + 1;
-	new_ms.finished = endScenario;
-	new_ms.dist_sqr = child.getDistSqr() - scenario->getDistSqr();
-	new_ms.dist = sqrt(new_ms.dist_sqr);
-	new_ms.ts = new_ts;
-
-	if (curve_count >= 2) { DBG("[MULTI] -> child scenario: %s [end=%d]", QSTRING2PCHAR(new_ms.getId()), endScenario); }
-
-	result.append(new_ms);
-      }
-
-    }
+      result.append(new_ms);
+    }   
 
   }
-  if (curve_count >= 2) { DBG("[MULTI] iteration OK"); DBG(" "); }
+
+  /* if (curve_count >= 2) */ { DBG("[MULTI] iteration OK"); DBG(" "); }
   return true;
 }
 
 
 void MultiScenario::nextKey(QList<MultiScenario> &result, int &st_fork) {
   foreach (LetterNode child, node.getChilds()) {
-    if (child.hasPayload() && count >= 1) {
-      childScenario(child, true, result, st_fork);
-    }
-    childScenario(child, false, result, st_fork);
+    childScenario(child, result, st_fork);
+    // note: childScernario return value is ignored because this method is not
+    // used with incremental mode
   }
-  // note: childScernario return value is ignored because this method is not
-  // used with incremental mode
 }
 
 bool MultiScenario::operator<(const MultiScenario &other) const {
@@ -220,9 +226,10 @@ QString MultiScenario::getWordList() {
 }
 
 float MultiScenario::getScore() const {
+  if (! count) { return 0; }
   float score = 0;
-  FOREACH_ALL_SCENARIOS(s, { 
-      score += s->getScore() * s->getCount();
+  FOREACH_ALL_SCENARIOS(s, {
+      score += (finished?s->getScore():s->getTempScore()) * s->getCount();
     });
   return score / count;
 }
@@ -240,8 +247,8 @@ bool MultiScenario::forkLast() {
 
 bool MultiScenario::postProcess() {
   bool result = true;
-  FOREACH_ALL_SCENARIOS(s, { 
-      result &= s->postProcess(); 
+  FOREACH_ALL_SCENARIOS(s, {
+      result &= s->postProcess();
     });
 
   this->final_score = getScore();
@@ -259,14 +266,14 @@ static void score_t_add(score_t &to, score_t &from, float coef) {
 }
 
 static void score_t_clear(score_t &s) {
-  s.distance_score = s.turn_score = s.cos_score = s.curve_score = s.misc_score = s.length_score = 0; 
+  s.distance_score = s.turn_score = s.cos_score = s.curve_score = s.misc_score = s.length_score = 0;
 }
 
 score_t MultiScenario::getScores() {
   score_t ret;
   score_t_clear(ret);
 
-  FOREACH_ALL_SCENARIOS(s, { 
+  FOREACH_ALL_SCENARIOS(s, {
       score_t sc = s->getScores();
       score_t_add(ret, sc, 1.0 * s->getCount() / count);
     } );
@@ -341,7 +348,7 @@ QString MultiScenario::toString(bool indent) {
   QJsonDocument doc(json);
   return QString(doc.toJson(indent?QJsonDocument::Indented:QJsonDocument::Compact));
 }
-  
+
 void MultiScenario::sortCandidates(QList<MultiScenario *> candidates, Params &params, int debug) {
   if (candidates.size() == 0) { return; }
   int curve_count = candidates[0]->curve_count;
@@ -373,11 +380,22 @@ void MultiScenario::sortCandidates(QList<MultiScenario *> candidates, Params &pa
       QString name = candidate->getId();
       logdebug("SORT> %2d %22s %1d %1d%4d %5.2f",
 	       i, QSTRING2PCHAR(name), error_count, good_count, dist, score);
-      
+
     }
     logdebug("[MULTI] end dump");
     logdebug(" ");
   }
 }
+
+bool MultiScenario::nextLength(unsigned char next_letter, int curve_id, int &min_length, int &max_length) {
+  if (curve_id < 0 || curve_id >= curve_count) { return false; }
+
+  addSubScenarios();
   
+  Scenario *scenario = S(curve_id);
+  if (scenario->isFinished()) { return false; }
+  
+  return scenario->nextLength(next_letter, 0, min_length, max_length);
+}
+
 #endif /* MULTI */

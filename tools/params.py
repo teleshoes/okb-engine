@@ -27,6 +27,7 @@ defparams = [
     [ "dst_x_max", int, 0, 100 ],
     [ "dst_y_add", int, 0, 50 ],
     [ "dst_y_max", int, 0, 200 ],
+    [ "end_scenario_wait", int ],
     [ "error_correct", int ],
     [ "error_ignore_count", int, 3, 10 ],
     [ "final_coef_misc", float, 0.1, 5],
@@ -35,6 +36,7 @@ defparams = [
     [ "final_distance_pow", float, 0.1, 5 ],
     [ "incremental_index_gap", int ],
     [ "incremental_length_lag", int ],  # no optimization
+    [ "incr_retry", int ],  # no optim => performance only
     [ "inf_max", int, 40, 180 ],
     [ "inf_min", int, 5, 40 ],
     [ "lazy_loop_bias", float, 0, 1 ],

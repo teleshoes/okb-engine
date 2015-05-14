@@ -29,12 +29,14 @@ class Params {
   int dst_x_max;
   int dst_y_add;
   int dst_y_max;
+  int end_scenario_wait;
   int error_correct;
   int error_ignore_count;
   float final_coef_exp;
   float final_coef_misc;
   float final_coef_turn;
   float final_distance_pow;
+  int incr_retry;
   int incremental_index_gap;
   int incremental_length_lag;
   int inf_max;
@@ -133,12 +135,14 @@ static Params default_params = {
   70, // dst_x_max
   40, // dst_y_add
   120, // dst_y_max
+  100, // end_scenario_wait
   1, // error_correct
   5, // error_ignore_count
   0.1, // final_coef_exp
   0.8, // final_coef_misc
   1.0, // final_coef_turn
   0.5, // final_distance_pow
+  50, // incr_retry
   5, // incremental_index_gap
   100, // incremental_length_lag
   120, // inf_max
@@ -146,7 +150,7 @@ static Params default_params = {
   0.02, // lazy_loop_bias
   0.001, // length_penalty
   7, // match_wait
-  350, // max_active_scenarios
+  200, // max_active_scenarios
   45, // max_angle
   35, // max_candidates
   25, // max_segment_length
@@ -231,12 +235,14 @@ void Params::toJson(QJsonObject &json) const {
   json["dst_x_max"] = dst_x_max;
   json["dst_y_add"] = dst_y_add;
   json["dst_y_max"] = dst_y_max;
+  json["end_scenario_wait"] = end_scenario_wait;
   json["error_correct"] = error_correct;
   json["error_ignore_count"] = error_ignore_count;
   json["final_coef_exp"] = final_coef_exp;
   json["final_coef_misc"] = final_coef_misc;
   json["final_coef_turn"] = final_coef_turn;
   json["final_distance_pow"] = final_distance_pow;
+  json["incr_retry"] = incr_retry;
   json["incremental_index_gap"] = incremental_index_gap;
   json["incremental_length_lag"] = incremental_length_lag;
   json["inf_max"] = inf_max;
@@ -331,12 +337,14 @@ Params Params::fromJson(const QJsonObject &json) {
   p.dst_x_max = json["dst_x_max"].toDouble();
   p.dst_y_add = json["dst_y_add"].toDouble();
   p.dst_y_max = json["dst_y_max"].toDouble();
+  p.end_scenario_wait = json["end_scenario_wait"].toDouble();
   p.error_correct = json["error_correct"].toDouble();
   p.error_ignore_count = json["error_ignore_count"].toDouble();
   p.final_coef_exp = json["final_coef_exp"].toDouble();
   p.final_coef_misc = json["final_coef_misc"].toDouble();
   p.final_coef_turn = json["final_coef_turn"].toDouble();
   p.final_distance_pow = json["final_distance_pow"].toDouble();
+  p.incr_retry = json["incr_retry"].toDouble();
   p.incremental_index_gap = json["incremental_index_gap"].toDouble();
   p.incremental_length_lag = json["incremental_length_lag"].toDouble();
   p.inf_max = json["inf_max"].toDouble();

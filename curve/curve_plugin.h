@@ -22,7 +22,7 @@ class PluginCallBack : public ThreadCallBack {
   CurveKB *plugin;
  public:
   PluginCallBack(CurveKB *plugin);
-  void call(QList<ScenarioType>);
+  void call(QList<ScenarioDto>);
 };
 #endif /* THREAD */
 
@@ -62,11 +62,11 @@ class CurveKB : public QObject {
 
     Q_INVOKABLE void learn(QString letters, QString word);
 
-    void sendSignal(QList<ScenarioType> &candidates);
+    void sendSignal(QList<ScenarioDto> &candidates);
 
  private:
     QObject m_keyboard;
-    QVariantList scenarioList2QVariantList(QList<ScenarioType> &candidates);
+    QVariantList scenarioList2QVariantList(QList<ScenarioDto> &candidates);
 
  signals:
     void matchingDone(QVariantList candidates);

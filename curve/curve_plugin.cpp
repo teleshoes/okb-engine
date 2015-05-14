@@ -14,7 +14,7 @@ using namespace std;
 #ifdef THREAD
 PluginCallBack::PluginCallBack(CurveKB *p) : plugin(p) {}
 
-void PluginCallBack::call(QList<ScenarioType> l) {
+void PluginCallBack::call(QList<ScenarioDto> l) {
   plugin->sendSignal(l);
 }
 #endif /* THREAD */
@@ -100,14 +100,14 @@ void CurveKB::resetCurve()
 #endif /* THREAD */
 }
  
-void CurveKB::sendSignal(QList<ScenarioType> &candidates) 
+void CurveKB::sendSignal(QList<ScenarioDto> &candidates) 
 {
   emit matchingDone(scenarioList2QVariantList(candidates));
 }
 
-QVariantList CurveKB::scenarioList2QVariantList(QList<ScenarioType> &candidates) {
+QVariantList CurveKB::scenarioList2QVariantList(QList<ScenarioDto> &candidates) {
   QVariantList ret;
-  foreach (ScenarioType scenario, candidates) {
+  foreach (ScenarioDto scenario, candidates) {
     QVariantList item;
     item << scenario.getName() << scenario.getScore() << scenario.getClass() << scenario.getStar() << scenario.getWordList();
     ret.append((QVariant) item); // avoid list flattening
@@ -177,7 +177,7 @@ void CurveKB::loadParameters(QString params)
 QVariantList CurveKB::getCandidates()
 {
   WF_IDLE;
-  QList<ScenarioType> candidates = curveMatch.getCandidates();
+  QList<ScenarioDto> candidates = curveMatch.getCandidatesDto();
   return scenarioList2QVariantList(candidates);
 }
 

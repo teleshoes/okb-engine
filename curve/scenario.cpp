@@ -43,9 +43,9 @@ QuickCurve::QuickCurve() {
   count = -1;
 }
 
-QuickCurve::QuickCurve(QList<CurvePoint> &curve, int curve_id) {
+QuickCurve::QuickCurve(QList<CurvePoint> &curve, int curve_id, int min_length) {
   count = -1;
-  setCurve(curve, curve_id);
+  setCurve(curve, curve_id, min_length);
 }
 
 void QuickCurve::clearCurve() {
@@ -65,28 +65,29 @@ void QuickCurve::clearCurve() {
   count = -1;
 }
 
-void QuickCurve::setCurve(QList<CurvePoint> &curve, int curve_id) {
+void QuickCurve::setCurve(QList<CurvePoint> &curve, int curve_id, int min_length) {
   clearCurve();
   finished = false;
+  isDot = false;
 
-  count = curve.size();
-  if (! count) { return; }
+  int cs = curve.size();
+  if (! cs) { count = 0; return; }
 
-  x = new int[count];
-  y = new int[count];
-  turn = new int[count];
-  turnsmooth = new int[count];
-  sharpturn = new int[count];
-  normalx = new int[count];
-  normaly = new int[count];
-  speed = new int[count];
-  points = new Point[count];
-  timestamp = new int[count];
-  length = new int[count];
+  x = new int[cs];
+  y = new int[cs];
+  turn = new int[cs];
+  turnsmooth = new int[cs];
+  sharpturn = new int[cs];
+  normalx = new int[cs];
+  normaly = new int[cs];
+  speed = new int[cs];
+  points = new Point[cs];
+  timestamp = new int[cs];
+  length = new int[cs];
 
   int l = 0;
   int j = 0;
-  for (int i = 0; i < count; i++) {
+  for (int i = 0; i < cs; i++) {
     CurvePoint p = curve[i];
     if (p.curve_id != curve_id) { continue; }
     if (p.end_marker) { finished = true; break; }
@@ -112,6 +113,11 @@ void QuickCurve::setCurve(QList<CurvePoint> &curve, int curve_id) {
     j ++;
   }
   count = j;
+
+  if (l <= min_length) {
+    count = 1;
+    isDot = true;
+  }
 }
 
 QuickCurve::~QuickCurve() {
@@ -132,6 +138,7 @@ int QuickCurve::getNormalY(int index) { return normaly[index]; }
 int QuickCurve::getSpeed(int index) { return speed[index]; }
 int QuickCurve::getLength(int index) { return length[index]; }
 int QuickCurve::getTimestamp(int index) { return timestamp[index]; }
+int QuickCurve::getTotalLength() { return (count > 0)?length[count - 1]:0; }
 
 /* optimized keys information */
 QuickKeys::QuickKeys() {
@@ -705,7 +712,7 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &
   return max_score;
 }
 
-bool Scenario::childScenario(LetterNode &childNode, bool endScenario, QList<Scenario> &result, int &st_fork, bool incremental) {
+bool Scenario::childScenario(LetterNode &childNode, QList<Scenario> &result, int &st_fork, int curve_id, bool incremental) {
   /* this function create childs scenarios from the current one (they represent a word with one more letter)
      based on a child letter nodes (i.e. next possible letter in word)
      it can return:
@@ -716,8 +723,68 @@ bool Scenario::childScenario(LetterNode &childNode, bool endScenario, QList<Scen
      we are running in incremental mode (incremental == true) and we are too close from the end of the curve
      (which means caller must call this function again later when there are more points, or when the curve is
      really finished)
+
+     Now it automatically look for normal scenarios (middle of words) or end scenarios (last letter) or both
+     based on the context. It should now be called only once for each scenario.
   */
-  unsigned char prev_letter = childNode.getParentChar();
+
+  bool hasPayload = childNode.hasPayload();
+  bool isLeaf = childNode.isLeaf();
+  return childScenario(childNode, result, st_fork, curve_id, incremental, hasPayload, isLeaf);
+}
+
+bool Scenario::childScenario(LetterNode &childNode, QList<Scenario> &result, int &st_fork, int curve_id, bool incremental, bool hasPayload, bool isLeaf) {
+  /* this method allow to override hasPayload/isLeaf flags (used with multi-scenario) */
+
+  if (curve_id > 0) { /* multi-touch not supported here */ }
+
+  bool partial = incremental && ! curve->finished; // curve is not complete yet
+  bool isDot = curve->isDot;
+
+  // step 1: find non-ending child scenarios
+  if ((! isDot) && ((! isLeaf) || (partial && hasPayload))) {
+    int len_before = result.size();
+    if (! childScenarioInternal(childNode, result, st_fork, incremental, false)) { return false; } // try again later
+    int len_after = result.size();
+    
+    if (isLeaf) {
+      // scenario we may have found will only be used to evaluate if curve is long enough to
+      // check ending scenarios. We can safely discard them
+      // (that's inefficient, but older code always did it also)
+
+      if (len_after > len_before) { // (partial is true)
+	
+	int curve_index = 0;
+	for(int i = len_before; i < len_after; i ++) {
+	  curve_index = max(curve_index, result[i].getCurveIndex());
+	}
+	for(int i = len_before; i < len_after; i ++) {
+	  result.removeLast();
+	}
+      
+	if (curve->getTotalLength() < curve->getLength(curve_index) + params->end_scenario_wait) {
+	  return false; // we must wait for curve to be longer to test end scenario
+	}
+	
+	// continue to step 2
+
+      } else {
+	// no match, end-scenario is not possible
+	return true;
+      }
+    }
+  }
+
+  // step 2: find ending scenario
+  if (hasPayload && (count > 0 || isDot)) {
+    childScenarioInternal(childNode, result, st_fork, incremental, true); // result ignored (always true with endScenario == true)
+  }
+
+  return true;
+}
+
+bool Scenario::childScenarioInternal(LetterNode &childNode, QList<Scenario> &result, int &st_fork, bool incremental, bool endScenario) {
+  unsigned char prev_letter = (count > 0)?letter_history[count - 1]:0;
   unsigned char letter = childNode.getChar();
   int index = this -> index;
 
@@ -875,10 +942,7 @@ bool Scenario::childScenario(LetterNode &childNode, bool endScenario, QList<Scen
 
 void Scenario::nextKey(QList<Scenario> &result, int &st_fork) {
   foreach (LetterNode child, node.getChilds()) {
-    if (child.hasPayload() && count >= 1) {
-      childScenario(child, true, result, st_fork);
-    }
-    childScenario(child, false, result, st_fork);
+    childScenario(child, result, st_fork);
   }
 }
 
@@ -901,6 +965,7 @@ QString Scenario::getWordList() {
 }
 
 float Scenario::getScore() const {
+  if (! count) { return 0; }
   if (final_score2 != -1) { return final_score2; }
   return (final_score == -1)?getTempScore():final_score;
 }
@@ -1914,3 +1979,32 @@ void Scenario::sortCandidates(QList<Scenario*> candidates, Params &params, int d
     }
   }
 }
+
+bool Scenario::nextLength(unsigned char next_letter, int curve_id, int &min_length, int &max_length) {
+  /* compute minimal curve for evaluating a possible child scenario */
+
+  if (curve_id > 0) { return false; }
+  if (! count) { min_length = max_length = 1; return true; }
+
+  unsigned char last_letter = letter_history[count - 1];
+  int last_length = curve->getLength(index_history[count - 1]);
+
+  Point lk = keys->get(last_letter);
+  Point nk = keys->get(next_letter);
+
+  int dist = distancep(lk, nk);
+
+  /*
+    compute minimal curve length to evaluate this scenario
+    (currently it's value is last key curve length + distance between the two keys + 2 * max distance error
+    which means, that matching will always ~200 pixels late (with current settings)
+    max_length is a pessimistic guess (it prevent retries and uses the less cpu time)
+    min_length is an optimistic guess
+  */
+
+  max_length = last_length  + (1.0 + (float)dist / params->dist_max_next / 20) * (params->incremental_length_lag + dist);
+  min_length = last_length + max(0, dist - params->incremental_length_lag / 2);
+  
+  return true;
+}
+
