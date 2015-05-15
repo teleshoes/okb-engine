@@ -160,7 +160,7 @@ static Params default_params = {
   50, // max_turn_error3
   6, // max_turn_index_gap
   2, // min_turn_index_gap
-  100, // multi_max_time_rewind
+  300, // multi_max_time_rewind
   0.12, // rt_score_coef
   0.01, // rt_score_coef_tip
   3, // rt_tip_gaps

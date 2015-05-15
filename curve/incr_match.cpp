@@ -247,7 +247,7 @@ void IncrementalMatch::incrementalMatchUpdate(bool finished, bool aggressive) {
     if (current_length[i] >= next_iteration_length[i]) { proceed = true; }
   }
 
-  DBG("[== incrementalMatchUpdate: %sfinished=%d, curveIndex=%d, length=[%s], proceed=%d", aggressive?"[aggressive] ":"", finished, curve.size(), QSTRING2PCHAR(getLengthStr()), proceed);
+  logdebug("[== incrementalMatchUpdate: %sfinished=%d, curveIndex=%d, length=[%s], proceed=%d", aggressive?"[aggressive] ":"", finished, curve.size(), QSTRING2PCHAR(getLengthStr()), proceed);
 
   if (debug) {
     for(int i = 0; i < delayed_scenarios.size(); i ++) {

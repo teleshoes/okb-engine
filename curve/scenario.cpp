@@ -1887,7 +1887,7 @@ float Scenario::distance() const {
 }
 
 int Scenario::getTimestamp() {
-  return index?curve->getTimestamp(index - 1):0;
+  return index?curve->getTimestamp(index - 1):curve->getTimestamp(0);
 }
 
 score_t Scenario::getScoreIndex(int i) {

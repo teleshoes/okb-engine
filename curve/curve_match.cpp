@@ -519,6 +519,7 @@ void CurveMatch::setCurves() {
     curvePreprocess1(i);
     quickCurves[i].setCurve(curve, i);
   }
+  quickCurves[curve_count].clearCurve();
 }
 
 bool CurveMatch::match() {
