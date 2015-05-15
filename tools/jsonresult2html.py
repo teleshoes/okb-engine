@@ -117,6 +117,13 @@ def mkimg(scale = 1, scenario = None):
     for curve in curves:
         lastx, lasty = None, None
         c = 0
+        if len(curve) < 2:
+            x = int(curve[0]['x'] * scale) - xmin
+            y = int(curve[0]['y'] * scale) - ymin
+            for i in [0, 1]:
+                r = int(scale * (10 - 4 * i))
+                draw.ellipse((x - r, y - r, x + r, y + r), fill="#E08000" if i else "#FFC000")
+
         for pt in curve:
             x = int(pt['x'] * scale) - xmin
             y = int(pt['y'] * scale) - ymin
@@ -180,6 +187,7 @@ def mkxygraph(size = 120, scenario = None):
 
         lastdx, lastdy = None, None
         c = 0
+        if len(curve) < 3: continue
         for i in range(0, len(curve)):
             i1, i2 = max(0, i - 1), min(len(curve) - 1, i + 1)
             dx = curve[i2]['x'] - curve[i1]['x']
@@ -211,6 +219,10 @@ def mkspeedgraph(sx = 240, sy = 120, scenario = None):
 
         lastx, lasty = None, None
         c = 0
+        if len(curve) < 2:
+            x = int((sx - 1) * curve[0]['t'] / duration)
+            draw.rectangle((x - 4, int(sy / 4), x + 4, int(3 * sy / 4)), fill=color)
+
         for pt in curve:
             x = (sx - 1) * pt['t'] / duration
             y = sy - 1 - (sy - 1) * pt['speed'] / max_speed
