@@ -168,6 +168,7 @@ void QuickKeys::setKeys(QHash<unsigned char, Key> &keys) {
 
 QuickKeys::~QuickKeys() {
   delete[] points;
+  delete[] dim;
 }
 
 Point const& QuickKeys::get(unsigned char letter) const {
@@ -744,16 +745,16 @@ bool Scenario::childScenario(LetterNode &childNode, QList<Scenario> &result, int
   // step 1: find non-ending child scenarios
   if ((! isDot) && ((! isLeaf) || (partial && hasPayload))) {
     int len_before = result.size();
-    if (! childScenarioInternal(childNode, result, st_fork, incremental, false)) { return false; } // try again later
+    if (! childScenarioInternal(childNode, result, st_fork, partial /* incremental */, false)) { return false; } // try again later
     int len_after = result.size();
-    
+
     if (isLeaf) {
       // scenario we may have found will only be used to evaluate if curve is long enough to
       // check ending scenarios. We can safely discard them
       // (that's inefficient, but older code always did it also)
 
       if (len_after > len_before) { // (partial is true)
-	
+
 	int curve_index = 0;
 	for(int i = len_before; i < len_after; i ++) {
 	  curve_index = max(curve_index, result[i].getCurveIndex());
@@ -761,11 +762,11 @@ bool Scenario::childScenario(LetterNode &childNode, QList<Scenario> &result, int
 	for(int i = len_before; i < len_after; i ++) {
 	  result.removeLast();
 	}
-      
+
 	if (curve->getTotalLength() < curve->getLength(curve_index) + params->end_scenario_wait) {
 	  return false; // we must wait for curve to be longer to test end scenario
 	}
-	
+
 	// continue to step 2
 
       } else {
@@ -777,7 +778,7 @@ bool Scenario::childScenario(LetterNode &childNode, QList<Scenario> &result, int
 
   // step 2: find ending scenario
   if (hasPayload && (count > 0 || isDot)) {
-    childScenarioInternal(childNode, result, st_fork, incremental, true); // result ignored (always true with endScenario == true)
+    childScenarioInternal(childNode, result, st_fork, partial /* incremental */, true); // result ignored (always true with endScenario == true)
   }
 
   return true;
@@ -1731,6 +1732,7 @@ bool Scenario::postProcess() {
      this is an ugly workaround: curve_score works really badly in this case
      fortunately, this is very rare
   */
+
   int gap = params->max_turn_index_gap;
   for(int i = 0; i < count - 1; i++) {
     int i1 = index_history[i], i2 = index_history[i + 1];
@@ -2004,7 +2006,7 @@ bool Scenario::nextLength(unsigned char next_letter, int curve_id, int &min_leng
 
   max_length = last_length  + (1.0 + (float)dist / params->dist_max_next / 20) * (params->incremental_length_lag + dist);
   min_length = last_length + max(0, dist - params->incremental_length_lag / 2);
-  
+
   return true;
 }
 

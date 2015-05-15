@@ -103,6 +103,7 @@ int main(int argc, char* argv[]) {
     input += line;
     line = in.readLine();
   }
+  file.close();
 
   CurveMatch *cm;
   switch (implem) {
@@ -213,6 +214,8 @@ int main(int argc, char* argv[]) {
     t.stopThread();
   }
 #endif /* THREAD */
+
+  delete cm; // this makes valgrind happy
 
   return 0;
 }

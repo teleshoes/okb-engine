@@ -86,6 +86,7 @@ class CurveMatch {
 
  public:
   CurveMatch();
+  virtual ~CurveMatch() {};
   bool loadTree(QString file);
   void clearKeys();
   void addKey(Key key);

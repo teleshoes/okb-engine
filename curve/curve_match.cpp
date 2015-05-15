@@ -31,6 +31,7 @@ CurveMatch::CurveMatch() {
   debug = false;
   done = false;
   kb_preprocess = true;
+  id = -1;
 }
 
 void CurveMatch::curvePreprocess1(int curve_id) {

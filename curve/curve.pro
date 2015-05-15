@@ -22,3 +22,5 @@ UI_DIR = $$DESTDIR
 
 QMAKE_CXXFLAGS += -Wno-psabi -std=c++11
 
+
+

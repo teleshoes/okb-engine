@@ -77,6 +77,7 @@ class IncrementalMatch : public CurveMatch {
   QList<DelayedScenario> delayed_scenarios;
 
  public:
+  virtual ~IncrementalMatch() {};
   virtual void addPoint(Point point, int curve_id, int timestamp = -1);
   virtual void endOneCurve(int curve_id);
   virtual void endCurve(int id);

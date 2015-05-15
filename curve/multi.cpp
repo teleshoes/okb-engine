@@ -75,7 +75,7 @@ void MultiScenario::copy_from(const MultiScenario &from) {
     memcpy(history, from.history, count * sizeof(history_t));
   }
 
-  letter_history[count] = '\0';
+  letter_history[count] = letter_history[count + 1] = '\0';
 
   scenarios = from.scenarios; // just copy smart pointers
 
@@ -105,7 +105,8 @@ QString MultiScenario::getId() const {
     if (history[i].end_curve) { ts << "*"; }
   }
   if (! count) { ts << "[root"; }
-  ts << "]";
+  ts << "] \"";
+  ts << (char*) letter_history << "\"";
 
   return ret;
 }
@@ -139,7 +140,7 @@ bool MultiScenario::childScenario(LetterNode &childNode, QList<MultiScenario> &r
   if (! in_progress) { return true; }
   if (isLeaf && in_progress >= 2) { return true; } // last iteration and 2 curves still in progress
 
-  if (curve_count >= 2) { DBG("[MULTI] current scenario: %s + '%c' \"%s:%c\"", QSTRING2PCHAR(getId()), letter, getNameCharPtr(), letter); }
+  if (curve_count >= 2) { DBG("[MULTI] current scenario: %s + '%c' -> \"%s:%c\"", QSTRING2PCHAR(getId()), letter, getNameCharPtr(), letter); }
 
   for (int curve_id = 0; curve_id < curve_count; curve_id ++) {
     if (filter_curve_id >=0 && curve_id != filter_curve_id) { continue; }
@@ -151,20 +152,18 @@ bool MultiScenario::childScenario(LetterNode &childNode, QList<MultiScenario> &r
 
     bool chld_hasPayload = (in_progress > 1)?true:hasPayload;
     bool chld_isLeaf = isLeaf;
-    /* if (curve_count >= 2) */ { DBG("[MULTI] %s + '%c' curve_id=%d [hasPayload=%d->%d isLeaf=%d] in_progress=%d curve_finished=%d count=%d", 
+    /* if (curve_count >= 2) */ { DBG("[MULTI] %s + '%c' curve_id=%d [hasPayload=%d->%d isLeaf=%d] in_progress=%d curve_finished=%d count=%d",
 				      QSTRING2PCHAR(getId()), letter, curve_id, hasPayload, chld_hasPayload, chld_isLeaf, in_progress, curve->finished, count); }
 
     QList<Scenario> childs;
     if (! scenario -> childScenario(childNode, childs, st_fork, 0, incremental, chld_hasPayload, chld_isLeaf)) { return false; }
 
-    // @todo heuristics to be added here (or we may explore too much)
-    // @todo handle one-key curves (simple clicks)
     // @todo optional zone notion. e.g. left & right half keyboard. A curve is contained in a single region (should reduce tree width)
 
     foreach(Scenario child, childs) {
       int new_ts = child.getTimestamp();
       if (new_ts < ts - params->multi_max_time_rewind) { continue; } // we accept small infraction with events ordering :-)
-      
+
       bool endScenario = child.isFinished();
 
       MultiScenario new_ms(*this);
@@ -181,11 +180,11 @@ bool MultiScenario::childScenario(LetterNode &childNode, QList<MultiScenario> &r
       new_ms.dist = sqrt(new_ms.dist_sqr);
       new_ms.ts = new_ts;
       new_ms.id = (MultiScenario::global_id ++);
-      
+
       /* if (curve_count >= 2) */ { DBG("[MULTI] -> child scenario: %s [end=%d]", QSTRING2PCHAR(new_ms.getId()), endScenario); }
 
       result.append(new_ms);
-    }   
+    }
 
   }
 
@@ -391,10 +390,10 @@ bool MultiScenario::nextLength(unsigned char next_letter, int curve_id, int &min
   if (curve_id < 0 || curve_id >= curve_count) { return false; }
 
   addSubScenarios();
-  
+
   Scenario *scenario = S(curve_id);
   if (scenario->isFinished()) { return false; }
-  
+
   return scenario->nextLength(next_letter, 0, min_length, max_length);
 }
 

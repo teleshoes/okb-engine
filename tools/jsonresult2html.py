@@ -43,7 +43,7 @@ for i in range(0, curve_count):
 
 # curve info
 max_speed = max([ pt['speed'] for pt in curves_mux if 'speed' in pt ]) * 1.1
-duration = max([ pt['t'] for pt in curves_mux if 't' in pt ])
+duration = max([ pt['t'] for pt in curves_mux if 't' in pt ] + [ 1 ])
 for i in range(0, curve_count):
     curve = curves[i]
     last_pt = curve[0]

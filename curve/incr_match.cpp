@@ -105,9 +105,15 @@ void DelayedScenario::getChildsIncr(QList<DelayedScenario> &childs, bool curve_f
       } else if (cur_length > min_length || curve_finished) {
 	st.st_count += 1;
 	DBG("[INCR] Evaluate: %s + '%c' [curve_id=%d]", QSTRING2PCHAR(scenario.getId()), childNode.getChar(), curve_id);
-	if (scenario.childScenario(childNode, tmpList, st.st_fork, curve_id, true)) {
+
+	int last_size = tmpList.size();
+	if (scenario.childScenario(childNode, tmpList, st.st_fork, curve_id, ! curve_finished)) {
 	  // we've found all suitable child scenarios (possibly none at all)
-	  flag_found = 1;
+	  if (tmpList.size() > last_size) {
+	    // we've actually found a child --> no need to try the other curves
+	    // (warning: this may cause problem in case of "finger collision")
+	    flag_found = 1;
+	  }
 
 	} else {
 	  // we are too close to the end of the curve, we'll have to retry later (only occurs when curve is not finished)
@@ -115,7 +121,6 @@ void DelayedScenario::getChildsIncr(QList<DelayedScenario> &childs, bool curve_f
 	  st.st_retry += 1;
 	  it.value().next_length[nl_index] += scenario.params->incr_retry;
 	  flag_wait = true;
-
 	}
 
       } else {
@@ -131,7 +136,7 @@ void DelayedScenario::getChildsIncr(QList<DelayedScenario> &childs, bool curve_f
   }
 
   foreach(ScenarioType sc, tmpList) {
-    DBG("New scenario: %s", QSTRING2PCHAR(sc.getId()));
+    DBG("[INCR] New scenario: %s", QSTRING2PCHAR(sc.getId()));
     DelayedScenario ds = DelayedScenario(sc);
     if (recursive && ! sc.isFinished()) {
       ds.getChildsIncr(childs, curve_finished, st, recursive, aggressive);
@@ -275,17 +280,18 @@ void IncrementalMatch::incrementalMatchUpdate(bool finished, bool aggressive) {
     if (! ds->dead) { new_delayed_scenarios.append(*ds); } // DelayedScenarios will "die" when all their possible childs has been created
   }
 
-  delayedScenariosFilter();
-
   // copy back unfinished scenarios to scenario list
   delayed_scenarios.clear();
   for(int i = 0 ; i < new_delayed_scenarios.size(); i ++) {
     if (new_delayed_scenarios[i].scenario.isFinished()) {
       candidates.append(new_delayed_scenarios[i].scenario); // add to candidate list
+
     } else {
       delayed_scenarios.append(new_delayed_scenarios[i]);
     }
   }
+
+  delayedScenariosFilter();
 
   update_next_iteration_length(aggressive);
 
@@ -419,9 +425,9 @@ void IncrementalMatch::endOneCurve(int curve_id) {
 }
 
 void IncrementalMatch::endCurve(int id) {
+  done = true;
   CurveMatch::endCurve(id);
   incrementalMatchUpdate(true);
-  done = true;
 }
 
 #endif /* INCREMENTAL */

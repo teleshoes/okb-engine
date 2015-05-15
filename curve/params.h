@@ -150,7 +150,7 @@ static Params default_params = {
   0.02, // lazy_loop_bias
   0.001, // length_penalty
   7, // match_wait
-  200, // max_active_scenarios
+  250, // max_active_scenarios
   45, // max_angle
   35, // max_candidates
   25, // max_segment_length
