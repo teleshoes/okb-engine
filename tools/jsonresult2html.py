@@ -230,7 +230,7 @@ def mkspeedgraph(sx = 240, sy = 120, scenario = None):
                 letter = get_letter(draw_scenario, c)
                 if letter:
                     draw.line((x, 0, x, sy - 1), fill='#008000', width = 2)
-                    draw.text((x + (2 if c < len(curve) - 1 else -2 - draw.textsize(letter)[0]), 2 + 9 * id), letter, fill='#008000')
+                    draw.text((x + (2 if x == 0 else -2 - draw.textsize(letter)[0]), 2 + 9 * id), letter, fill='#008000')
             c += 1
             if not c % 10 and not draw_scenario: draw.line((x, 0, x, sy - 1), fill='#008000', width = 2)
             if lastx is not None: draw.line((lastx, lasty, x, y), fill=color, width = 4)

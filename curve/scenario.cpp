@@ -1723,6 +1723,11 @@ float Scenario::calc_score_misc(int i) {
 
 bool Scenario::postProcess() {
   DBG("==== Postprocess: %s", getNameCharPtr());
+  if (count == 1) {
+    // special case: curve is just a click (so it always has a perfect score)
+    evalScore();
+    return true;
+  }
   for(int i = 0; i < count; i++) {
     scores[i].misc_score = calc_score_misc(i);
   }
@@ -1750,7 +1755,6 @@ bool Scenario::postProcess() {
 float Scenario::evalScore() {
   DBG("==== Evaluating final score: %s", getNameCharPtr());
   this -> final_score = 0;
-  if (count < 2) { return 0; }
 
   float segment_length[count];
   float total_length = 0;
@@ -1784,6 +1788,12 @@ float Scenario::evalScore() {
     } else if (i == 1 && count == 2) {
       sc.add_score(1, (char*) "turn");
       // avoid bias towards 3+ letters scenarios
+    } else if (i == 0 && count == 1) {
+      sc.add_score(1, (char*) "turn");
+      sc.add_score(1, (char*) "angle");
+      sc.add_score(1, (char*) "curve");
+      // single click curve has always perfect scores :-)
+      // (except maybe for distance)
     }
     sc.end_line();
 
