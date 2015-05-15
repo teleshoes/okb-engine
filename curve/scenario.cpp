@@ -137,6 +137,7 @@ void QuickKeys::setKeys(QHash<unsigned char, Key> &keys) {
 
 QuickKeys::~QuickKeys() {
   delete[] points;
+  delete[] dim;
 }
 
 Point const& QuickKeys::get(unsigned char letter) const {
