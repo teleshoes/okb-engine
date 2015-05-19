@@ -31,6 +31,8 @@ MultiScenario::MultiScenario(LetterTree *tree, QuickKeys *keys, QuickCurve *curv
   letter_history = new unsigned char[1];
   letter_history[0] = '\0';
 
+  zombie = false;
+
   id = 0;
   MultiScenario::global_id = 1;
 }
@@ -80,6 +82,7 @@ void MultiScenario::copy_from(const MultiScenario &from) {
   scenarios = from.scenarios; // just copy smart pointers
 
   id = from.id;
+  zombie = from.zombie;
 }
 
 MultiScenario::~MultiScenario() {
@@ -105,7 +108,9 @@ QString MultiScenario::getId() const {
     if (history[i].end_curve) { ts << "*"; }
   }
   if (! count) { ts << "[root"; }
-  ts << "] \"";
+  ts << "]";
+  if (zombie) { ts << " (Z)"; }
+  ts << " \"";
   ts << (char*) letter_history << "\"";
 
   return ret;
@@ -130,6 +135,24 @@ bool MultiScenario::childScenario(LetterNode &childNode, QList<MultiScenario> &r
 
   addSubScenarios();
 
+  if (zombie) {
+    // zombie scenario: only check for double letters at the end of sub-scenarios
+    bool found = false;
+    for(int curve_id = 0; curve_id < curve_count; curve_id ++) {
+      Scenario *scenario = S(curve_id);
+      int scenario_count = scenario->getCount();
+      if (scenario_count > 0) {
+	unsigned char last_letter = scenario->getNameCharPtr()[scenario_count - 1];
+	if (last_letter == letter) { found = true; break; }
+      }
+    }
+    // DBG("Zombie scenario: %s (letter='%c', found=%d, filter_curve_id=%d)", QSTRING2PCHAR(getId()), letter, found, filter_curve_id);
+    if (! found) {
+      return true;
+    }
+  }
+
+
   bool hasPayload = childNode.hasPayload();
   bool isLeaf = childNode.isLeaf();
 
@@ -137,7 +160,7 @@ bool MultiScenario::childScenario(LetterNode &childNode, QList<MultiScenario> &r
   for (int curve_id = 0; curve_id < curve_count; curve_id ++) {
     in_progress += (! S(curve_id)->isFinished());
   }
-  if (! in_progress) { return true; }
+  if (! in_progress && ! zombie) { return true; }
   if (isLeaf && in_progress >= 2) { return true; } // last iteration and 2 curves still in progress
 
   if (curve_count >= 2) { DBG("[MULTI] current scenario: %s + '%c' -> \"%s:%c\"", QSTRING2PCHAR(getId()), letter, getNameCharPtr(), letter); }
@@ -146,7 +169,7 @@ bool MultiScenario::childScenario(LetterNode &childNode, QList<MultiScenario> &r
     if (filter_curve_id >=0 && curve_id != filter_curve_id) { continue; }
 
     Scenario *scenario = S(curve_id);
-    if (scenario->isFinished()) { continue; } // we have entirely matched this curve
+    if (scenario->isFinished() && ! zombie) { continue; } // we have entirely matched this curve
 
     QuickCurve *curve = &(curves[curve_id]);
 
@@ -155,8 +178,29 @@ bool MultiScenario::childScenario(LetterNode &childNode, QList<MultiScenario> &r
     /* if (curve_count >= 2) */ { DBG("[MULTI] %s + '%c' curve_id=%d [hasPayload=%d->%d isLeaf=%d] in_progress=%d curve_finished=%d count=%d",
 				      QSTRING2PCHAR(getId()), letter, curve_id, hasPayload, chld_hasPayload, chld_isLeaf, in_progress, curve->finished, count); }
 
+    bool zombie_if_finished = false;
+    if (curve_count > 1 && in_progress == 1 && ! chld_hasPayload) {
+      // we are closing the last curve, but there is no exact match
+      // keep the scenario alive in case there are some additionnal double letters at the end
+      zombie_if_finished = true;
+      chld_hasPayload = true;
+    }
+
     QList<Scenario> childs;
-    if (! scenario -> childScenario(childNode, childs, st_fork, 0, incremental, chld_hasPayload, chld_isLeaf)) { return false; }
+
+    int scenario_count = scenario->getCount();
+    if (scenario_count > 0 && letter == scenario->getNameCharPtr()[scenario_count - 1]) {
+      DBG("%s: Dual letter '%c'", QSTRING2PCHAR(getId()), letter);
+      // handle multi-scenarios that lead to dual-letter single scenarios
+      // @todo move this into Scenario::childScenario to handle dual-letter in a more general way and support dual-letter user hints
+      childs.append(*scenario);
+      zombie = false;
+      zombie_if_finished = false;
+
+    } else if (zombie) {
+      // zombie scénario has not matched any letter with above tets --> give up
+      continue; // try other curves ...
+    } else if (! scenario -> childScenario(childNode, childs, st_fork, 0, incremental, chld_hasPayload, chld_isLeaf)) { return false; }
 
     // @todo optional zone notion. e.g. left & right half keyboard. A curve is contained in a single region (should reduce tree width)
 
@@ -175,13 +219,14 @@ bool MultiScenario::childScenario(LetterNode &childNode, QList<MultiScenario> &r
       new_ms.history[count].end_curve = endScenario;
       new_ms.letter_history[count] = letter;
       new_ms.count = count + 1;
-      new_ms.finished = endScenario && (in_progress == 1); // we've just matched the last point in the last curve
+      new_ms.finished = endScenario && (in_progress <= 1) && (! zombie_if_finished); // we've just matched the last point in the last curve
       new_ms.dist_sqr = dist_sqr + child.getDistSqr() - scenario->getDistSqr();
-      new_ms.dist = sqrt(new_ms.dist_sqr);
+      new_ms.dist = sqrt(new_ms.dist_sqr / (count + 1));
       new_ms.ts = new_ts;
       new_ms.id = (MultiScenario::global_id ++);
+      if (endScenario && zombie_if_finished) { new_ms.zombie = true; } // @todo check again. it probably does not cover all cases.
 
-      /* if (curve_count >= 2) */ { DBG("[MULTI] -> child scenario: %s [end=%d]", QSTRING2PCHAR(new_ms.getId()), endScenario); }
+      /* if (curve_count >= 2) */ { DBG("[MULTI] -> child scenario: %s [end=%d, zombie=%d]", QSTRING2PCHAR(new_ms.getId()), endScenario, new_ms.zombie); }
 
       result.append(new_ms);
     }
@@ -202,11 +247,7 @@ void MultiScenario::nextKey(QList<MultiScenario> &result, int &st_fork) {
 }
 
 bool MultiScenario::operator<(const MultiScenario &other) const {
-  if (this -> getScore() == -1 || other.getScore() == -1) {
-    return this -> distance() / sqrt(this -> getCount()) > other.distance() / sqrt(other.getCount());
-  } else {
-    return this -> getScore() < other.getScore();
-  }
+  return this -> getScore() < other.getScore();
 }
 
 QString MultiScenario::getName() {
@@ -308,7 +349,7 @@ void MultiScenario::toJson(QJsonObject &json) {
   json["name"] = getName();
   json["finished"] = finished;
   json["score"] = getScore();
-  json["score_v1"] = final_score_v1;
+  json["score_v1"] = -1;
   json["distance"] = distance();
   json["class"] = 0;
   json["star"] = 0;
@@ -363,13 +404,13 @@ void MultiScenario::sortCandidates(QList<MultiScenario *> candidates, Params &pa
   }
 
   for(int i = 0; i < curve_count; i ++) {
-    logdebug("[MULTI] Sort curve #%d", i);
+    DBG("[MULTI] Sort curve #%d", i);
     Scenario::sortCandidates(scenarios[i], params, debug);
-    logdebug(" ");
+    DBG(" ");
   }
 
   if (debug) {
-    logdebug("SORT> ## =candidate============ E G dst final");
+    logdebug("SORT> ## =candidate==================================================== E G dst final");
     for(int i = candidates.size() - 1; i >=0; i --) {
       MultiScenario *candidate = candidates[i];
       float score = candidate->getScore();
@@ -377,7 +418,7 @@ void MultiScenario::sortCandidates(QList<MultiScenario *> candidates, Params &pa
       int good_count = candidate->getGoodCount();
       int dist = (int) candidate->distance();
       QString name = candidate->getId();
-      logdebug("SORT> %2d %22s %1d %1d%4d %5.2f",
+      logdebug("SORT> %2d %62s %1d %1d%4d %5.2f",
 	       i, QSTRING2PCHAR(name), error_count, good_count, dist, score);
 
     }

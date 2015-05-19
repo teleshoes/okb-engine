@@ -46,7 +46,7 @@ class MultiScenario {
   
   LetterNode node;
 
-  bool finished, debug;
+  bool finished, debug, zombie;
   float dist, dist_sqr;
 
   int count;
@@ -55,7 +55,7 @@ class MultiScenario {
   int ts;
   int id;
 
-  float final_score, final_score_v1;
+  float final_score;
 
   history_t *history;
   unsigned char *letter_history;
@@ -95,7 +95,6 @@ class MultiScenario {
   void toJson(QJsonObject &json);
   QString toString(bool indent = false);
   void PostProcess();
-  void setScoreV1(float score) { this -> final_score_v1 = score; }
   void setScore(float score) { this -> final_score = score; }
   score_t getScores();
   QString getId() const;

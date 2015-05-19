@@ -191,9 +191,9 @@ class Scenario {
   int index;
 
   float temp_score;
+
   float final_score;
-  float final_score2;
-  float final_score_v1;
+  float score_v1;
 
   float dist;
   float dist_sqr;
@@ -267,9 +267,7 @@ class Scenario {
   score_t getMinScores() { return min_score; }
   int getGoodCount() { return good_count; }
   float distance() const;
-  void setScore(float score) { final_score2 = score; }
-  float getScoreOrig() const { return final_score; }
-  void setScoreV1(float score) { final_score_v1 = score; }
+  void setScore(float score) { final_score = score; }
   void toJson(QJsonObject &json);
   QString toString(bool indent = false);
   float getDistSqr() { return dist_sqr; }
@@ -277,6 +275,7 @@ class Scenario {
   score_t getScoreIndex(int i);
   QString getId() const { return getName(); }
   bool nextLength(unsigned char next_letter, int curve_id, int &min, int &max);
+  float getScoreV1() { return score_v1; };
 
   static void sortCandidates(QList<Scenario *> candidates, Params &params, int debug);
 };

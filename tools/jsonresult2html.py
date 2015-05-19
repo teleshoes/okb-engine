@@ -324,11 +324,11 @@ if candidates:
     hr0 = t.tr
     hr = t.tr
     if multi:
-        hr0.td(bgcolor="#C0FFC0", colspan = "8", align = "center").font("Multi-scenario", size="-2")
-        for col in [ "Name", "ID", "Score", "Err", "Gd", "Dist", "Dist-2", "Words" ]:
+        hr0.td(bgcolor="#C0FFC0", colspan = "7", align = "center").font("Multi-scenario", size="-2")
+        for col in [ "Name", "ID", "Score", "Err", "Gd", "Dist", "Words" ]:
             hr.td(align = "center", bgcolor="#C0FFC0").font(col, size="-2")
 
-    for col in ["Name", "Score", "Min", "Err", "Gd", "Dist", "Dist-2", "Sc-0", "Sc-1", "Words" ]:
+    for col in ["Name", "Score", "Min", "Err", "Gd", "Dist", "Sc-0", "Sc-1", "Words" ]:
         hr0.td(bgcolor="#C0FFC0", rowspan="2").font(col, size="-2")
     for typ in [ "avg_score", "min_score" ]:
         hr0.td(bgcolor="#C0FFC0", colspan = str(len(scores)), align = "center").font(typ, size="-2")
@@ -344,13 +344,12 @@ if candidates:
                 first = False
                 for col in [ scenario["name"], scenario["id"], scenario["score"],
                              scenario["error"], scenario["good"],
-                             scenario.get("distance", 0), int(scenario.get("distance", 0) / math.sqrt(len(scenario["name"]))),
+                             scenario.get("distance", 0),
                              scenario.get("words", "-") ]:
                     tr.td(rowspan = str(len(sub_scenarios)), align = "center").font(clean_value(col), size="-2")
 
             for col in [ sub_scenario["name"], sub_scenario["score"], sub_scenario["min_total"], sub_scenario.get("error", ""),
                          sub_scenario.get("good", ""), int(sub_scenario.get("distance", 0)),
-                         int(sub_scenario.get("distance", 0) / math.sqrt(len(sub_scenario["name"]))),
                          sub_scenario.get("score_std", ""), sub_scenario.get("score_v1", ""),
                          sub_scenario.get("words", "-") if not multi else "n/a" ]:
                 tr.td(align = "center").font(clean_value(col), size="-2")

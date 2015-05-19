@@ -304,8 +304,7 @@ Scenario::Scenario(LetterTree *tree, QuickKeys *keys, QuickCurve *curve, Params 
   this -> params = params;
   temp_score = 0;
   final_score = -1;
-  final_score2 = -1;
-  final_score_v1 = -1;
+  score_v1 = -1;
   last_fork = -1;
   result_class = -1;
   star = false;
@@ -343,8 +342,7 @@ void Scenario::copy_from(const Scenario &from) {
   index = from.index;
   temp_score = from.temp_score;
   final_score = from.final_score;
-  final_score2 = from.final_score2;
-  final_score_v1 = from.final_score_v1;
+  score_v1 = from.score_v1;
   last_fork = from.last_fork;
   debug = from.debug;
   min_total = from.min_total;
@@ -903,7 +901,7 @@ bool Scenario::childScenarioInternal(LetterNode &childNode, QList<Scenario> &res
       new_scenario.dist_sqr += distance * distance;
       */
       new_scenario.dist_sqr += dx * dx + dy * dy;
-      new_scenario.dist = sqrt(new_scenario.dist_sqr);
+      new_scenario.dist = sqrt(new_scenario.dist_sqr / (count + 1));
 
       continue_count ++;
       if (continue_count >= 2) {
@@ -918,6 +916,8 @@ bool Scenario::childScenarioInternal(LetterNode &childNode, QList<Scenario> &res
       }
 
       // temporary score is used only for simple filtering
+      new_scenario.temp_score = 1.0 / (1.0 + new_scenario.dist / 30);
+      /* @todo remove (old temp score)
       if (count == 0) {
 	new_scenario.temp_score = temp_score + score.distance_score;
       } else {
@@ -930,6 +930,7 @@ bool Scenario::childScenarioInternal(LetterNode &childNode, QList<Scenario> &res
 						(params->weight_distance + params->weight_curve + params->weight_cos
 						 + params->weight_turn + params->weight_length));
       }
+      */
 
       result.append(new_scenario);
     }
@@ -952,12 +953,7 @@ QList<LetterNode> Scenario::getNextKeys() {
 }
 
 bool Scenario::operator<(const Scenario &other) const {
-  if (this -> getScore() == -1 || other.getScore() == -1) {
-    // @todo remove temporary score (was: "return this -> getTempScore() < other.getTempScore();")
-    return this -> distance() / sqrt(this -> getCount()) > other.distance() / sqrt(other.getCount());
-  } else {
-    return this -> getScore() < other.getScore();
-  }
+  return this -> getScore() < other.getScore();
 }
 
 QString Scenario::getWordList() {
@@ -967,12 +963,11 @@ QString Scenario::getWordList() {
 
 float Scenario::getScore() const {
   if (! count) { return 0; }
-  if (final_score2 != -1) { return final_score2; }
   return (final_score == -1)?getTempScore():final_score;
 }
 
 float Scenario::getTempScore() const {
-  return count?temp_score / count:0;
+  return temp_score;
 }
 
 float Scenario::getCount() const {
@@ -1754,7 +1749,7 @@ bool Scenario::postProcess() {
 
 float Scenario::evalScore() {
   DBG("==== Evaluating final score: %s", getNameCharPtr());
-  this -> final_score = 0;
+  this -> score_v1 = 0;
 
   float segment_length[count];
   float total_length = 0;
@@ -1832,7 +1827,7 @@ float Scenario::evalScore() {
 
   min_total = sc.get_min_score();
 
-  this -> final_score = score;
+  this -> score_v1 = score; // used only for logging
   return score;
 }
 
@@ -1849,8 +1844,8 @@ void Scenario::toJson(QJsonObject &json) {
   json["name"] = getName();
   json["finished"] = finished;
   json["score"] = getScore();
-  json["score_std"] = getScoreOrig();
-  json["score_v1"] = final_score_v1;
+  json["score_std"] = -1;
+  json["score_v1"] = score_v1;
   json["distance"] = distance();
   json["class"] = result_class;
   json["star"] = star;
@@ -1912,8 +1907,8 @@ static float signpow(float value, float exp) {
 void Scenario::sortCandidates(QList<Scenario*> candidates, Params &params, int debug) {
   /* try to find the most likely candidates by combining multiple methods :
      - score (linear combination of multiple scores)
-     - classifier: compare relative scores in pairs, scenario "worse" than another one can be eliminated
      - distance (sum of square distance between expected keys and curve), as calculated by Scenario::distance()
+     - error count
   */
 
   if (candidates.size() == 0) { return; }
@@ -1923,30 +1918,20 @@ void Scenario::sortCandidates(QList<Scenario*> candidates, Params &params, int d
 
   int n = candidates.size();
 
-  /* previous composite score (v1)
-     we keep this one as it was good for estimating curve quality */
   float min_dist = 0;
   for(int i = 0; i < n; i ++) {
     if (candidates[i]->distance() < min_dist || ! min_dist) {
       min_dist = candidates[i]->distance();
     }
   }
+
   float quality = 0;
   for(int i = 0; i < n; i ++) {
-    float new_score = candidates[i]->getScore()
-      - params.coef_distance * (candidates[i]->distance() - min_dist) / max(15, min_dist)
+    float new_score = candidates[i]->getScoreV1()
       - params.coef_error * min(2, candidates[i]->getErrorCount());
-    candidates[i]->setScoreV1(new_score);
     if (new_score > quality) { quality = new_score; }
   }
   DBG("Quality index %.3f", quality)
-
-  /* new composite score */
-  float min_dist_adj = 0;
-  for(int i = 0; i < n; i ++) {
-    float value = candidates[i]->distance() / sqrt(candidates[i]->getCount());
-    if (value < min_dist_adj || ! min_dist_adj) { min_dist_adj = value; }
-  }
 
   float tmpsc[n];
   float max_score = 0;
@@ -1954,14 +1939,15 @@ void Scenario::sortCandidates(QList<Scenario*> candidates, Params &params, int d
     score_t sc = candidates[i]->getScores();
     float new_score = (params.final_coef_misc * sc.misc_score
 		       + params.final_coef_turn * pow(max(0, sc.turn_score), params.final_coef_exp)
-		       - 0.1 * signpow(0.1 * (candidates[i]->distance() / sqrt(candidates[i]->getCount()) - min_dist_adj), params.final_distance_pow)
+		       - 0.1 * signpow(0.1 * (candidates[i]->distance() - min_dist), params.final_distance_pow)
 		       ) / (1 + params.final_coef_turn)
       - params.coef_error * candidates[i]->getErrorCount();
     tmpsc[i] = new_score;
     if (new_score > max_score) { max_score = new_score; }
   }
+  DBG("Quality index %.3f", max_score)
   for(int i = 0; i < n; i ++) {
-    candidates[i]->setScore(quality - max_score + tmpsc[i]);
+    candidates[i]->setScore(quality + tmpsc[i] - max_score);
   }
 
   /* @todo classifier replacement ? */
@@ -1981,13 +1967,12 @@ void Scenario::sortCandidates(QList<Scenario*> candidates, Params &params, int d
       int error_count = candidate->getErrorCount();
       int good_count = candidate->getGoodCount();
       int dist = (int) candidate->distance();
-      float new_score = candidate->getScore();
       unsigned char *name = candidate->getNameCharPtr();
       logdebug("SORT> %2d %12s %5.2f %5.2f %1d %1d%4d |%5.2f%5.2f%5.2f%5.2f%5.2f%5.2f |%5.2f%5.2f%5.2f%5.2f%5.2f%5.2f |%3d%c |%6.3f |",
 	       i, name, score, min_score, error_count, good_count, dist,
 	       savg.cos_score, savg.curve_score, savg.distance_score, savg.length_score, savg.misc_score, savg.turn_score,
 	       smin.cos_score, smin.curve_score, smin.distance_score, smin.length_score, smin.misc_score, smin.turn_score,
-	       candidate->getClass(), candidate->getStar()?'*':' ', new_score);
+	       candidate->getClass(), candidate->getStar()?'*':' ', score);
     }
   }
 }
@@ -2000,6 +1985,8 @@ bool Scenario::nextLength(unsigned char next_letter, int curve_id, int &min_leng
 
   unsigned char last_letter = letter_history[count - 1];
   int last_length = curve->getLength(index_history[count - 1]);
+
+  if (last_letter == next_letter) { max_length = min_length = last_length; return true; }
 
   Point lk = keys->get(last_letter);
   Point nk = keys->get(next_letter);
