@@ -166,6 +166,8 @@ void DelayedScenario::display(char *prefix) {
   QString txt;
   QTextStream ts(& txt);
   ts << "DelayedScenario(" << scenario.getId() << "): score=" << scenario.getScore();
+  if (dead) { ts << " [DEAD]"; }
+  if (scenario.finished) { ts << " [finished]"; }
   foreach(unsigned char letter, next.keys()) {
     ts << " " << QString(letter) << ":";
     bool first = true;
@@ -173,12 +175,9 @@ void DelayedScenario::display(char *prefix) {
       if (! first) { ts << ","; } else { first = false; }
       ts << d;
     }
-    if (dead) { ts << " [DEAD]"; }
-    if (scenario.finished) { ts << " [finished]"; }
   }
   DBG("%s%s", prefix?prefix:"", QSTRING2PCHAR(txt));
 }
-
 
 NextLetter::NextLetter(LetterNode node) {
   letter_node = node;
@@ -364,7 +363,7 @@ void IncrementalMatch::delayedScenariosFilter() {
   for(int i = 0; i < delayed_scenarios.size(); i ++) {
     float sc = delayed_scenarios[i].scenario.getScore();
 
-    if (sc < min_score) {
+    if (sc < min_score && delayed_scenarios[i].scenario.getCount() > 2) {
 
       st.st_skim ++;
       delayed_scenarios[i].die();
