@@ -120,11 +120,12 @@ void MultiScenario::addSubScenarios() {
   while (curve_count > scenarios.size()) {
     Scenario *s = new Scenario((LetterTree*) NULL /* no more needed? */, keys, &(curves[scenarios.size()]), params);
     s->setDebug(debug);
+    s->setCache(true); // improve performance for scenario reuse
     scenarios.append(QSharedPointer<Scenario>(s));
   }
 }
 
-bool MultiScenario::childScenario(LetterNode &childNode, QList<MultiScenario> &result, int &st_fork, int filter_curve_id, bool incremental) {
+bool MultiScenario::childScenario(LetterNode &childNode, QList<MultiScenario> &result, stats_t &st, int filter_curve_id, bool incremental) {
   unsigned char letter = childNode.getChar();
 
   while (curve_count < MAX_CURVES && (curves[curve_count].getCount() > 0)) {
@@ -200,7 +201,7 @@ bool MultiScenario::childScenario(LetterNode &childNode, QList<MultiScenario> &r
     } else if (zombie) {
       // zombie scénario has not matched any letter with above tets --> give up
       continue; // try other curves ...
-    } else if (! scenario -> childScenario(childNode, childs, st_fork, 0, incremental, chld_hasPayload, chld_isLeaf)) { return false; }
+    } else if (! scenario -> childScenario(childNode, childs, st, 0, incremental, chld_hasPayload, chld_isLeaf)) { return false; }
 
     // @todo optional zone notion. e.g. left & right half keyboard. A curve is contained in a single region (should reduce tree width)
 
@@ -238,9 +239,9 @@ bool MultiScenario::childScenario(LetterNode &childNode, QList<MultiScenario> &r
 }
 
 
-void MultiScenario::nextKey(QList<MultiScenario> &result, int &st_fork) {
+void MultiScenario::nextKey(QList<MultiScenario> &result, stats_t &st) {
   foreach (LetterNode child, node.getChilds()) {
-    childScenario(child, result, st_fork);
+    childScenario(child, result, st);
     // note: childScernario return value is ignored because this method is not
     // used with incremental mode
   }
@@ -350,7 +351,7 @@ void MultiScenario::toJson(QJsonObject &json) {
   json["finished"] = finished;
   json["score"] = getScore();
   json["score_v1"] = -1;
-  json["distance"] = distance();
+  json["distance"] = (int) distance();
   json["class"] = 0;
   json["star"] = 0;
   json["error"] = getErrorCount();

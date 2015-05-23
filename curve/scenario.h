@@ -1,5 +1,5 @@
 /* this file implement the curve matching algorithm
-   for keyboard definition and curve (list of points) it produces a list of candidate ranked with score 
+   for keyboard definition and curve (list of points) it produces a list of candidate ranked with score
    the incremental / asynchronous algorithm is implemented in incr_match.{h,cpp} */
 
 #ifndef SCENARIO_H
@@ -22,7 +22,7 @@
 
 #define DBG(args...) { if (debug) { logdebug(args); } }
 
-/* point 
+/* point
    this is probably a bad case of NIH :-) */
 class Point {
  public:
@@ -66,7 +66,7 @@ class Key {
   void toJson(QJsonObject &json) const;
   static Key fromJson(const QJsonObject &json);
   int x; // key center
-  int y; 
+  int y;
   int width;
   int height;
   char label;
@@ -175,6 +175,12 @@ class ScenarioDto {
 class DelayedScenario;
 #endif /* INCREMENTAL */
 
+typedef struct {
+  int st_time, st_count, st_fork, st_skim;
+  int st_speed, st_special, st_retry;
+  int st_cache_hit, st_cache_miss;
+} stats_t;
+
 class Scenario {
 #ifdef INCREMENTAL
   friend class DelayedScenario;
@@ -218,6 +224,11 @@ class Scenario {
 
   int good_count;
 
+  // cache
+  bool cache;
+  QHash<unsigned char, QList<Scenario> > cacheChilds;
+  // no significant impact: @todo try this with aggressive mode: QHash<unsigned char, int> cacheMinLength;
+
  private:
   float calc_distance_score(unsigned char letter, int index, int count, float *return_distance = NULL);
   float calc_cos_score(unsigned char prev_letter, unsigned char letter, int index, int new_index);
@@ -241,10 +252,10 @@ class Scenario {
   Scenario& operator=( const Scenario &from );
   ~Scenario();
   void setDebug(bool debug);
-  void nextKey(QList<Scenario> &result, int &st_fork);
+  void nextKey(QList<Scenario> &result, stats_t &st);
   QList<LetterNode> getNextKeys();
-  bool childScenario(LetterNode &child, QList<Scenario> &result, int &st_fork, int curve_id = -1, bool incremental = false);
-  bool childScenario(LetterNode &child, QList<Scenario> &result, int &st_fork, int curve_id, bool incremental, bool hasPayload, bool isLeaf);
+  bool childScenario(LetterNode &child, QList<Scenario> &result, stats_t &st, int curve_id = -1, bool incremental = false);
+  bool childScenario(LetterNode &child, QList<Scenario> &result, stats_t &st, int curve_id, bool incremental, bool hasPayload, bool isLeaf);
   bool operator<(const Scenario &other) const;
   bool isFinished() { return finished; };
   QString getName() const;
@@ -276,13 +287,10 @@ class Scenario {
   QString getId() const { return getName(); }
   bool nextLength(unsigned char next_letter, int curve_id, int &min, int &max);
   float getScoreV1() { return score_v1; };
+  void setCache(bool value) { cache = value; };
 
   static void sortCandidates(QList<Scenario *> candidates, Params &params, int debug);
 };
 
-typedef struct {
-  int st_time, st_count, st_fork, st_skim;
-  int st_speed, st_special, st_retry;
-} stats_t;
 
 #endif /* SCENARIO_H */

@@ -15,7 +15,7 @@
 
 /* A delayed scenario is a scenario which childs can not be evaluated right now because
    the user has only drawn a small part of the gesture (mono or multi-touch), so we
-   have to wait until he draws more before evaluating child scenarios 
+   have to wait until he draws more before evaluating child scenarios
    -> this used for incremental mode */
 
 class NextLetter {

@@ -107,7 +107,7 @@ void DelayedScenario::getChildsIncr(QList<DelayedScenario> &childs, bool curve_f
 	DBG("[INCR] Evaluate: %s + '%c' [curve_id=%d]", QSTRING2PCHAR(scenario.getId()), childNode.getChar(), curve_id);
 
 	int last_size = tmpList.size();
-	if (scenario.childScenario(childNode, tmpList, st.st_fork, curve_id, ! curve_finished)) {
+	if (scenario.childScenario(childNode, tmpList, st, curve_id, ! curve_finished)) {
 	  // we've found all suitable child scenarios (possibly none at all)
 	  if (tmpList.size() > last_size) {
 	    // we've actually found a child --> no need to try the other curves
@@ -308,6 +308,14 @@ void IncrementalMatch::incrementalMatchUpdate(bool finished, bool aggressive) {
     scenarioFilter(candidates, 0.5, 10, 3 * params.max_candidates, true); // @todo add to parameter list
     sortCandidates();
     scenarioFilter(candidates, 0.7, 10, params.max_candidates, true); // @todo add to parameter list
+
+    // cache stats
+    int n = st.st_cache_hit;
+    int d = st.st_cache_hit + st.st_cache_miss;
+    if (d) {
+      logdebug("Cache stats: access count: %d, hit ratio: %.2f%%", d, 100.0 * n / d);
+    }
+
   }
   logdebug("==] incrementalMatchUpdate: %scurveIndex=%d, finished=%d, scenarios=%d, skim=%d, fork=%d, nodes=%d, retry=%d [time=%.3f]",
 	   aggressive?"[aggressive] ":"", curve.size(), finished, delayed_scenarios.size(),

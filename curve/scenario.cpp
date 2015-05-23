@@ -319,6 +319,8 @@ Scenario::Scenario(LetterTree *tree, QuickKeys *keys, QuickCurve *curve, Params 
   scores = new score_t[1];
 
   letter_history[0] = 0;
+
+  cache = false;
 }
 
 Scenario::Scenario(const Scenario &from) {
@@ -374,6 +376,8 @@ void Scenario::copy_from(const Scenario &from) {
   }
 
   good_count = from.good_count;
+
+  cache = from.cache; /* don't copy cache content as there are no scenario copies in multi-scenario mode (due to shared pointers) */
 }
 
 
@@ -711,7 +715,7 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &
   return max_score;
 }
 
-bool Scenario::childScenario(LetterNode &childNode, QList<Scenario> &result, int &st_fork, int curve_id, bool incremental) {
+bool Scenario::childScenario(LetterNode &childNode, QList<Scenario> &result, stats_t &st, int curve_id, bool incremental) {
   /* this function create childs scenarios from the current one (they represent a word with one more letter)
      based on a child letter nodes (i.e. next possible letter in word)
      it can return:
@@ -729,13 +733,40 @@ bool Scenario::childScenario(LetterNode &childNode, QList<Scenario> &result, int
 
   bool hasPayload = childNode.hasPayload();
   bool isLeaf = childNode.isLeaf();
-  return childScenario(childNode, result, st_fork, curve_id, incremental, hasPayload, isLeaf);
+  return childScenario(childNode, result, st, curve_id, incremental, hasPayload, isLeaf);
 }
 
-bool Scenario::childScenario(LetterNode &childNode, QList<Scenario> &result, int &st_fork, int curve_id, bool incremental, bool hasPayload, bool isLeaf) {
+bool Scenario::childScenario(LetterNode &childNode, QList<Scenario> &result, stats_t &st, int curve_id, bool incremental, bool hasPayload, bool isLeaf) {
   /* this method allow to override hasPayload/isLeaf flags (used with multi-scenario) */
 
   if (curve_id > 0) { /* multi-touch not supported here */ }
+  unsigned char letter = childNode.getChar();
+
+  // cache management to allow better performance when reusing the same sub-scenarios in multiple multi-scenarios
+  if (cache && result.size()) {
+    cache = false;
+    logdebug("ERROR: Scenario::childScenario requires an empty list as input when cache is activated!");
+  }
+  if (cache) {
+    if (cacheChilds.contains(letter)) {
+      // positive caching
+      result.append(cacheChilds[letter]);
+      st.st_cache_hit ++;
+      return true;
+    }
+    /* no significant impact with current settings
+    if (cacheMinLength.contains(letter)) {
+      // negative caching
+      int min_len = cacheMinLength[letter];
+      if (curve->getTotalLength() <= min_len) {
+	st.st_cache_hit ++;
+	return false;
+      }
+    }
+    */
+  }
+
+  st.st_cache_miss ++;
 
   bool partial = incremental && ! curve->finished; // curve is not complete yet
   bool isDot = curve->isDot;
@@ -743,7 +774,15 @@ bool Scenario::childScenario(LetterNode &childNode, QList<Scenario> &result, int
   // step 1: find non-ending child scenarios
   if ((! isDot) && ((! isLeaf) || (partial && hasPayload))) {
     int len_before = result.size();
-    if (! childScenarioInternal(childNode, result, st_fork, partial /* incremental */, false)) { return false; } // try again later
+    if (! childScenarioInternal(childNode, result, st.st_fork, partial /* incremental */, false)) {
+      // try again later
+      /*
+      if (cache) {
+	cacheMinLength[letter] = curve->getTotalLength();
+      }
+      */
+      return false;
+    }
     int len_after = result.size();
 
     if (isLeaf) {
@@ -776,7 +815,12 @@ bool Scenario::childScenario(LetterNode &childNode, QList<Scenario> &result, int
 
   // step 2: find ending scenario
   if (hasPayload && (count > 0 || isDot)) {
-    childScenarioInternal(childNode, result, st_fork, partial /* incremental */, true); // result ignored (always true with endScenario == true)
+    childScenarioInternal(childNode, result, st.st_fork, partial /* incremental */, true); // result ignored (always true with endScenario == true)
+  }
+
+  // update cache
+  if (cache) {
+    cacheChilds[letter] = result;
   }
 
   return true;
@@ -942,9 +986,9 @@ bool Scenario::childScenarioInternal(LetterNode &childNode, QList<Scenario> &res
   return true;
 }
 
-void Scenario::nextKey(QList<Scenario> &result, int &st_fork) {
+void Scenario::nextKey(QList<Scenario> &result, stats_t &st) {
   foreach (LetterNode child, node.getChilds()) {
-    childScenario(child, result, st_fork);
+    childScenario(child, result, st);
   }
 }
 
@@ -1846,7 +1890,7 @@ void Scenario::toJson(QJsonObject &json) {
   json["score"] = getScore();
   json["score_std"] = -1;
   json["score_v1"] = score_v1;
-  json["distance"] = distance();
+  json["distance"] = (int) distance();
   json["class"] = result_class;
   json["star"] = star;
   json["min_total"] = min_total;

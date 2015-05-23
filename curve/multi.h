@@ -1,4 +1,4 @@
-/* This class implement multi-touch swiping 
+/* This class implement multi-touch swiping
    (whatever that could mean) */
 
 #ifndef MULTI_H
@@ -40,10 +40,10 @@ class MultiScenario {
   QuickCurve *curves;
   Params *params;
 
-  // MultiScenario instances can have child which share basic scenarios with 
+  // MultiScenario instances can have child which share basic scenarios with
   // their parent. To avoid unnecessary copying use QT smart pointers
   QList<QSharedPointer<Scenario> > scenarios;
-  
+
   LetterNode node;
 
   bool finished, debug, zombie;
@@ -71,9 +71,9 @@ class MultiScenario {
   MultiScenario(const MultiScenario &from);
   MultiScenario& operator=( const MultiScenario &from );
   ~MultiScenario();
-    
-  bool childScenario(LetterNode &child, QList<MultiScenario> &result, int &st_fork, int curve_id = -1, bool incremental = false);
-  void nextKey(QList<MultiScenario> &result, int &st_fork);
+
+  bool childScenario(LetterNode &child, QList<MultiScenario> &result, stats_t &st, int curve_id = -1, bool incremental = false);
+  void nextKey(QList<MultiScenario> &result, stats_t &st);
   QList<LetterNode> getNextKeys();
 
   QString getName() const;

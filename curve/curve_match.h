@@ -1,5 +1,5 @@
 /* this file implement the curve matching algorithm
-   for keyboard definition and curve (list of points) it produces a list of candidate ranked with score 
+   for keyboard definition and curve (list of points) it produces a list of candidate ranked with score
    the incremental / asynchronous algorithm is implemented in incr_match.{h,cpp} */
 
 #ifndef CURVE_MATCH_H
@@ -104,7 +104,7 @@ class CurveMatch {
 
   void fromJson(const QJsonObject &json);
   void fromString(const QString &jsonStr);
-  
+
   void toJson(QJsonObject &json);
   QString toString(bool indent = false);
   void resultToJson(QJsonObject &json);

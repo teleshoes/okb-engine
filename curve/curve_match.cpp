@@ -72,12 +72,12 @@ void CurveMatch::curvePreprocess1(int curve_id) {
       int t1 = oneCurve[i-1].turn_angle;
       int t2 = oneCurve[i].turn_angle;
       int t3 = oneCurve[i+1].turn_angle;
-      
+
       if (abs(t2) > 160 && t1 * t2 < 0 && t2 * t3 < 0) {
 	oneCurve[i].turn_angle += 360 * ((t2 < 0) - (t2 > 0));
       }
     }
-    
+
     for (int i = 1; i < l - 1 ; i ++) {
       oneCurve[i].turn_smooth = int(0.5 * oneCurve[i].turn_angle + 0.25 * oneCurve[i-1].turn_angle + 0.25 * oneCurve[i+1].turn_angle);
     }
@@ -92,10 +92,10 @@ void CurveMatch::curvePreprocess1(int curve_id) {
       int i1 = i - 2, i2 = i + 2;
       if (i1 < 1) { i1 = 1; i2 = 5; }
       if (i2 > l - 1) { i1 = l - 5; i2 = l - 1; }
-      
+
       while(oneCurve[i1].t - oneCurve[0].t < 50 && i2 < l - 1) { i1 ++; i2 ++; }
       while(oneCurve[i2].t - oneCurve[i1].t < 40 && i2 < l - 1 && i1 > 1 ) { i2 ++; i1 --; }
-      
+
       float dist = 0;
       for (int j = i1; j < i2; j ++) {
 	dist += distancep(oneCurve[j], oneCurve[j+1]);
@@ -554,7 +554,7 @@ bool CurveMatch::match() {
     foreach(ScenarioType scenario, scenarios) {
 
       QList<ScenarioType> childs;
-      scenario.nextKey(childs, st.st_fork);
+      scenario.nextKey(childs, st);
       foreach(ScenarioType child, childs) {
 	if (child.isFinished()) {
 	  if (child.postProcess()) {
@@ -730,6 +730,8 @@ void CurveMatch::resultToJson(QJsonObject &json) {
   json_stats["skim"] = st.st_skim;
   json_stats["special"] = st.st_special;
   json_stats["speed"] = st.st_speed;
+  json_stats["cache_hit"] = st.st_cache_hit;
+  json_stats["cache_miss"] = st.st_cache_miss;
   json["stats"] = json_stats;
 
   QJsonObject json_params;
