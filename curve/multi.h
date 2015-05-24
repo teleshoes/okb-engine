@@ -62,9 +62,10 @@ class MultiScenario {
 
   void copy_from(const MultiScenario &from);
 
-  static int global_id; /* yuck global variable to track current global id */
-
   void addSubScenarios();
+
+  static int global_id; /* yuck global variable to track current global id */
+  static QList<Scenario> scenario_root;
 
  public:
   MultiScenario(LetterTree *tree, QuickKeys *keys, QuickCurve *curves, Params *params);

@@ -14,6 +14,7 @@
 #include <QJsonValue>
 #include <QDebug>
 #include <QTime>
+#include <QSharedPointer>
 
 #include "tree.h"
 #include "log.h"
@@ -181,6 +182,9 @@ typedef struct {
   int st_cache_hit, st_cache_miss;
 } stats_t;
 
+class Scenario;
+typedef QHash<unsigned char, QList<Scenario> > child_cache_t;
+
 class Scenario {
 #ifdef INCREMENTAL
   friend class DelayedScenario;
@@ -226,7 +230,7 @@ class Scenario {
 
   // cache
   bool cache;
-  QHash<unsigned char, QList<Scenario> > cacheChilds;
+  QSharedPointer<child_cache_t> cacheChilds;
   // no significant impact: @todo try this with aggressive mode: QHash<unsigned char, int> cacheMinLength;
 
  private:
@@ -287,7 +291,7 @@ class Scenario {
   QString getId() const { return getName(); }
   bool nextLength(unsigned char next_letter, int curve_id, int &min, int &max);
   float getScoreV1() { return score_v1; };
-  void setCache(bool value) { cache = value; };
+  void setCache(bool value);
 
   static void sortCandidates(QList<Scenario *> candidates, Params &params, int debug);
 };

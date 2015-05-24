@@ -11,6 +11,7 @@
 #define S(curve_id) (scenarios[curve_id].data())
 
 int MultiScenario::global_id = -1;
+QList<Scenario> MultiScenario::scenario_root;
 
 MultiScenario::MultiScenario(LetterTree *tree, QuickKeys *keys, QuickCurve *curves, Params *params) {
   this -> node = tree -> getRoot();
@@ -35,6 +36,7 @@ MultiScenario::MultiScenario(LetterTree *tree, QuickKeys *keys, QuickCurve *curv
 
   id = 0;
   MultiScenario::global_id = 1;
+  MultiScenario::scenario_root.clear();
 }
 
 MultiScenario::MultiScenario(const MultiScenario &from) {
@@ -118,9 +120,19 @@ QString MultiScenario::getId() const {
 
 void MultiScenario::addSubScenarios() {
   while (curve_count > scenarios.size()) {
-    Scenario *s = new Scenario((LetterTree*) NULL /* no more needed? */, keys, &(curves[scenarios.size()]), params);
-    s->setDebug(debug);
-    s->setCache(true); // improve performance for scenario reuse
+    Scenario *s;
+
+    // reuse scenario root for cache sharing
+    int idx = scenarios.size();
+    if (idx < MultiScenario::scenario_root.size()) {
+      s = new Scenario(MultiScenario::scenario_root[idx]);
+    } else {
+      s = new Scenario((LetterTree*) NULL /* no more needed? */, keys, &(curves[scenarios.size()]), params);
+      s->setDebug(debug);
+      s->setCache(true); // improve performance for scenario reuse
+      MultiScenario::scenario_root.append(*s);
+    }
+
     scenarios.append(QSharedPointer<Scenario>(s));
   }
 }

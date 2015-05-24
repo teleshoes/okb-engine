@@ -377,7 +377,10 @@ void Scenario::copy_from(const Scenario &from) {
 
   good_count = from.good_count;
 
-  cache = from.cache; /* don't copy cache content as there are no scenario copies in multi-scenario mode (due to shared pointers) */
+  cache = from.cache;
+  if (cache) {
+    cacheChilds = from.cacheChilds;
+  }
 }
 
 
@@ -748,9 +751,10 @@ bool Scenario::childScenario(LetterNode &childNode, QList<Scenario> &result, sta
     logdebug("ERROR: Scenario::childScenario requires an empty list as input when cache is activated!");
   }
   if (cache) {
-    if (cacheChilds.contains(letter)) {
+    child_cache_t *cc = cacheChilds.data();
+    if (cc && cc->contains(letter)) {
       // positive caching
-      result.append(cacheChilds[letter]);
+      result.append((*cc)[letter]);
       st.st_cache_hit ++;
       return true;
     }
@@ -820,7 +824,8 @@ bool Scenario::childScenario(LetterNode &childNode, QList<Scenario> &result, sta
 
   // update cache
   if (cache) {
-    cacheChilds[letter] = result;
+    child_cache_t *cc = cacheChilds.data();
+    (*cc)[letter] = result;
   }
 
   return true;
@@ -926,6 +931,10 @@ bool Scenario::childScenarioInternal(LetterNode &childNode, QList<Scenario> &res
       new_scenario.count = count + 1;
       new_scenario.finished = endScenario;
       new_scenario.error_count = error_count + error_ignore?1:0;
+
+      if (cache) {
+	new_scenario.cacheChilds = QSharedPointer<child_cache_t>(new child_cache_t); // do not inherit parent cache :-)
+      }
 
       // number of keys actually crossed
       Point key = keys->get(letter);
@@ -2049,5 +2058,12 @@ bool Scenario::nextLength(unsigned char next_letter, int curve_id, int &min_leng
   min_length = last_length + max(0, dist - params->incremental_length_lag / 2);
 
   return true;
+}
+
+void Scenario::setCache(bool value) {
+  cache = value;
+  if (cache) {
+    cacheChilds = QSharedPointer<child_cache_t>(new child_cache_t);
+  }
 }
 
