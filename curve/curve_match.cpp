@@ -517,7 +517,7 @@ void CurveMatch::scenarioFilter(QList<ScenarioType> &scenarios, float score_rati
 void CurveMatch::setCurves() {
   for (int i = 0; i < curve_count; i ++) {
     curvePreprocess1(i);
-    quickCurves[i].setCurve(curve, i);
+    quickCurves[i].setCurve(curve, i, params.multi_dot_threshold);
   }
   quickCurves[curve_count].clearCurve();
 }
