@@ -12,5 +12,5 @@ html_dir=${OKBOARD_HTML_DIR:-/tmp/okboard-html}
 mkdir -p "$html_dir"
 
 find "$log_dir/" -name '*.bz2' -mtime -$MAX_DAYS | xargs -r lbzip2 -dc | `dirname "$0"`/log2html.py "$html_dir/"
-firefox "$html_dir/index.html"
+[ -n "$1" ] || firefox "$html_dir/index.html"
 find "$html_dir/" -mtime +$MAX_DAYS -type f -delete

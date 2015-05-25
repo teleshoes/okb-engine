@@ -31,10 +31,8 @@ tests = score_util.load_files(glob.glob(os.path.join(sys.argv[1], '*')))
 #  [ 0.98203151,  0.46720921,  0.17562272,  0.97977564,       0.14050587, 0.50725596,  0.07673429,  0.49549159] <- good!
 
 def f(args, tests):
-    (final_coef_turn, final_turn_exp, final_distance_exp, final_coef_misc,
-     final_coef_cos, final_cos_exp,
-     final_coef_curve, final_curve_exp) = args
-
+    (final_coef_turn, final_turn_exp, final_distance_exp, final_coef_misc) = args
+    # cos/curve score: final_coef_cos, final_cos_exp, final_coef_curve, final_curve_exp
     # misc optim: (final_coef_turn, final_turn_exp, final_distance_exp, lazy_loop_bias, rt_score_coef, rt_score_coef_tip,
     # st5_score, tip_small_segment, turn_distance_score, ut_score) = args
 
@@ -55,8 +53,8 @@ def f(args, tests):
                             # turn_distance_score * c["misc"].get("turn_distance_score", 0) +
                             # ut_score * c["misc"].get("ut_score", 0) +
                             final_coef_turn * (c["avg_score"]["score_turn"] ** final_turn_exp) +
-                            final_coef_cos * (max(0, c["avg_score"]["score_cos"]) ** final_cos_exp) +
-                            final_coef_curve * (max(0, c["avg_score"]["score_curve"]) ** final_curve_exp) +
+                            # final_coef_cos * (max(0, c["avg_score"]["score_cos"]) ** final_cos_exp) +
+                            # final_coef_curve * (max(0, c["avg_score"]["score_curve"]) ** final_curve_exp) +
                             1 - 0.1 * (0.1 * (c["distance_adj"] - min_dist)) ** final_distance_exp) /
                             (final_coef_turn + 1))
 
@@ -65,7 +63,7 @@ def f(args, tests):
         max_score = max([ c["_score"] for c in candidates if c["name"] != expected["name"] ] or [ exp_score ])
         x = (exp_score - max_score) * 10
 
-        #value = x - x ** 2 if x < 0 else x / (1 + x)
+        # value = x - x ** 2 if x < 0 else x / (1 + x)
         value = math.tanh(x * 20)
         value = - value
 
@@ -81,7 +79,8 @@ def f(args, tests):
 # we have only floating point parameters, so let's just use scipy for optimization
 
 # misc_optim: x0 = np.array([ 1.0, 0.5, 1, 0.005, 0.5, 0.1, 0.01, 0.01, 1.0, 0.5 ])
-x0 = np.array([ 1.0, 0.5, 0.1, 1, 0.1, 0.5, 0.1, 0.5 ])
+# x0 = np.array([ 1.0, 0.5, 0.1, 1, 0.1, 0.5, 0.1, 0.5 ])
+x0 = np.array([ 1.0, 0.5, 0.1, 1 ])
 
 print(f(x0, tests))
 

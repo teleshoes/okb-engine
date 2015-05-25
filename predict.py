@@ -1116,7 +1116,7 @@ class Predict:
         max_score = max( [ words[w].score for w in words ] ) if words else 0
 
         l2_mode_threshold = self.cf('l2_mode_threshold', .025, float)
-        if max([ len(w) for w in words if words[w].score >= max_score - l2_mode_threshold ]) <= 2:
+        if max([ len(w) for w in words if words[w].score >= max_score - l2_mode_threshold ] + [10]) <= 2:
             quality_index, quality_detail = -1, "l2_mode"
         else:
             quality_index, quality_detail = self._quality_index(max_score, speed)
