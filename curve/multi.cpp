@@ -384,6 +384,11 @@ void MultiScenario::toJson(QJsonObject &json) {
   }
   json["detail"] = json_score_array;
 
+  QJsonObject json_avg;
+  score_t avg_score = getScores();
+  scoreToJson(json_avg, avg_score);
+  json["avg_score"] = json_avg;
+
   QJsonArray json_scenarios;
   FOREACH_ALL_SCENARIOS(s, {
       QJsonObject json_scenario;
