@@ -58,6 +58,15 @@ for i in range(0, curve_count):
     curves[i] = list(map(add_length, curve))
 
 
+# expected result
+expected = None
+if len(sys.argv) > 1:
+    expected = sys.argv[1]
+    expected = re.sub(r'^[a-z][a-z]\-', '', expected)
+    expected = re.sub(r'\-.*$', '', expected)
+    expected = re.sub(r'[^a-z]', '', expected.lower())
+    expected = re.sub(r'(.)\1+', lambda m: m.group(1), expected)
+
 # thingies
 def clean_value(value):
     if value is False: return "-"
@@ -337,6 +346,9 @@ if candidates:
     for scenario in candidates:
         sub_scenarios = scenario["scenarios"] if multi else [ scenario ]
 
+        bgcol = ""
+        if scenario["name"] == expected: bgcol = "#FFA0C0"
+
         first = True
         for sub_scenario in sub_scenarios:
             tr = t.tr
@@ -347,16 +359,16 @@ if candidates:
                              scenario["error"], scenario["good"],
                              scenario.get("distance", 0),
                              scenario.get("words", "-") ]:
-                    tr.td(rowspan = str(len(sub_scenarios)), align = "center").font(clean_value(col), size="-2")
+                    tr.td(rowspan = str(len(sub_scenarios)), bgcolor = bgcol, align = "center").font(clean_value(col), size="-2")
 
             for col in [ sub_scenario["name"], sub_scenario["score"], sub_scenario["min_total"], sub_scenario.get("error", ""),
                          sub_scenario.get("good", ""), int(sub_scenario.get("distance", 0)),
                          sub_scenario.get("score_std", ""), sub_scenario.get("score_v1", ""),
                          sub_scenario.get("words", "-") if not multi else "n/a" ]:
-                tr.td(align = "center").font(clean_value(col), size="-2")
+                tr.td(align = "center", bgcolor = bgcol).font(clean_value(col), size="-2")
             for typ in [ "avg_score", "min_score" ]:
-                for sc in scores: tr.td(align = "center").font(clean_value(sub_scenario[typ][sc]), size="-2")
-            tr.td(align = "center").font(str(sub_scenario.get("class", "?")) + ("*" if sub_scenario.get("star") else ""), size="-2")
+                for sc in scores: tr.td(align = "center", bgcolor = bgcol).font(clean_value(sub_scenario[typ][sc]), size="-2")
+            tr.td(align = "center", bgcolor = bgcol).font(str(sub_scenario.get("class", "?")) + ("*" if sub_scenario.get("star") else ""), size="-2")
 
 # matches
 n = 1

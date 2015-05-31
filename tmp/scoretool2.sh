@@ -28,7 +28,7 @@ for t in test*/*.json ; do
 
 	cmd="cli/build/cli ${CLI_OPTS} -d \"db/${lang}-full.tre\" \"$t\" > $log 2>&1 && "
 	cmd="${cmd} cat $log | grep -i '^Result:' | tail -n 1 | sed 's/^Result:\ *//' > $json && "
-	cmd="${cmd} cat $json | tools/jsonresult2html.py > $html.tmp && mv -f $html.tmp $html"
+	cmd="${cmd} cat $json | tools/jsonresult2html.py $name > $html.tmp && mv -f $html.tmp $html"
 
 	echo "$t" >&2
 	echo "$cmd"
