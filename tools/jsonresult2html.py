@@ -342,7 +342,8 @@ if candidates:
             tr = t.tr
             if multi and first:
                 first = False
-                for col in [ scenario["name"], scenario["id"], scenario["score"],
+                tr.td(rowspan = str(len(sub_scenarios)), align = "center").font(size="-2").a(scenario["name"], href = "#%s" % scenario["name"])
+                for col in [ scenario["id"], scenario["score"],
                              scenario["error"], scenario["good"],
                              scenario.get("distance", 0),
                              scenario.get("words", "-") ]:
@@ -360,6 +361,7 @@ if candidates:
 # matches
 n = 1
 for scenario in candidates:
+    body.a(name = scenario['name'])
     body.h5('Match #%d : %s [score=%.3f]' % (n, scenario['name'], scenario['score']))
 
     t0 = body.table(border = "0").tr
