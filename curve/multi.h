@@ -100,6 +100,7 @@ class MultiScenario {
   score_t getScores();
   QString getId() const;
   bool nextLength(unsigned char next_letter, int curve_id, int &min, int &max);
+  float getScoreV1() const;
 
   static void sortCandidates(QList<MultiScenario *> candidates, Params &params, int debug);
 

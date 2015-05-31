@@ -349,6 +349,15 @@ float MultiScenario::distance() const {
   return dist;
 }
 
+float MultiScenario::getScoreV1() const {
+  if (! count) { return 0; }
+  float score = 0;
+  FOREACH_ALL_SCENARIOS(s, {
+      score += s->getScoreV1() * s->getCount();
+    });
+  return score / count;
+}
+
 static void scoreToJson(QJsonObject &json_obj, score_t &score) {
   json_obj["score_distance"] = score.distance_score;
   json_obj["score_cos"] = score.cos_score;
@@ -362,7 +371,7 @@ void MultiScenario::toJson(QJsonObject &json) {
   json["name"] = getName();
   json["finished"] = finished;
   json["score"] = getScore();
-  json["score_v1"] = -1;
+  json["score_v1"] = getScoreV1();
   json["distance"] = (int) distance();
   json["class"] = 0;
   json["star"] = 0;
