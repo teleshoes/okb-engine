@@ -92,11 +92,15 @@ def act_threshold(test):
         expected["score_v1"] - max([ c["score_v1"] for c in candidates ])
     ))
 
+def act_score_v1(test):
+    return check_max(test, lambda c: c["score_v1"], "score_v1", colors = COLORS)
+
 all_actions = dict(distance=act_distance,
                    distance_adj=act_distance_adj,
                    score_turn=act_score_turn,
                    score_misc=act_score_misc,
                    threshold=act_threshold,
+                   score_v1=act_score_v1,
                    # score_cos=act_score_cos,
                    # score_curve=act_score_curve,
                    # score_turn_min=act_score_turn_min,

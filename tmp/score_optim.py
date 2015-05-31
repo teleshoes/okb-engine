@@ -1,7 +1,7 @@
 #! /usr/bin/python3
 # -*- coding: utf-8 -*-
 
-# optimizer for new curve matching score (April 2015)
+# optimizer for new curve matching score (April 2015 and later)
 
 import os, sys, glob
 import scipy.optimize as opt
@@ -25,16 +25,33 @@ tests = score_util.load_files(glob.glob(os.path.join(sys.argv[1], '*')))
 
 # run2 : [ 0.87696685,  0.09290564,  0.50442763,  0.03203242,  0.11457762,
 #          -0.05446582,  0.01953923,  0.01934534, -0.2606125 ,  0.05651059]
-
 # run 24/04/15 :
+# (final_coef_turn, final_turn_exp, final_distance_exp, final_coef_misc)
 #  [  0.11329048,  13.59298864,   0.77919986,   1.46618334,   0.05407549,   4.08000888,   3.67530324,   0.04451949] <- crap local minimum
 #  [ 0.98203151,  0.46720921,  0.17562272,  0.97977564,       0.14050587, 0.50725596,  0.07673429,  0.49549159] <- good!
 
+# run 31/05/15 :
+# (final_coef_turn, final_turn_exp, final_distance_exp, final_coef_misc, final_score_v1_threshold, final_score_v1_coef)
+# [ 0.92668943,  0.35946521,  0.262141  ,  0.98711713,  0.06514241, 0.14933755]
+# -> win=59/159, good=157/159, score=0.236 x=[ 0.92597021  0.35903125  0.25067485  0.98765745  0.0655745   0.14985466]
+#
+# [ 0.34337118,  1 /*forcé*/,  0.56040809, -0.15161053,  0.11156623,  0.90391943 ]
+# -> win=61/159, good=151/159, score=0.224 x=[ 0.34337118  0.5         0.56040809 -0.15161053  0.11156623  0.90391943]
+# Using this as initial value does not get better result --> we've got a keeper !
+#
+# [ 0.78234458,  0.79314842,  0.12955439,  0.38591404,  0.10160792, 0.38250826]
+# win=58/159, good=150/159, score=0.244 x=[ 0.77028007  0.78318113  0.12257316  0.33847364  0.10345454  0.39324666]
+
+
 def f(args, tests):
-    (final_coef_turn, final_turn_exp, final_distance_exp, final_coef_misc) = args
+    (final_coef_turn, final_turn_exp, final_distance_exp, final_coef_misc, final_score_v1_threshold, final_score_v1_coef) = args
     # cos/curve score: final_coef_cos, final_cos_exp, final_coef_curve, final_curve_exp
     # misc optim: (final_coef_turn, final_turn_exp, final_distance_exp, lazy_loop_bias, rt_score_coef, rt_score_coef_tip,
     # st5_score, tip_small_segment, turn_distance_score, ut_score) = args
+
+    # final_turn_exp = 1 (override parameter value)
+    # if final_coef_misc < 0: return -final_coef_misc
+    # final_coef_misc = 0
 
     total = count = good = win = 0
     for test in tests.values():
@@ -43,8 +60,10 @@ def f(args, tests):
 
         candidates = test["ch"].values()
         min_dist = min([c["distance_adj"] for c in candidates])
+        max_score_v1 = max([c["score_v1"] for c in candidates])
         for c in candidates:
             c["_score"] = ((final_coef_misc * c["avg_score"]["score_misc"] +
+                            (- final_score_v1_coef) * max(0, max_score_v1 - final_score_v1_threshold - c["score_v1"]) +
                             # lazy_loop_bias * c["misc"].get("lazy_loop_bias", 0) +
                             # rt_score_coef * c["misc"].get("rt_score_coef", 0) +
                             # rt_score_coef_tip * c["misc"].get("rt_score_coef_tip", 0) +
@@ -80,7 +99,9 @@ def f(args, tests):
 
 # misc_optim: x0 = np.array([ 1.0, 0.5, 1, 0.005, 0.5, 0.1, 0.01, 0.01, 1.0, 0.5 ])
 # x0 = np.array([ 1.0, 0.5, 0.1, 1, 0.1, 0.5, 0.1, 0.5 ])
-x0 = np.array([ 1.0, 0.5, 0.1, 1 ])
+# x0 = np.array([ 1.0, 0.5, 0.1, 1, 0.1, 0.02 ])
+# x0 = np.array([ 1.0, 1, 0.1, 1, 0.1, 0.02 ])
+x0 = np.array([ 0.34337118,  1,  0.56040809, 0.05,  0.11156623,  0.90391943 ])
 
 print(f(x0, tests))
 
