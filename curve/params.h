@@ -32,10 +32,12 @@ class Params {
   int end_scenario_wait;
   int error_correct;
   int error_ignore_count;
-  float final_coef_exp;
   float final_coef_misc;
   float final_coef_turn;
+  float final_coef_turn_exp;
   float final_distance_pow;
+  float final_score_v1_coef;
+  float final_score_v1_threshold;
   int incr_retry;
   int incremental_index_gap;
   int incremental_length_lag;
@@ -71,6 +73,7 @@ class Params {
   int speed_max_index_gap;
   int speed_min_angle;
   float speed_penalty;
+  int st2_ignore;
   int st2_max;
   int st2_min;
   float st5_score;
@@ -81,14 +84,15 @@ class Params {
   int turn_distance_threshold;
   int turn_max_angle;
   int turn_min_angle;
-  int turn_min_tip_len;
   int turn_optim;
+  float turn_scale_ut;
   int turn_separation;
   int turn_threshold;
   int turn_threshold2;
   int turn_threshold3;
   float turn_tip_len_penalty;
   int turn_tip_min_distance;
+  float turn_tip_scale_ratio;
   int user_dict_learn;
   int user_dict_size;
   float ut_coef;
@@ -139,10 +143,12 @@ static Params default_params = {
   100, // end_scenario_wait
   1, // error_correct
   5, // error_ignore_count
-  0.1, // final_coef_exp
   0.8, // final_coef_misc
   1.0, // final_coef_turn
+  0.1, // final_coef_turn_exp
   0.5, // final_distance_pow
+  0.0, // final_score_v1_coef
+  0.11, // final_score_v1_threshold
   50, // incr_retry
   5, // incremental_index_gap
   100, // incremental_length_lag
@@ -178,8 +184,9 @@ static Params default_params = {
   5, // speed_max_index_gap
   15, // speed_min_angle
   0.5, // speed_penalty
+  120, // st2_ignore
   170, // st2_max
-  125, // st2_min
+  115, // st2_min
   0.02, // st5_score
   1, // thumb_correction
   0.02, // tip_small_segment
@@ -188,14 +195,15 @@ static Params default_params = {
   60, // turn_distance_threshold
   20, // turn_max_angle
   10, // turn_min_angle
-  20, // turn_min_tip_len
   120, // turn_optim
-  120, // turn_separation
+  2.0, // turn_scale_ut
+  170, // turn_separation
   75, // turn_threshold
   140, // turn_threshold2
   115, // turn_threshold3
-  0.5, // turn_tip_len_penalty
-  30, // turn_tip_min_distance
+  0.01, // turn_tip_len_penalty
+  125, // turn_tip_min_distance
+  2.0, // turn_tip_scale_ratio
   1, // user_dict_learn
   2000, // user_dict_size
   0.45, // ut_coef
@@ -240,10 +248,12 @@ void Params::toJson(QJsonObject &json) const {
   json["end_scenario_wait"] = end_scenario_wait;
   json["error_correct"] = error_correct;
   json["error_ignore_count"] = error_ignore_count;
-  json["final_coef_exp"] = final_coef_exp;
   json["final_coef_misc"] = final_coef_misc;
   json["final_coef_turn"] = final_coef_turn;
+  json["final_coef_turn_exp"] = final_coef_turn_exp;
   json["final_distance_pow"] = final_distance_pow;
+  json["final_score_v1_coef"] = final_score_v1_coef;
+  json["final_score_v1_threshold"] = final_score_v1_threshold;
   json["incr_retry"] = incr_retry;
   json["incremental_index_gap"] = incremental_index_gap;
   json["incremental_length_lag"] = incremental_length_lag;
@@ -279,6 +289,7 @@ void Params::toJson(QJsonObject &json) const {
   json["speed_max_index_gap"] = speed_max_index_gap;
   json["speed_min_angle"] = speed_min_angle;
   json["speed_penalty"] = speed_penalty;
+  json["st2_ignore"] = st2_ignore;
   json["st2_max"] = st2_max;
   json["st2_min"] = st2_min;
   json["st5_score"] = st5_score;
@@ -289,14 +300,15 @@ void Params::toJson(QJsonObject &json) const {
   json["turn_distance_threshold"] = turn_distance_threshold;
   json["turn_max_angle"] = turn_max_angle;
   json["turn_min_angle"] = turn_min_angle;
-  json["turn_min_tip_len"] = turn_min_tip_len;
   json["turn_optim"] = turn_optim;
+  json["turn_scale_ut"] = turn_scale_ut;
   json["turn_separation"] = turn_separation;
   json["turn_threshold"] = turn_threshold;
   json["turn_threshold2"] = turn_threshold2;
   json["turn_threshold3"] = turn_threshold3;
   json["turn_tip_len_penalty"] = turn_tip_len_penalty;
   json["turn_tip_min_distance"] = turn_tip_min_distance;
+  json["turn_tip_scale_ratio"] = turn_tip_scale_ratio;
   json["user_dict_learn"] = user_dict_learn;
   json["user_dict_size"] = user_dict_size;
   json["ut_coef"] = ut_coef;
@@ -343,10 +355,12 @@ Params Params::fromJson(const QJsonObject &json) {
   p.end_scenario_wait = json["end_scenario_wait"].toDouble();
   p.error_correct = json["error_correct"].toDouble();
   p.error_ignore_count = json["error_ignore_count"].toDouble();
-  p.final_coef_exp = json["final_coef_exp"].toDouble();
   p.final_coef_misc = json["final_coef_misc"].toDouble();
   p.final_coef_turn = json["final_coef_turn"].toDouble();
+  p.final_coef_turn_exp = json["final_coef_turn_exp"].toDouble();
   p.final_distance_pow = json["final_distance_pow"].toDouble();
+  p.final_score_v1_coef = json["final_score_v1_coef"].toDouble();
+  p.final_score_v1_threshold = json["final_score_v1_threshold"].toDouble();
   p.incr_retry = json["incr_retry"].toDouble();
   p.incremental_index_gap = json["incremental_index_gap"].toDouble();
   p.incremental_length_lag = json["incremental_length_lag"].toDouble();
@@ -382,6 +396,7 @@ Params Params::fromJson(const QJsonObject &json) {
   p.speed_max_index_gap = json["speed_max_index_gap"].toDouble();
   p.speed_min_angle = json["speed_min_angle"].toDouble();
   p.speed_penalty = json["speed_penalty"].toDouble();
+  p.st2_ignore = json["st2_ignore"].toDouble();
   p.st2_max = json["st2_max"].toDouble();
   p.st2_min = json["st2_min"].toDouble();
   p.st5_score = json["st5_score"].toDouble();
@@ -392,14 +407,15 @@ Params Params::fromJson(const QJsonObject &json) {
   p.turn_distance_threshold = json["turn_distance_threshold"].toDouble();
   p.turn_max_angle = json["turn_max_angle"].toDouble();
   p.turn_min_angle = json["turn_min_angle"].toDouble();
-  p.turn_min_tip_len = json["turn_min_tip_len"].toDouble();
   p.turn_optim = json["turn_optim"].toDouble();
+  p.turn_scale_ut = json["turn_scale_ut"].toDouble();
   p.turn_separation = json["turn_separation"].toDouble();
   p.turn_threshold = json["turn_threshold"].toDouble();
   p.turn_threshold2 = json["turn_threshold2"].toDouble();
   p.turn_threshold3 = json["turn_threshold3"].toDouble();
   p.turn_tip_len_penalty = json["turn_tip_len_penalty"].toDouble();
   p.turn_tip_min_distance = json["turn_tip_min_distance"].toDouble();
+  p.turn_tip_scale_ratio = json["turn_tip_scale_ratio"].toDouble();
   p.user_dict_learn = json["user_dict_learn"].toDouble();
   p.user_dict_size = json["user_dict_size"].toDouble();
   p.ut_coef = json["ut_coef"].toDouble();

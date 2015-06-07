@@ -144,16 +144,20 @@ int QuickCurve::getTotalLength() { return (count > 0)?length[count - 1]:0; }
 QuickKeys::QuickKeys() {
   points = new Point[256];  // unsigned char won't overflow
   dim = new Point[256];
+  points_raw = new Point[256];
 }
 
 QuickKeys::QuickKeys(QHash<unsigned char, Key> &keys) {
   points = new Point[256];
   dim = new Point[256];
+  points_raw = new Point[256];
   setKeys(keys);
 }
 
 void QuickKeys::setKeys(QHash<unsigned char, Key> &keys) {
   foreach(unsigned char letter, keys.keys()) {
+    points_raw[letter].x = keys[letter].x;
+    points_raw[letter].y = keys[letter].y;
     if (keys[letter].corrected_x == -1) {
       points[letter].x = keys[letter].x;
       points[letter].y = keys[letter].y;
@@ -169,10 +173,15 @@ void QuickKeys::setKeys(QHash<unsigned char, Key> &keys) {
 QuickKeys::~QuickKeys() {
   delete[] points;
   delete[] dim;
+  delete[] points_raw;
 }
 
 Point const& QuickKeys::get(unsigned char letter) const {
   return points[letter];
+}
+
+Point const& QuickKeys::get_raw(unsigned char letter) const {
+  return points_raw[letter];
 }
 
 Point const& QuickKeys::size(unsigned char letter) const {
@@ -294,6 +303,8 @@ Key Key::fromJson(const QJsonObject &json) {
 }
 
 /* --- scenario --- */
+static int RT_DIRECTION_UNKNOWN = 99;
+
 Scenario::Scenario(LetterTree *tree, QuickKeys *keys, QuickCurve *curve, Params *params) {
   if (tree) { this -> node = tree -> getRoot(); } // @todo remove
   this -> keys = keys;
@@ -579,7 +590,7 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &
      - 2: U-Turns --> mush exactly match a key
      - 3: Slow-down points --> treated as 1, but has les priority than type 1 & 2
      - 4: inflection points (*removed* this has proven useless or duplicating other checks)
-     - 5: Small turn -> optionally matches a key
+     - 5: Small turn (or near curve tip) -> optionally matches a key
      - 6: (not-so) sharp turn (same as 1) but minimum distance point may be distinct from the turn point (e.g. used for loops)
   */
 
@@ -915,7 +926,7 @@ bool Scenario::childScenarioInternal(LetterNode &childNode, QList<Scenario> &res
       }
     }
 
-    DBG("debug [%s:%c] %s%s %d:%d %s [d=%.2f c=%.2f a=%.2f l=%.2f t=%.2f]",
+    DBG("debug [%s:%c] %s%s %d:%d %s [d=%.2f cr=%.2f cs=%.2f l=%.2f t=%.2f]",
 	getNameCharPtr(), letter, endScenario?"*":" ", first?"":" <FORK>", count, new_index, error_ignore?"ERROR[ignored]":(ok?"=OK=":"*FAIL*"),
 	score.distance_score, score.curve_score, score.cos_score, score.length_score, score.turn_score);
 
@@ -1047,19 +1058,105 @@ bool Scenario::forkLast() {
   return last_fork == count;
 }
 
-typedef struct {
-  int direction; // was char, but char to int conversion seems to handle these as unsigned chars (didn't investigate)
-  int corrected_direction;
-  float expected;
-  float actual;
-  float corrected;
-  float length_before;
-  float length_after;
-  int index;
-  int start_index;
-  bool unmatched;
-  int length;
-} turn_t;
+void Scenario::turn_transfer(int turn_count, turn_t *turn_detail) {
+  // transfer "turn rate" between turns to enable users to cut through (users are lazy)
+
+  bool ok[turn_count];
+
+  for(int i = 0; i < turn_count; i++) {
+    turn_t *d = &(turn_detail[i]);
+    ok[i] = (fabs(d -> actual) < fabs(d -> expected));
+  }
+
+  float give[turn_count * 2];
+  memset(give, 0, sizeof(give));
+
+  bool change = true;
+  while(change) {
+    change = false;
+
+    for(int i = 0; i < turn_count; i++) {
+      turn_t *d = &(turn_detail[i]);
+
+      if (! ok[i]) { continue; }
+
+      float nb_wants[2] = { 0.0, 0.0 };
+      for(int ni = 0; ni <= 1; ni ++) {
+	int j = i - 1 + 2 * ni;
+	if (j < 0 || j >= turn_count) { continue; }
+	turn_t *d2 = &(turn_detail[j]);
+	if (! ok[j]) { continue; }
+	if (d->expected * d2->expected >= 0) { continue; }
+
+	int len = ni?d->length_after:d->length_before;
+	if (len > params -> turn_optim) { continue; }
+
+	nb_wants[ni] = d2->expected - d2->corrected; // @todo set limits here
+      }
+
+      float i_want = d->expected - d->corrected;
+      float they_want = nb_wants[0] + nb_wants[1];
+      int give_count = (nb_wants[0] != 0) + (nb_wants[1] != 0);
+      if (! give_count) { continue; }
+
+      int sgn = (they_want > 0) - (they_want < 0);
+      if (fabs(they_want) <= fabs(i_want)) {
+	give[i << 1] = - nb_wants[0];
+	give[(i << 1) + 1] = - nb_wants[1];
+      } else if (give_count <= 1) {
+	give[i << 1] = sgn * (nb_wants[0] != 0) * fabs(i_want);
+	give[(i << 1) + 1] = sgn * (nb_wants[1] != 0) * fabs(i_want);
+      } else {
+	float w1 = fabs(nb_wants[0]), w2 = fabs(nb_wants[1]);
+	float g1 = 0, g2 = 0;
+	float rest = fabs(i_want);
+	float minw = min(w1, w2);
+	if (rest < minw * 2) {
+	  g1 += rest / 2;
+	  g2 += rest / 2;
+	} else {
+	  g1 += minw;
+	  g2 += minw;
+	  rest -= minw * 2;
+	  if (g1 > g2) { g1 += rest; } else { g2 += rest; }
+	}
+	give[i << 1] = sgn * g1;
+	give[(i << 1) + 1] = sgn * g2;
+      }
+      /*
+      DBG("Turn transfer debug: #%d: %d=>%d/%d  nb_want=%d:%d i_want=%d they_want=%d give=%d:%d count=%d",
+	  i, (int) d->actual, (int) d->corrected, (int) d->expected,
+    	  (int) nb_wants[0], (int) nb_wants[1], (int) i_want, (int) they_want, (int) give[i<<1], (int) give[(i<<1)+1], give_count);
+      */
+    }
+
+    for(int i = 0; i < turn_count; i++) {
+      turn_t *d = &(turn_detail[i]);
+
+      if (! ok[i]) { continue; }
+      for(int ni = 0; ni <= 1; ni ++) {
+	int j = i - 1 + 2 * ni;
+	if (i > j) { continue; }
+	if (j < 0 || j >= turn_count) { continue; }
+	turn_t *d2 = &(turn_detail[j]);
+
+	float t_ij = give[(i << 1) + ni];
+	float t_ji = give[(j << 1) + (1 - ni)];
+
+	float absv = min(fabs(t_ij), fabs(t_ji));
+	if (absv <= 2) { continue; }
+
+	int diff = d->expected - d->corrected;
+	int sens = (diff > 0)?1:-1;
+
+	d->corrected += sens * absv;
+	d2->corrected -= sens * absv;
+	DBG("Turn transfer #%d->#%d: %d", i, j, (int) (sens * absv));
+	change = true;
+      }
+    }
+  }
+}
 
 void Scenario::calc_turn_score_all() {
   /* this score check if actual segmentation (deduced from user input curve)
@@ -1080,6 +1177,8 @@ void Scenario::calc_turn_score_all() {
 
   // compute actual turn rate
   float segment_length[count];
+
+  if (count > 0 && index_history[0] == index_history[1]) { a_same[0] = true; }
 
   int i1 = 0;
   int i_ = 1;
@@ -1119,24 +1218,12 @@ void Scenario::calc_turn_score_all() {
     unsigned char l3 = letter_history[i + 1];
 
     // key coordinates
-    Point k1 = keys->get(l1);
-    Point k2 = keys->get(l2);
-    Point k3 = keys->get(l3);
+    Point k1 = keys->get_raw(l1);
+    Point k2 = keys->get_raw(l2);
+    Point k3 = keys->get_raw(l3);
 
     // actual/expected angles
     float expected = anglep(k2 - k1, k3 - k2) * 180 / M_PI;
-
-    if (a_same[i - 1] &&
-	(abs(a_expected[i - 1]) > 165 || abs(expected) > 165) &&
-    	(abs(a_expected[i - 1]) < 80 || abs(expected) < 80) && // @todo set as parameters
-	curve->getSharpTurn(index_history[i - 1])) {
-      expected += a_expected[i - 1];
-      if (abs(expected) > 180) {
-	expected = expected - 360 * ((expected > 0) - (expected < 0));
-      }
-      expected /= 2;
-      a_expected[i - 1] = a_expected[i] = expected;
-    }
 
     // a bit of cheating for U-turn (+180 is the same as -180, but it is
     // not handled by the code below)
@@ -1148,6 +1235,46 @@ void Scenario::calc_turn_score_all() {
     a_expected[i] = expected;
   }
   a_expected[count - 1] = 0;
+
+  // another version of the U-turn test above for when two keys are matched
+  // at the same point
+  for(int i = 1; i < count - 1; i ++) {
+    if (i > 1 && a_same[i - 1]) { continue; } // processed during previous iterations
+
+    float actual = 0, expected = 0;
+    int j = i;
+    while(1) {
+      actual += a_actual[j];
+      expected += a_expected[j];
+      if (! a_same[j]) { break; }
+      j ++;
+      if (j >= count - 1) { break; }
+    }
+    if (i == j) { break; }
+    if (j > i + 1) { break; } // don't manage more than two keys matched at the same point
+
+    // check if curve tangent at the matching point is consistent with letter order
+    Point k1 = keys->get_raw(letter_history[i]);
+    Point k2 = keys->get_raw(letter_history[j]);
+    Point tgt = actual_curve_tangent(index_history[i]);
+    if ((k2.x - k1.x) * tgt.x + (k2.y - k1.y) * tgt.y < 0) { break; }
+
+    if (abs(expected) >= 130 && abs(actual) > 130 && expected * actual < 0 &&
+	abs(actual) < 360) {
+      float old_exp = expected;
+      expected = expected - 360 * ((expected > 0) - (expected < 0));
+      DBG("Reversing expected angles for shared match point [%d:%d] %d->%d", i, j, (int) old_exp, (int) expected);
+      for (int k = i; k <= j; k ++) {
+	a_expected[k] = expected / (j - i + 1);
+      }
+    }
+  }
+
+  /*
+  for(int i = 1; i < count - 1; i ++) {
+    DBG("Turn detail #%d: '%c' %d/%d", i, letter_history[i], (int) a_actual[i], (int) a_expected[i]);
+  }
+  */
 
   // match both sets
   // (a turn in a set must match a turn in the other one (even if they are not
@@ -1386,6 +1513,8 @@ void Scenario::calc_turn_score_all() {
   } /* for(i) */
 
   if (turn_count) {
+    turn_transfer(turn_count, turn_detail);
+
     // thresholds
     int t1 = params->max_turn_error1;
     int t2 = params->max_turn_error2;
@@ -1393,23 +1522,6 @@ void Scenario::calc_turn_score_all() {
 
     for(int i = 0; i < turn_count; i++) {
       turn_t *d = &(turn_detail[i]);
-
-      if (i < turn_count - 1) {
-	turn_t *d2 = &(turn_detail[i  + 1]);
-	// transfer "turn rate" between turns to enable users to cut through (users are lazy)
-	if (d -> length_after < params -> turn_optim  && d -> expected * d2 -> expected < 0) {
-	  if (abs(d -> actual) < abs(d -> expected) && abs(d2 -> actual) < abs(d2 -> expected)) {
-	    float diff1 = d -> expected - d -> actual;
-	    float diff2 = d2 -> expected - d2 -> actual;
-	    if (diff1 * diff2 < 0) {
-	      float diff = min(abs(diff1), abs(diff2)); // maybe we should add some limit here ?
-	      float sign = (diff1 > 0) - (diff1 < 0);
-	      d -> corrected += diff * sign;
-	      d2 -> corrected -= diff * sign;
-	    }
-	  }
-	}
-      }
 
       int length = 0;
       for (int k = d->start_index; k < d->index; k++) {
@@ -1422,33 +1534,45 @@ void Scenario::calc_turn_score_all() {
       float actual = d -> corrected;
       float expected = d -> expected;
       float score = 1;
-      float scale = -1;
-      if (((d->start_index == 1) && (d->length_before < params->turn_tip_min_distance)) ||
-	  ((d->index == count - 2) && (d->length_after < params->turn_tip_min_distance))) {
-	score = 1; // for very small begin/end segments, tip angle is not that mush important
-      } else if (abs(expected) < 181) {
-	float t = (abs(expected) < 90)?t1:t3;
-	scale = t + (t2 - t) * sin(min(abs(actual), abs(expected)) * M_PI / 180);
-	float diff = abs(actual - expected);
-	float sc0 = diff / scale;
-	score = 1 - pow(sc0, 2);
-      } else {
-	score = min(abs(actual) / 180, 1); // @todo add as a parameter
-      }
+      float scale = -1, scale2 = 0;
 
-      if ((i == 0 && d->length_before < params -> turn_min_tip_len) ||
-	  (i == turn_count - 1 && d->length_after < params -> turn_min_tip_len)) {
-	// this probably conflict with turn_tip_min_distance above
-	score -= params -> turn_tip_len_penalty;
+      if (abs(expected) > 270) {
+	score = 1; // too large turn, no check
+      } else {
+	float t = (abs(expected) < 90)?t1:t3;
+	float add_score = 0;
+
+	if (abs(expected) > 180) {
+	  scale = t3 * params -> turn_scale_ut;
+	} else {
+	  scale = t + (t2 - t) * sin(min(abs(actual), abs(expected)) * M_PI / 180);
+	}
+
+	int tip = 0;
+	if ((d->start_index == 1) && (d->length_before < params->turn_tip_min_distance)) { tip |= 1; }
+	if ((d->index == count - 2) && (d->length_after < params->turn_tip_min_distance)) { tip |= 2; }
+	if (tip) {
+	  scale *= params->turn_tip_scale_ratio;
+	  scale2 = 25;
+	  if (tip == 3 && fabs(turn_detail[0].expected) > 180) { scale2 = 40; }
+	  add_score = - params -> turn_tip_len_penalty;
+	}
+
+	if ((abs(actual) < params->turn_min_angle) != (abs(expected) < params->turn_min_angle)) { scale2 = 0; }
+
+	float diff = abs(actual - expected);
+	float sc0 = max(0, diff - scale2) / (scale - scale2);
+	score = 1 - pow(sc0, 2) + add_score;
       }
 
       if (score < 0) { score = 0.01; } // we can keep this scenario in case other are even worse
 
       int index = d -> index;
-      DBG("  [score turn]  turn #%d: %.2f[%.2f] / %.2f length[%d:%d:%d] index=[%d:%d]->[%c:%c]->[%d:%d] (scale=%.2f) ---> score=%.2f",
-	  i, d->actual, d->corrected, d->expected, (int) d->length_before, int(length), (int) d->length_after, d->start_index, index,
+      float trn = (d->corrected - d->actual) * ((d->expected > 0)?1:-1);
+      DBG("  [score turn]  turn #%d: %.2f[%.2f] / %.2f trn=%.2f length[%d:%d:%d] index=[%d:%d]->[%c:%c]->[%d:%d] (scale=%.2f:%.2f) ---> score=%.2f",
+	  i, d->actual, d->corrected, d->expected, trn, (int) d->length_before, int(length), (int) d->length_after, d->start_index, index,
 	  letter_history[d->start_index], letter_history[index],
-	  index_history[d->start_index], index_history[index], scale, score);
+	  index_history[d->start_index], index_history[index], scale, scale2, score);
 
       if (scores[index + 1].turn_score >= 0) { scores[index + 1].turn_score = score; }
     }
@@ -1463,24 +1587,38 @@ void Scenario::calc_turn_score_all() {
 
       if (a_same[i] || a_same[i - 1]) { continue; } // case is rare enough to ignore it
 
-      if (abs(expected) > params->st2_max && st != 2) {
-	DBG("  [score turn] *** U-turn with no ST=2 (curve_index=%d expected=%.2f)", curve_index, expected);
-	fail = (st == 1)?.2:1;
+      if (abs(expected) > params->st2_max && st != 2 && st != 5) {
+	if (st == 1 && abs(getLocalTurn(curve_index)) > 135) {
+	  DBG("  [score turn] --- U-turn with no ST=2 (curve_index=%d expected=%.2f) --> ST=1 OK", curve_index, expected);
+	} else {
+	  DBG("  [score turn] *** U-turn with no ST=2 (curve_index=%d expected=%.2f)", curve_index, expected);
+	  fail = (st == 1)?.2:1;
+	}
       } else if (abs(expected) < params->st2_min && st == 2) {
-	bool found = false;
-	for(int j = 0; j < turn_count; j ++) {
+	int reason = 0;
+
+	int local_turn = getLocalTurn(curve_index);
+	if (abs(local_turn) < params->st2_ignore) {
+	  // accidental ST=2 (user is shaking?)
+	  DBG("Accidental ST=2 (turn=%d, curve_index=%d)", local_turn, curve_index);
+	  reason = 1;
+	} else for(int j = 0; j < turn_count; j ++) {
 	  turn_t *d = &(turn_detail[j]);
 	  int length = d->length;
 	  if (abs(d->expected) >= params->st2_min &&
 	      abs(d->expected) <= 540 - 2 *  params->st2_min &&
 	      i >= d->start_index && i <= d->index &&
 	      length < params-> curve_score_min_dist) {
-	    found = true;
+	    reason = 10 + j;
+	    break;
+	  } else if (i >= d->start_index && i <= d->index && d->start_index < d->index) {
+	    // we don't handle long turns
+	    reason = 2;
 	    break;
 	  }
 	}
-	if (found) {
-	  DBG("  [score turn] --- ST=2 w/o U-turn (curve_index=%d expected=%.2f) --> match turn #%d OK", curve_index, expected, found);
+	if (reason) {
+	  DBG("  [score turn] --- ST=2 w/o U-turn (curve_index=%d expected=%.2f) --> OK (reason=%d)", curve_index, expected, reason);
 	} else {
 	  DBG("  [score turn] *** ST=2 w/o U-turn (curve_index=%d expected=%.2f)", curve_index, expected);
 	  fail = 1;
@@ -1510,25 +1648,39 @@ void Scenario::calc_turn_score_all() {
       // corrected_direction takes loops into account
       d->corrected_direction = d->direction;
 
-      if ((abs(d->actual) > 140 || abs(d->expected) > 140) && d->start_index == d->index) { // @todo set as parameter
-	int t = curve->getTurnSmooth(index_history[d->index]);
-	d->corrected_direction = (t>0) - (t<0);
+      if (abs(d->actual) > 140 || abs(d->expected) > 140) { // @todo set as parameter
+	if (d->start_index == d->index) {
+	  int t = curve->getTurnSmooth(index_history[d->index]);
+	  d->corrected_direction = (t>0) - (t<0);
+	} else if (d->start_index + 1 == d->index && d->length > params->turn_separation / 2) {
+	  int t1 = curve->getTurnSmooth(index_history[d->start_index]);
+	  int t2 = curve->getTurnSmooth(index_history[d->index]);
+	  if (t1 && t2 && t1 * t2 < 0) {
+	    DBG("Turn #%d [%d:%d] : partial loop in a multi-letter turns [%d:%d] -> not handled (will pass all checks)",
+		d->start_index, d->index, i, t1, t2);
+	    d->corrected_direction = RT_DIRECTION_UNKNOWN;
+	  }
+	}
       }
     }
     for(int i = 0; i < turn_count; i++) {
       turn_t *d1 = &(turn_detail[i]);
       if (i == 0) {
+	// check before first turn
 	check_reverse_turn(0, d1->start_index, 0, d1->corrected_direction);
       }
 
       if (d1->index > d1->start_index) {
+	// check inside multi-letter turn
 	check_reverse_turn(d1->start_index, d1->index, d1->corrected_direction, d1->corrected_direction);
       }
 
       if (i < turn_count - 1) {
+	// check between two turns
 	turn_t *d2 = &(turn_detail[i + 1]);
 	check_reverse_turn(d1->index, d2->start_index, d1->corrected_direction, d2->corrected_direction);
       } else {
+	// check after last turn
 	check_reverse_turn(d1->index, this->count - 1, d1->corrected_direction, 0);
       }
     }
@@ -1555,6 +1707,19 @@ void Scenario::calc_turn_score_all() {
   */
 }
 
+int Scenario::getLocalTurn(int index) {
+  int turn0 = curve->getTurnSmooth(index);
+  int total = turn0;
+  for(int i = -1 ; i <= 1; i += 2) {
+    for (int j = 1; j <= 4; j ++) {
+      int turn = curve-> getTurnSmooth(index + i * j);
+      if (turn * turn0 < 0) { break; }
+      total += turn;
+    }
+  }
+  return total;
+}
+
 int Scenario::get_turn_kind(int index) {
   // returns :
   //  1 = normal turn (round)
@@ -1579,6 +1744,9 @@ int Scenario::get_turn_kind(int index) {
 }
 
 void Scenario::check_reverse_turn(int index1, int index2, int direction1, int direction2) {
+  if (direction1 == RT_DIRECTION_UNKNOWN ||
+      direction2 == RT_DIRECTION_UNKNOWN) { return; /* not handled case */ }
+
   int i1 = index_history[index1];
   int i2 = index_history[index2];
 
@@ -1791,6 +1959,7 @@ bool Scenario::postProcess() {
     int i1 = index_history[i], i2 = index_history[i + 1];
     for(int j = i1 + 1; j < i2 - 1; j ++) {
       if (curve->getSharpTurn(j) == 1 && j - i1 <= gap && i2 - j <= gap) {
+	if (scores[i + 1].curve_score < 0) { error_count --; /* we've just canceled an error */ }
 	scores[i + 1].curve_score = 1;
 	DBG("  workaround: %s shared turn point (ST=1) %c:%c", getNameCharPtr(), letter_history[i], letter_history[i + 1]);
       }
@@ -1972,9 +2141,13 @@ void Scenario::sortCandidates(QList<Scenario*> candidates, Params &params, int d
   int n = candidates.size();
 
   float min_dist = 0;
+  float max_score_v1 = 0;
   for(int i = 0; i < n; i ++) {
     if (candidates[i]->distance() < min_dist || ! min_dist) {
       min_dist = candidates[i]->distance();
+    }
+    if (candidates[i]->getScoreV1() > max_score_v1) {
+      max_score_v1 = candidates[i]->getScoreV1();
     }
   }
 
@@ -1991,7 +2164,8 @@ void Scenario::sortCandidates(QList<Scenario*> candidates, Params &params, int d
   for(int i = 0; i < n; i ++) {
     score_t sc = candidates[i]->getScores();
     float new_score = (params.final_coef_misc * sc.misc_score
-		       + params.final_coef_turn * pow(max(0, sc.turn_score), params.final_coef_exp)
+		       + params.final_coef_turn * pow(max(0, sc.turn_score), params.final_coef_turn_exp)
+		       - params.final_score_v1_coef * max(0, max_score_v1 - params.final_score_v1_threshold - candidates[i]->getScoreV1())
 		       - 0.1 * signpow(0.1 * (candidates[i]->distance() - min_dist), params.final_distance_pow)
 		       ) / (1 + params.final_coef_turn)
       - params.coef_error * candidates[i]->getErrorCount();

@@ -32,8 +32,10 @@ defparams = [
     [ "error_ignore_count", int, 3, 10 ],
     [ "final_coef_misc", float, 0.1, 5],
     [ "final_coef_turn", float, 0.1, 5 ],
-    [ "final_coef_exp", float, 0.01, 2 ],
+    [ "final_coef_turn_exp", float, 0.01, 2 ],
     [ "final_distance_pow", float, 0.1, 5 ],
+    [ "final_score_v1_coef", float, 0, 5 ],
+    [ "final_score_v1_threshold", float, 0, 1 ],
     [ "incremental_index_gap", int ],
     [ "incremental_length_lag", int ],  # no optimization
     [ "incr_retry", int ],  # no optim => performance only
@@ -79,7 +81,6 @@ defparams = [
     [ "turn_distance_threshold", int, 10, 150 ],
     [ "turn_max_angle", int, 10, 80 ],
     [ "turn_min_angle", int, 1, 45 ],
-    [ "turn_min_tip_len", int, 5, 50 ],
     [ "turn_optim", int, 20, 150 ],
     [ "turn_separation", int, 30, 300 ],
     [ "turn_threshold", int, 10, 85 ],
@@ -99,4 +100,7 @@ defparams = [
     [ "weight_length", float, 0.1, 10 ],
     [ "weight_misc", float, 0.1, 10 ],
     [ "weight_turn", float, 0.1, 10 ],
+    [ "turn_scale_ut", float, 1, 5 ],
+    [ "turn_tip_scale_ratio", float, 1, 5],
+    [ "st2_ignore", int, 90, 150 ],
 ]

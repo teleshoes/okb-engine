@@ -127,6 +127,7 @@ class QuickCurve {
 /* quick key information implementation */
 class QuickKeys {
  private:
+  Point* points_raw;
   Point* points;
   Point* dim;
  public:
@@ -136,6 +137,7 @@ class QuickKeys {
   void setKeys(QHash<unsigned char, Key> &keys);
   inline Point const& get(unsigned char letter) const;
   inline Point const& size(unsigned char letter) const;
+  inline Point const& get_raw(unsigned char letter) const;
 };
 
 /* tree traversal evaluation */
@@ -181,6 +183,20 @@ typedef struct {
   int st_speed, st_special, st_retry;
   int st_cache_hit, st_cache_miss;
 } stats_t;
+
+typedef struct {
+  int direction; // was char, but char to int conversion seems to handle these as unsigned chars (didn't investigate)
+  int corrected_direction;
+  float expected;
+  float actual;
+  float corrected;
+  float length_before;
+  float length_after;
+  int index;
+  int start_index;
+  bool unmatched;
+  int length;
+} turn_t;
 
 class Scenario;
 typedef QHash<unsigned char, QList<Scenario> > child_cache_t;
@@ -249,6 +265,8 @@ class Scenario {
   float evalScore();
   void copy_from(const Scenario &from);
   bool childScenarioInternal(LetterNode &child, QList<Scenario> &result, int &st_fork, bool incremental, bool endScenario);
+  int getLocalTurn(int index);
+  void turn_transfer(int turn_count, turn_t *turn_detail);
 
  public:
   Scenario(LetterTree *tree, QuickKeys *keys, QuickCurve *curve, Params *params);
