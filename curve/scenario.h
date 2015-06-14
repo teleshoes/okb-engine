@@ -118,6 +118,7 @@ class QuickCurve {
 
   bool finished;
   bool isDot;
+  float straight;
 
   int getCount() { return count; }
   int getTotalLength();
@@ -188,6 +189,7 @@ typedef struct {
   int direction; // was char, but char to int conversion seems to handle these as unsigned chars (didn't investigate)
   int corrected_direction;
   float expected;
+  float replace_expected;
   float actual;
   float corrected;
   float length_before;
@@ -253,7 +255,7 @@ class Scenario {
   float calc_distance_score(unsigned char letter, int index, int count, float *return_distance = NULL);
   float calc_cos_score(unsigned char prev_letter, unsigned char letter, int index, int new_index);
   float calc_curve_score(unsigned char prev_letter, unsigned char letter, int index, int new_index);
-  void calc_turn_score_all();
+  void calc_turn_score_all(turn_t *turn_detail, int *turn_count_return);
   int get_turn_kind(int index);
   void check_reverse_turn(int index1, int index2, int direction1, int direction2);
   float calc_score_misc(int i);
@@ -267,6 +269,7 @@ class Scenario {
   bool childScenarioInternal(LetterNode &child, QList<Scenario> &result, int &st_fork, bool incremental, bool endScenario);
   int getLocalTurn(int index);
   void turn_transfer(int turn_count, turn_t *turn_detail);
+  void calc_straight_score_all(turn_t *turn_detail, int turn_count, float straight_score);
 
  public:
   Scenario(LetterTree *tree, QuickKeys *keys, QuickCurve *curve, Params *params);

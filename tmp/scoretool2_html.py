@@ -4,7 +4,6 @@
 # HTML dashboard for new curve matching score (April 2015)
 
 import sys, os
-import math
 import score_util
 
 mydir = os.path.dirname(__file__)
@@ -13,11 +12,17 @@ sys.path.insert(0, libdir)
 
 from html import HTML  # https://pypi.python.org/pypi/html
 
+COLORS = [ (0.01, "green"), (-0.01, ""), (-0.05, "yellow"), (-0.1, "orange"), (-0.15, "red") ]
+WNF = dict(txt="Word not found", color="red", count=[ "not_found" ])
+
+def get_expected(test):
+    return test["ch"].get(test["expected"], None)
+
 
 # --- actions
 def check_min(test, get_attr, name, colors = None):
-    expected = test["ch"].get(test["expected"], None)
-    if not expected: return dict(txt="Word not found", color="red", count=[ "not_found" ])
+    expected = get_expected(test)
+    if not expected: return WNF
 
     exp_val = get_attr(expected)
     min_val = min([ get_attr(x) for x in test["ch"].values() if x["name"] != test["expected"] ] or [ exp_val ])
@@ -31,8 +36,8 @@ def check_min(test, get_attr, name, colors = None):
     return dict(txt="NOK %s[%s]=%.2f min=%.2f gap=%.2f ratio=%.2f rank=%d" % (name, test["expected"], exp_val, min_val, gap, ratio, rank), color="yellow")
 
 def check_max(test, get_attr, name, colors):
-    expected = test["ch"].get(test["expected"], None)
-    if not expected: return dict(txt="Word not found", color="red", count=[ "not_found" ])
+    expected = get_expected(test)
+    if not expected: return WNF
 
     exp_val = get_attr(expected)
     max_val = max([ get_attr(x) for x in test["ch"].values() if x["name"] != test["expected"] ] or [ exp_val ])
@@ -46,13 +51,8 @@ def check_max(test, get_attr, name, colors):
 
     return dict(txt="%s[%s]=%.3f gap=%.3f" % (name, test["expected"], max_val, gap), color = color, count = [ color ])
 
-COLORS = [ (0.01, "green"), (-0.01, ""), (-0.05, "yellow"), (-0.1, "orange"), (-0.15, "red") ]
-
 def act_distance(test):
     return check_min(test, lambda c: c["distance"], "distance")
-
-def act_distance_adj(test):
-    return check_min(test, lambda c: c["distance"] / math.sqrt(len(c["name"])), "distance_adj")
 
 def act_score_misc(test):
     return check_max(test, lambda c: c["avg_score"]["score_misc"], "score_misc", colors = COLORS)
@@ -71,9 +71,9 @@ def act_score_cos(test):
 
 def act_final_score_calc(test):
     candidates = test["ch"].values()
-    min_dist = min([x["distance_adj"] for x in candidates])
+    min_dist = min([x["distance"] for x in candidates])
     for c in candidates:
-        c["final_score"] = (1.0 - (c["distance_adj"] - min_dist) * 0.01
+        c["final_score"] = (1.0 - (c["distance"] - min_dist) * 0.01
                             + 0.9 * (c["avg_score"]["score_turn"] ** 0.1)
                             + 0.1 * c["avg_score"]["score_misc"]) / 1.9
 
@@ -83,8 +83,8 @@ def act_final_score(test):
     return check_max(test, lambda c: c["score"], "final_score", colors = COLORS)
 
 def act_threshold(test):
-    expected = test["ch"].get(test["expected"], None)
-    if not expected: return dict(txt="Word not found", color="red", count=[ "not_found" ])
+    expected = get_expected(test)
+    if not expected: return WNF
     candidates = test["ch"].values()
 
     return dict(txt="%.3f:%.3f" % (
@@ -95,8 +95,21 @@ def act_threshold(test):
 def act_score_v1(test):
     return check_max(test, lambda c: c["score_v1"], "score_v1", colors = COLORS)
 
+def act_rank(test):
+    expected = get_expected(test)
+    if not expected: return WNF
+    candidates = test["ch"].values()
+
+    rank = len([ c for c in candidates if c["score"] > expected["score"] ])
+    col = ""
+    if rank > 10: col = "red"
+    elif rank > 5: col = "orange"
+    elif rank > 1: col = "yellow"
+
+    return dict(txt = "%d" % rank, color = col)
+
 all_actions = dict(distance=act_distance,
-                   distance_adj=act_distance_adj,
+                   rank=act_rank,
                    score_turn=act_score_turn,
                    score_misc=act_score_misc,
                    threshold=act_threshold,
@@ -151,7 +164,7 @@ for action in columns:
 
 for t in sorted(tests.keys()):
     tr = tbl.tr
-    tr.td.a(t, href=tests[t]["html"])
+    tr.td(bgcolor = "#A0A0A0" if "test_fail" in tests[t]["html"] else "").a(t, href=tests[t]["html"])
 
     for action in columns:
         rs = result[t][action]

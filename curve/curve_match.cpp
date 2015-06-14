@@ -254,7 +254,6 @@ void CurveMatch::curvePreprocess1(int curve_id) {
       }
     }
 
-
     // slow down point search
     int maxd = params.max_turn_index_gap;
     for(int i = max(maxd, 0); i < l - maxd; i ++) {
@@ -285,8 +284,12 @@ void CurveMatch::curvePreprocess1(int curve_id) {
 
 void CurveMatch::curvePreprocess2() {
   /* curve preprocessing that can be deferred until final score calculation:
-     - only statistics at the moment :-) */
+     - statistics
+     - average speed
+     - check if curve looks like a straight line (used later in scoring)
+   */
 
+  /* speed & special count */
   st.st_speed = st.st_special = 0;
   int total_speed = 0;
   for(int i = 0; i < curve.size(); i ++) {
@@ -294,6 +297,22 @@ void CurveMatch::curvePreprocess2() {
     total_speed += curve[i].speed;
   }
   st.st_speed = total_speed / curve.size();
+
+  /* check for straight line */
+  float sc1 = 0, sc2 = 0;
+  int total = 0;
+  for (int i = 0; i < curve_count; i ++) {
+    for (int j = 0; j < curve.size(); j ++) {
+      if (curve[j].curve_id != i) { continue; }
+      int turn = curve[j].turn_smooth;
+      total += turn;
+      sc1 = max(sc1, (float) abs(turn) / params.straight_max_turn);
+    }
+    sc2 = abs(total) * (0.35 + 0.65 * min(1, (float) curve.size() / 250)) / params.straight_max_total; // @todo use parameters
+    float straight = max(sc1, sc2);
+    logdebug("Straight curve score: %.2f (%.2f, %.2f)", straight, sc1, sc2);
+    quickCurves[i].straight = straight;
+  }
 }
 
 void CurveMatch::setDebug(bool debug) {
@@ -737,6 +756,12 @@ void CurveMatch::resultToJson(QJsonObject &json) {
   QJsonObject json_params;
   default_params.toJson(json_params);
   json["default_params"] = json_params;
+
+  QJsonArray json_st;
+  for(int i = 0; i < curve_count; i ++) {
+    json_st.append(quickCurves[i].straight);
+  }
+  json["straight"] = json_st;
 }
 
 QString CurveMatch::resultToString(bool indent) {

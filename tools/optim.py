@@ -51,6 +51,8 @@ for name, value in cfparams.items():
     if name not in params: raise Exception("Unknown parameter in cf file: %s" % name)
     params[name]["value"] = params[name]["type"](value)
 
+params["max_candidates"]["value"] = 50
+
 for p in params:
     if "value" not in params[p]:
         raise Exception("Parameter not in cf file: %s" % p)
@@ -160,6 +162,14 @@ def score1(json_str, expected, typ):
         x = (score_ref - max_score) * 20
         score = math.tanh(x)
 
+    elif typ == "tanh-1":
+        x = ((score_ref - max_score) * 10 + 1)
+        score = math.tanh(x * 20)
+
+    elif typ == "good2":
+        x = (score_ref - max_score) * 10
+        score = 1 - x ** 4 if x < 0 else 0
+
     else: raise Exception("unknown score type: %d", typ)
 
     return score
@@ -246,7 +256,7 @@ def optim(pname, params, tests, typ):
             if bad_count > 4: break
 
             scores.append( (new_value, score) )
-            print("Try[%s] %s->%s score=%f" % (pname, value, new_value, score))
+            print("Try[%s:%s] %s->%s score=%f" % (typ, pname, value, new_value, score))
 
             last_score = score
             if step < (max - min) / 10: step *= 2
@@ -256,10 +266,10 @@ def optim(pname, params, tests, typ):
     value, score = sorted(scores, key = lambda x: x[1])[-1]
     if score > score0 + 0.01 * abs(score0):
         params[pname]["value"] = value
-        print("===> Update[%s] %s->%s (score: %.3f -> %.3f)" % (pname, value0, value, score0, score))
+        print("===> Update[%s:%s] %s->%s (score: %.3f -> %.3f)" % (typ, pname, value0, value, score0, score))
         return score
     else:
-        print("===> No change [%s]" % pname)
+        print("===> No change [%s:%s]" % (typ, pname))
         params[pname]["value"] = value0
         return score0
 
@@ -322,7 +332,7 @@ def run_optim(params, typ, listpara, p_include, p_exclude):
             print("Current(%.3f): %s" % (score, params2str(params)))
             print("Best   (%.3f): %s" % (max_score, params2str(max_params)))
 
-    result_txt = '\n'.join([ "Parameter change: %s: %.3f -> %.3f" % (p, params0[p]["value"], v["value"])
+    result_txt = '\n'.join([ "Parameter change[%s]: %s: %.3f -> %.3f" % (typ, p, params0[p]["value"], v["value"])
                                    for p, v in sorted(max_params.items())
                                    if params0[p] != v ] + [ "Score: %.3f -> %.3f" % (score0, max_score) ])
 
@@ -376,7 +386,7 @@ if __name__ == "__main__":
     print('Parameters: ' + params2str(params))
 
     if typ == "all":
-        typ_list = [ "max", "max2", "stddev", "good", "tanh" ]
+        typ_list = [ "max", "max2", "stddev", "good", "tanh", "tanh-1", "good2" ]
     elif typ.find(',') > -1:
         typ_list = typ.split(',')
     else:

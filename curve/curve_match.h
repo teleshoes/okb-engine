@@ -72,6 +72,8 @@ class CurveMatch {
 
   bool kb_preprocess;
 
+  bool straight;
+
   QHash<QString, UserDictEntry> userDictionary;
 
   void scenarioFilter(QList<ScenarioType> &scenarios, float score_ratio, int min_size, int max_size = -1, bool finished = false);

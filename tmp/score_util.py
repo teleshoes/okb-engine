@@ -1,7 +1,7 @@
 #! /usr/bin/python3
 # -*- coding: utf-8 -*-
 
-import re, os, json, math
+import re, os, json
 # import sys
 
 def load_files(files):
@@ -21,9 +21,6 @@ def load_files(files):
 
         ch = js['ch'] = dict()
         for c in js['candidates']:
-            # new attributes
-            c["distance_adj"] = c["distance"] / math.sqrt(len(c["name"]))
-
             ch[c['name']] = c
             c["misc"] = dict()
 
