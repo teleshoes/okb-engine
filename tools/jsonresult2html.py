@@ -21,11 +21,21 @@ if txt[0] == '{':
 else:
     txt = re.sub(r'^(.*\n|)Result:\s*', '', txt, flags = re.DOTALL)
 
+def fail():
+    title = "Bad test case!"
+    html = HTML()
+    html.head.title(title)
+    body = html.body
+    body.h3(title)
+    exit(0)
+
 js = json.loads(txt)
 input = js['input']
 keys = input['keys']
 curves_mux = input['curve']
 candidates = sorted(js['candidates'], key = lambda x: x['score'], reverse = True)
+
+if not keys: fail()
 
 # calculate boundaries
 xmin = min(k['x'] - k['w'] / 2 for k in keys)
@@ -43,6 +53,7 @@ for i in range(0, curve_count):
 
 # curve info
 max_speed = max([ pt['speed'] for pt in curves_mux if 'speed' in pt ]) * 1.1
+if not max_speed: fail()
 duration = max([ pt['t'] for pt in curves_mux if 't' in pt ] + [ 1 ])
 for i in range(0, curve_count):
     curve = curves[i]
@@ -60,12 +71,18 @@ for i in range(0, curve_count):
 
 # expected result
 expected = None
+image_out = None
 if len(sys.argv) > 1:
-    expected = sys.argv[1]
-    expected = re.sub(r'^[a-z][a-z]\-', '', expected)
-    expected = re.sub(r'\-.*$', '', expected)
-    expected = re.sub(r'[^a-z]', '', expected.lower())
-    expected = re.sub(r'(.)\1+', lambda m: m.group(1), expected)
+    arg = sys.argv[1]
+    if arg == "--image":
+        image_out = sys.argv[2]
+    else:
+        expected = arg
+        expected = sys.argv[1]
+        expected = re.sub(r'^[a-z][a-z]\-', '', expected)
+        expected = re.sub(r'\-.*$', '', expected)
+        expected = re.sub(r'[^a-z]', '', expected.lower())
+        expected = re.sub(r'(.)\1+', lambda m: m.group(1), expected)
 
 # thingies
 def clean_value(value):
@@ -111,12 +128,14 @@ def get_subscenarios_and_curves(scenario):
     return ret
 
 def img2str(img):
+    return "data:image/png;base64," + base64.b64encode(img2bin(img)).decode('UTF-8')
+
+def img2bin(img):
     out = io.BytesIO()
     img.save(out, 'PNG')
-    return "data:image/png;base64," + base64.b64encode(out.getvalue()).decode('UTF-8')
+    return out.getvalue()
 
-
-def mkimg(scale = 1, scenario = None):
+def mkimg(scale = 1, scenario = None, base64 = True):
     img = Image.new("RGB", (int(width * scale), int(height * scale)))
     draw = ImageDraw.Draw(img)
 
@@ -175,7 +194,8 @@ def mkimg(scale = 1, scenario = None):
                 draw.rectangle((x1 - 4, y1 - 4, x1 + 4, y1 + 4), fill = col)
                 draw.rectangle((x2 - 4, y2 - 4, x2 + 4, y2 + 4), fill = col)
 
-    return img2str(img)
+    if base64: return img2str(img)
+    else: return img2bin(img)
 
 def get_letter(scenario, index):
     l = [ s["letter"] for s in scenario if s["index"] == index ]
@@ -203,6 +223,7 @@ def mkxygraph(size = 120, scenario = None):
             dy = curve[i2]['y'] - curve[i1]['y']
             speed = curve[i]['speed']
             l = math.sqrt(dx * dx + dy * dy)
+            if not l: continue
             dx = size * (0.5 + 0.5 * speed * dx / l / max_speed)
             dy = size * (0.5 + 0.5 * speed * dy / l / max_speed)
             if draw_scenario:
@@ -261,6 +282,14 @@ def mux_scenario(scenario):
         detail.append(sub_detail)
 
     return dict(detail = detail)
+
+# just output image
+if image_out:
+    src = mkimg(scale = 2, base64 = False)
+    with open(image_out, 'wb') as f:
+        f.write(src)
+    exit(0)
+
 
 # generate html
 title = 'Okboard result ' + input['datetime']
