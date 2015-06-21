@@ -283,7 +283,10 @@ void IncrementalMatch::incrementalMatchUpdate(bool finished, bool aggressive) {
   delayed_scenarios.clear();
   for(int i = 0 ; i < new_delayed_scenarios.size(); i ++) {
     if (new_delayed_scenarios[i].scenario.isFinished()) {
-      candidates.append(new_delayed_scenarios[i].scenario); // add to candidate list
+      if (new_delayed_scenarios[i].scenario.getWordList().size()) {
+	// This test is a workaround for a real bug (@todo fix this)
+	candidates.append(new_delayed_scenarios[i].scenario); // add to candidate list
+      }
 
     } else {
       delayed_scenarios.append(new_delayed_scenarios[i]);
