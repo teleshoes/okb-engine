@@ -126,8 +126,8 @@ for t in history:
     else:
         p = predict_lang[lang]
 
-    prefix = "  - [%s] %s [[file:%s][json]] [[file:%s][html]] [[file:%s][png]] [[file:%s][predict log]] %s %s" % \
-             ("X" if check else " ", id, pre + ".json", pre + ".html", pre + ".png", pre + ".predict.log",
+    prefix = "  - [%s] %s %s [[file:%s][json]] [[file:%s][html]] [[file:%s][png]] [[file:%s][predict log]] %s %s" % \
+             ("X" if check else " ", id, lang, pre + ".json", pre + ".html", pre + ".png", pre + ".predict.log",
               " ".join(reversed(context)), word)
 
     date = time.strftime("%Y-%m-%d %a", time.localtime(ts))
