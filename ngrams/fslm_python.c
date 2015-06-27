@@ -30,21 +30,23 @@ fslm_load(PyObject *self, PyObject *args)
   if (!PyArg_ParseTuple(args, "s", &filename)) { return NULL; }
 
   free_all();
-  
+
   if (stat(filename, &st)) { PyErr_SetFromErrno(FslmError); return NULL; }
 
   len = st.st_size;
 
-  fd = open(filename, O_RDONLY);
-  if (fd == -1) { PyErr_SetFromErrno(FslmError); return NULL; }
-   
   data = malloc(len);
   if (! data) {
     PyErr_NoMemory();
     return NULL;
   }
 
+  fd = open(filename, O_RDONLY);
+  if (fd == -1) { PyErr_SetFromErrno(FslmError); return NULL; }
+
   bytes_read = read(fd, data, len);
+  close(fd);
+
   if (len != bytes_read) { PyErr_SetString(FslmError, "Can't read file"); return NULL; }
 
   db = db_init(data);
@@ -76,7 +78,7 @@ fslm_search(PyObject *self, PyObject *args)
   if (! PySequence_Check(lst)) { PyErr_SetString(FslmError, "Argument is not a sequence"); return NULL; }
 
   len = PySequence_Length(lst);
-  
+
   count = 0;
   for(i = 0; i < len; i ++) {
     PyObject* item = PySequence_GetItem(lst, i);
@@ -121,6 +123,6 @@ PyMODINIT_FUNC PyInit_cfslm(void)
   FslmError = PyErr_NewException("cfslm.error", NULL, NULL);
   Py_INCREF(FslmError);
   PyModule_AddObject(m, "error", FslmError);
-  return m; 
+  return m;
 }
 
