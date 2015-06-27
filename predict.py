@@ -11,6 +11,11 @@ import cfslm, cdb
 import unicodedata
 import pickle
 
+# uncomment this 3 line to activate python plugins detailed logging
+# from tools.wrapper import LogWrapper
+# cdb = LogWrapper("cdb", cdb)
+# cfslm = LogWrapper("cfslm", cfslm)
+
 class Wordinfo:
     def __init__(self, id, cluster_id, real_word = None):
         self.id = id
@@ -28,6 +33,7 @@ class FslmCdbBackend:
     def __init__(self, dbfile):
         self.loaded = False
         self.dirty = False
+        self.readonly = False  # for testing
 
         self.dbfile = dbfile
         fslm_file = dbfile
@@ -69,6 +75,7 @@ class FslmCdbBackend:
         self._load()
 
     def set_param(self, key, value):
+        if self.readonly: return
         cdb.set_string("param_%s" % key, str(value))
         self.params[key] = value
         self.dirty = True
@@ -109,6 +116,7 @@ class FslmCdbBackend:
         return result
 
     def set_grams(self, grams):
+        if self.readonly: return
         if not grams: return
         self.dirty = True
 
@@ -124,6 +132,7 @@ class FslmCdbBackend:
 
 
     def add_word(self, word):
+        if self.readonly: return
         self._load()
         self.dirty = True
 
@@ -204,6 +213,7 @@ class FslmCdbBackend:
         return cdb.get_word_by_id(int(id))
 
     def purge(self, min_count, min_day):
+        if self.readonly: return
         self._load()
         self.dirty = True
         cdb.purge_grams(float(min_count), int(min_day))
@@ -417,6 +427,7 @@ class Predict:
                             new_word = new_word.lower()
                     self.log("Learning new word: %s" % new_word)
                     word2id[new_word] = wids[0] = self.db.add_word(new_word)
+                    if not wids[0]: continue  # read only DB: we can't learn new words
 
                 try:  # manage unknown words
                     pos = wids.index(na_id)
@@ -541,6 +552,10 @@ class Predict:
         list_after = [ x for x in re.split(r'[^\w\'\-\#]+', only_current_sentence(self.surrounding_text)) if x ]
 
         if list_after == list_before: return
+
+        if list_after and list_after[-1].lower() == 'idkfa':
+            # trigger a crash (to test logging and user display)
+            raise Exception("Test exception (this is a drill!)")  # @todo remove this for production code :-)
 
         begin = []
         end = []
