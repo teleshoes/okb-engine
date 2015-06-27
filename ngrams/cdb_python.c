@@ -118,6 +118,7 @@ cdb_get_words(PyObject *self, PyObject *args)
   char *key, *ptr;
   PyObject *dict;
   if (!PyArg_ParseTuple(args, "s", &key)) { return NULL; }
+  if (check_db()) { return NULL; }
 
   dict = PyDict_New();
   if (! dict) { return NULL; }
