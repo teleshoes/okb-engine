@@ -35,9 +35,16 @@ getlogs() {
     find "$log_dir/" -name '2*.log.bz2' $filt | grep -v '/\.' | xargs -r lbzip2 -dc
 }
 
+force_check=
+last=`ls -rt "$log_dir"/*/2*.log.bz2 | tail -n 1`
+if [ -n "$last" ] ; then
+    id=`lbzip2 -dc < "$last" | egrep '^==WORD==' | awk '{ print $2 }' | tail -n 1`
+    [ -n "$id" ] && [ ! -f "$work_dir/$id.png" ] && force_check=1 && echo "force_check=1 (id=$id)"
+fi
+
 bin="curve/build/libcurveplugin.so"
 ts="$work_dir/.ts"
-if [ -z "$reset" -a -f "$ts" -a "$bin" -ot "$ts" ] ; then
+if [ -z "$force_check" -a -z "$reset" -a -f "$ts" -a "$bin" -ot "$ts" ] ; then
     : # no change
 else
     

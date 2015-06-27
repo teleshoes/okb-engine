@@ -70,6 +70,7 @@ history.sort(key = lambda x: x["ts"], reverse = False)
 class Tools:
     def __init__(self):
         self.messages = []
+        self.params = dict()
 
     def log(self, *args, **kwargs):
         if not args: return
@@ -78,7 +79,7 @@ class Tools:
         self.messages.append(message)
 
     def cf(self, key, default_value, cast):
-        return cast(default_value)
+        return cast(self.params.get(key, default_value))
 
 tools = Tools()
 
@@ -100,9 +101,11 @@ if os.path.exists(index_org):
 # write org file
 f = open(index_org + ".tmp", 'w')
 f.write("# OKBoard replay\n\n")
-predict_lang = dict()
 last_date = None
 count = ok_count = 0
+last_lang = None
+p = None
+
 for t in history:
     id = t["id"]
     ts = t["ts"]
@@ -117,14 +120,12 @@ for t in history:
     if id in db:
         check, word, context = db[id]
 
-    if lang not in predict_lang:
+    if lang != last_lang:
         p = predict.Predict(tools)
         db_file = os.path.join(mydir, "db/predict-%s.db" % lang)
         p.set_dbfile(db_file)
         p.load_db()
-        predict_lang[lang] = p
-    else:
-        p = predict_lang[lang]
+        last_lang = lang
 
     prefix = "  - [%s] %s %s [[file:%s][json]] [[file:%s][html]] [[file:%s][png]] [[file:%s][predict log]] %s %s" % \
              ("X" if check else " ", id, lang, pre + ".json", pre + ".html", pre + ".png", pre + ".predict.log",
