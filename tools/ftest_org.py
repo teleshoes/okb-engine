@@ -156,8 +156,12 @@ for t in history:
 
     if not ok:
         candidates.sort(key = lambda x: x[1], reverse = True)
-        try: rank = candidates.index(word)
-        except: rank = -1
+        rank = -1
+        for i in range(len(candidates)):
+            x = candidates[i]
+            if word == x[1] or re.match(r'\b' + word + r'\b', x[4]):
+                rank = i
+                break
 
     # @todo add wiring to learning / backtracking
 
