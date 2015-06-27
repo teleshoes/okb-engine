@@ -95,9 +95,11 @@ predict-%.db: clusters-%.txt grams-%-learn.csv.bz2 lang-%.cf db.version
 	lbzip2 -9fv predict-$(lang).txt
 
 	$(TOOLS_DIR)/db_param.py predict-$(lang)-tmp.db version $(shell cat db.version)
+	lbzip2 -9f predict-$(lang)-tmp.rpt
 	mv -f predict-$(lang)-tmp.db $@
 	mv -f predict-$(lang)-tmp.ng predict-$(lang).ng
+	mv -f predict-$(lang)-tmp.rpt.bz2 predict-$(lang).rpt.bz2
 
 
 clean:
-	rm -f *.tmp* *-{learn,test}.txt.bz2 grams-*.csv.bz2 *.tre *.dict clusters-*.{txt,log} predict-*.{db,ng,txt.bz2} words-*.txt
+	rm -f *.tmp* *-{learn,test}.txt.bz2 grams-*.csv.bz2 *.tre *.dict clusters-*.{txt,log} predict-*.{db,ng,log,rpt,rpt.bz2} words-*.txt

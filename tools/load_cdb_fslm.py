@@ -32,6 +32,8 @@ fslm_file = dbfile
 if fslm_file[-3:] == '.db': fslm_file = fslm_file[:-3]
 fslm_file += '.ng'
 
+txt_file = fslm_file[:-3] + ".rpt"  # DB text version for debugging
+
 
 # 2) import corpus as CSV
 print("Import CSV corpus data ...")
@@ -45,6 +47,7 @@ fslm_encoder = fslm_ngrams.NGramEncoder(base_bits = 4,
                                         block_size = 128,
                                         progress = True)
 
+txtf = open(txt_file, 'w')
 cur_id = 10
 
 def w2id(word):
@@ -92,6 +95,9 @@ for line in sys.stdin.readlines():
         # sqlite n-gram table will start as empty and will fill for learning
         fslm_encoder.add_ngram(gram, count)
 
+        # write text version
+        txtf.write('GRAM %s %s\n' % (gram, count))
+
 # 3) write FSLM compressed DB
 print("Dumping compressed ngram file ...")
 fslm = fslm_encoder.get_bytes()
@@ -108,9 +114,11 @@ for word, info in words.items():
         # store cluster information in DB to provide nice verbose output for debugging
         words_in_cluster = [ w for w in words.keys() if words[w][1] == info[0] ]  # all words in cluster
         words_in_cluster.sort(key = lambda x: wordcount.get(x, 0), reverse = True)  # sort by count
-        cdb.set_string("cluster-%d" % info[0],
-                       ("%s:%d:%d:%s" % (word, wordcount.get(word, 0), len(words_in_cluster),
-                                         ','.join(words_in_cluster[:5])))[:50])  # <- size limitation in C module (& spare room for unicode chars)
+
+        cluster_info = ("%s:%d:%d:%s" % (word, wordcount.get(word, 0), len(words_in_cluster),
+                                         ','.join(words_in_cluster[:5])))[:50]  # <- size limitation in C module (& spare room for unicode chars)
+        txtf.write("CLUSTER %d %s\n" % (info[0], cluster_info))
+        cdb.set_string("cluster-%d" % info[0], cluster_info)
 
     else:
         lword = word.lower()
@@ -119,7 +127,9 @@ for word, info in words.items():
 
 for lword, words in lwords.items():
     cdb.set_words(lword, words)
-    id, cid = info
+    txtf.write("WORD %s %s\n" % (lword, words))
 
 cdb.save()
 cdb.clear()
+
+txtf.close()

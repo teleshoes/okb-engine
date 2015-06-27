@@ -15,4 +15,5 @@ gmon.out
 .depend*
 *-user.txt
 ftest.org
+*.rpt.bz2
 

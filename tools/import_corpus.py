@@ -50,6 +50,7 @@ class CorpusImporter:
         for word in words:
             id += 1
             word = word.strip()  # .decode('utf-8')
+            if not word: continue  # skip blank lines
             self.words.add(word)
             if word.lower() != word:
                 self.islower[word.lower()] = word
