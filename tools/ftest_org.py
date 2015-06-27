@@ -159,7 +159,7 @@ for t in history:
         rank = -1
         for i in range(len(candidates)):
             x = candidates[i]
-            if word == x[1] or re.match(r'\b' + word + r'\b', x[4]):
+            if word == x[0] or re.match(r'\b' + word + r'\b', x[4]):
                 rank = i
                 break
 
