@@ -1,5 +1,11 @@
 #! /bin/bash -x
 
+lang=
+if [ "$1" = "-l" ] ; then
+    lang="$2"
+    shift ; shift
+fi
+
 test="$1"
 edit="$2"
 if [ ! -f "$test" ] ; then echo "usage: $0 <json test file> [<editor for log file>]" ; exit 1; fi
@@ -7,9 +13,11 @@ dir=`dirname "$0"`"/.."
 dir=`readlink -f "$dir"`
 name=`basename "$test" .json`
 
-lang="en"
-if echo "$name" | egrep '^[a-z][a-z]\-' >/dev/null ; then
-    lang=`echo "$name" | head -n 1 | cut -c 1,2`
+if [ -z "$lang" ] ; then
+    lang="en"
+    if echo "$name" | egrep '^[a-z][a-z]\-' >/dev/null ; then
+	lang=`echo "$name" | head -n 1 | cut -c 1,2`
+    fi
 fi
 
 export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$dir/curve/build"

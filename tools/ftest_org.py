@@ -11,12 +11,13 @@ sys.path.insert(0, libdir)
 
 import predict
 
-if len(sys.argv) != 3:
-    print("usage:", os.path.basename(__file__), "<in/out org index file> <work directory>")
+if len(sys.argv) < 3:
+    print("usage:", os.path.basename(__file__), "<in/out org index file> <work directory> [<option key=value> ... ]")
     print(" (it reads logs from stdin)")
     exit(1)
 
-index_org, work_dir = sys.argv[1:]
+index_org, work_dir = sys.argv[1:3]
+params = dict( [ x.split('=', 1) for x in sys.argv[3:] ] )
 
 current = None
 history = []
@@ -65,12 +66,12 @@ for line in sys.stdin.readlines():
         if "js" in current: history.append(current)
         current = None
 
-history.sort(key = lambda x: x["ts"], reverse = False)
+history.sort(key = lambda x: x["id"], reverse = False)
 
 class Tools:
-    def __init__(self):
+    def __init__(self, params = dict()):
         self.messages = []
-        self.params = dict()
+        self.params = params
 
     def log(self, *args, **kwargs):
         if not args: return
@@ -81,7 +82,7 @@ class Tools:
     def cf(self, key, default_value, cast):
         return cast(self.params.get(key, default_value))
 
-tools = Tools()
+tools = Tools(params)
 
 # read org file
 db = dict()
@@ -100,7 +101,7 @@ if os.path.exists(index_org):
 
 # write org file
 f = open(index_org + ".tmp", 'w')
-f.write("# OKBoard replay\n\n")
+f.write("# OKBoard replay\n\n[%s] Parameters: %s\n\n" % (time.ctime(), params))
 last_date = None
 count = ok_count = 0
 last_lang = None
@@ -171,8 +172,12 @@ for t in history:
 
     f.write("%s -> %s\n" % (prefix, "_OK_" if ok else ("*FAIL* (%s, rank=#%d)" % (guess, rank))))
 
-stats = "Total=%d OK=%d rate=%d%%" % (count, ok_count, int(100.0 * ok_count / count))
+stats = "Total=%d OK=%d rate=%.2f%%" % (count, ok_count, 100.0 * ok_count / count)
 print(stats)
+
+log_file = os.path.join(os.path.dirname(index_org), "ftest.log")
+with open(log_file, 'a') as lf:
+    lf.write("[%s] %s %s\n" % (time.ctime(), stats, params))
 
 f.write("""
 * stats
