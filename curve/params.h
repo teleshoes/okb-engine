@@ -80,6 +80,7 @@ class Params {
   int straight_max_turn;
   float straight_score1;
   float straight_score2;
+  float straight_slope;
   int thumb_correction;
   float tip_small_segment;
   float turn_diff_pow;
@@ -199,6 +200,7 @@ static Params default_params = {
   8, // straight_max_turn
   0.5, // straight_score1
   0.2, // straight_score2
+  0.5, // straight_slope
   1, // thumb_correction
   0.02, // tip_small_segment
   2.0, // turn_diff_pow
@@ -312,6 +314,7 @@ void Params::toJson(QJsonObject &json) const {
   json["straight_max_turn"] = straight_max_turn;
   json["straight_score1"] = straight_score1;
   json["straight_score2"] = straight_score2;
+  json["straight_slope"] = straight_slope;
   json["thumb_correction"] = thumb_correction;
   json["tip_small_segment"] = tip_small_segment;
   json["turn_diff_pow"] = turn_diff_pow;
@@ -427,6 +430,7 @@ Params Params::fromJson(const QJsonObject &json) {
   p.straight_max_turn = json["straight_max_turn"].toDouble();
   p.straight_score1 = json["straight_score1"].toDouble();
   p.straight_score2 = json["straight_score2"].toDouble();
+  p.straight_slope = json["straight_slope"].toDouble();
   p.thumb_correction = json["thumb_correction"].toDouble();
   p.tip_small_segment = json["tip_small_segment"].toDouble();
   p.turn_diff_pow = json["turn_diff_pow"].toDouble();

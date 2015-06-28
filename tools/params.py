@@ -76,6 +76,7 @@ defparams = [
     [ "st5_score", float, 0, 1],
     [ "straight_max_total", int, 1, 30],
     [ "straight_max_turn", int, 1, 20],
+    [ "straight_slope", float, 0, 1],
     [ "straight_score1", float, 0, 1],
     [ "straight_score2", float, 0, 1],
     [ "thumb_correction", int ],  # user decision, depends on style

@@ -1879,6 +1879,17 @@ void Scenario::calc_straight_score_all(turn_t *turn_detail, int turn_count, floa
       result = - params->straight_score1 * coef * real_turn_count;
       DBG(" [score_straight] (1) bad=%d score=%.2f", real_turn_count, result);
     }
+
+    /* check if line orientation is OK */
+    Point k1 = keys->get_raw(letter_history[0]);
+    Point k2 = keys->get_raw(letter_history[count - 1]);
+    Point p1 = curve->point(0);
+    Point p2 = curve->point(index);
+    float a_sin = abs(sin_angle(k2.x - k1.x, k2.y - k1.y, p2.x - p1.x, p2.y - p1.y));
+
+    result += params->straight_slope * (sqrt(1 - a_sin * a_sin) - 1);
+
+
   } else {
     /* other curve: penalty for straight candidates (geometrically speaking) */
     if (! real_turn_count) {
