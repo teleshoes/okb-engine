@@ -591,6 +591,13 @@ bool CurveMatch::match() {
     }
     n += 1;
     scenarios = new_scenarios; // remember QT collections have intelligent copy-on-write (hope it works)
+
+    if (debug) {
+      foreach(ScenarioType scenario, scenarios) {
+	DBG("LST[%d] %s [%.2f]", n, QSTRING2PCHAR(scenario.getId()), scenario.getScore());
+      }
+    }
+
     if (n >= 3) {
       // scenario filtering works differently in non-incremental mode
       // as we do not care about performance in this case, just arbitrary increase max_active_scenarios value

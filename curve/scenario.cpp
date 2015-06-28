@@ -851,7 +851,7 @@ bool Scenario::childScenarioInternal(LetterNode &childNode, QList<Scenario> &res
   QList<int> new_index_list;
   float distance_score;
 
-  DBG("==== %s:%c [end=%d] ====", getNameCharPtr(), letter, endScenario);
+  DBG("==== %s:%c [end=%d, index=%d] ====", getNameCharPtr(), letter, endScenario, index);
 
   if (count == 0) {
     // this is the first letter
@@ -1056,7 +1056,7 @@ int Scenario::getCurveIndex() {
 
 
 bool Scenario::forkLast() {
-  return last_fork == count;
+  return (last_fork == count) || (last_fork && count <= 3); // don't resolve forks before the fourth letter
 }
 
 void Scenario::turn_transfer(int turn_count, turn_t *turn_detail) {
