@@ -61,7 +61,6 @@ class Params {
   float rt_score_coef;
   float rt_score_coef_tip;
   int rt_tip_gaps;
-  int rt_total_threshold;
   int rt_turn_threshold;
   int same_point_max_angle;
   float same_point_score;
@@ -181,7 +180,6 @@ static Params default_params = {
   0.12, // rt_score_coef
   0.01, // rt_score_coef_tip
   3, // rt_tip_gaps
-  20, // rt_total_threshold
   5, // rt_turn_threshold
   120, // same_point_max_angle
   0.1, // same_point_score
@@ -295,7 +293,6 @@ void Params::toJson(QJsonObject &json) const {
   json["rt_score_coef"] = rt_score_coef;
   json["rt_score_coef_tip"] = rt_score_coef_tip;
   json["rt_tip_gaps"] = rt_tip_gaps;
-  json["rt_total_threshold"] = rt_total_threshold;
   json["rt_turn_threshold"] = rt_turn_threshold;
   json["same_point_max_angle"] = same_point_max_angle;
   json["same_point_score"] = same_point_score;
@@ -411,7 +408,6 @@ Params Params::fromJson(const QJsonObject &json) {
   p.rt_score_coef = json["rt_score_coef"].toDouble();
   p.rt_score_coef_tip = json["rt_score_coef_tip"].toDouble();
   p.rt_tip_gaps = json["rt_tip_gaps"].toDouble();
-  p.rt_total_threshold = json["rt_total_threshold"].toDouble();
   p.rt_turn_threshold = json["rt_turn_threshold"].toDouble();
   p.same_point_max_angle = json["same_point_max_angle"].toDouble();
   p.same_point_score = json["same_point_score"].toDouble();

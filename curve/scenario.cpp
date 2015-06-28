@@ -1742,11 +1742,9 @@ void Scenario::check_reverse_turn(int index1, int index2, int direction1, int di
   int i2 = index_history[index2];
 
   int threshold = params->rt_turn_threshold;
-  int total_threshold = params->rt_total_threshold;
   float coef_score = (direction1 && direction2)?params->rt_score_coef:params->rt_score_coef_tip;
   int tip_gap = params->rt_tip_gaps;
 
-  int direction = direction1;
   int bad = 0;
 
   int kind1 = 0, kind2 = 0;
@@ -1767,6 +1765,7 @@ void Scenario::check_reverse_turn(int index1, int index2, int direction1, int di
     if (kind2 < 0) { direction2 = -direction2; }
   }
 
+  int direction = direction1;
   int total = 0;
   for(int i = max(tip_gap, i1); i <= min(i2, curve->size() - 1 - tip_gap); i++) {
     int turn = int(0.5 * curve->getTurnSmooth(i) + 0.25 * curve->getTurnSmooth(i - 1) + 0.25 * curve->getTurnSmooth(i));
@@ -1775,9 +1774,6 @@ void Scenario::check_reverse_turn(int index1, int index2, int direction1, int di
 
     if ((abs(turn) > threshold) && (turn * direction < 0 || ! direction)) {
       if (direction2 != direction1 && direction == direction1 && turn * direction2 >= 0) { direction = direction2; i --; continue; }
-      bad ++;
-    } else if ((abs(total) > total_threshold) && (total * direction < 0 || ! direction)) {
-      if (direction2 != direction1 && direction == direction1 && total * direction2 >= 0) { direction = direction2; i --; continue; }
       bad ++;
     }
   }

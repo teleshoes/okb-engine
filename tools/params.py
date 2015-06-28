@@ -59,7 +59,6 @@ defparams = [
     [ "rt_score_coef", float, 0.01, 2 ],
     [ "rt_score_coef_tip", float, 0.01, 2 ],
     [ "rt_tip_gaps", int, 1, 5 ],
-    [ "rt_total_threshold", int, 5, 45 ],
     [ "rt_turn_threshold", int, 1, 20 ],
     [ "same_point_max_angle", int, 45, 179 ],
     [ "same_point_score", float, 0, 1 ],
