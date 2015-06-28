@@ -716,7 +716,9 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &
       } else /* default case */ if (st < 3) { use_st_score = true; }
 
     } else { // max_score_index > last_turn_point + max_turn_distance --> turn point was not matched
-      failed = 20;
+      int last_st = curve->getSpecialPoint(last_turn_point);
+      if (MANDATORY_TURN(last_st)) { failed = 20; }
+      else { new_index_list << max_score_index; }
     }
   }
 
