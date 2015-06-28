@@ -359,8 +359,8 @@ class Predict:
         self.refresh_db()
 
         self.half_life = self.cf('learning_half_life', 30, int)
-        self.coef_score_predict[0] = self.cf("predict_coef_low",   0.4, float)
-        self.coef_score_predict[1] = self.cf("predict_coef_high", 0.15, float)
+        self.coef_score_predict[0] = self.cf("predict_coef_low",  0.15, float)
+        self.coef_score_predict[1] = self.cf("predict_coef_high", 0.13, float)
 
         self.corpus_size = self.db.get_grams(["-2:-1:-1"])["-2:-1:-1"][0]  # grand total #NA:#NA:#TOTAL
         try:
