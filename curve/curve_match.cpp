@@ -343,19 +343,23 @@ void CurveMatch::addPoint(Point point, int curve_id, int timestamp) {
 
   if (curve_id < 0 || curve_id > MAX_CURVES) { return; }
 
-  if (kb_preprocess && params.thumb_correction) {
-    // we must apply keyboard biases before feeding the curve
-    // in case of incremental processing
+  if (kb_preprocess) {
     kb_preprocess = false;
-    kb_distort(keys, params);
-    if (debug) {
-      DBG("Keys adjustments:");
-      QHashIterator<unsigned char, Key> ki(keys);
-      while (ki.hasNext()) {
-	ki.next();
-	Key key = ki.value();
-	DBG("Key '%c' %d,%d -> %d,%d", key.label, key.x, key.y, key.corrected_x, key.corrected_y);
+    if (params.thumb_correction) {
+      // we must apply keyboard biases before feeding the curve
+      // in case of incremental processing
+      kb_distort(keys, params);
+      if (debug) {
+	DBG("Keys adjustments:");
+	QHashIterator<unsigned char, Key> ki(keys);
+	while (ki.hasNext()) {
+	  ki.next();
+	  Key key = ki.value();
+	  DBG("Key '%c' %d,%d -> %d,%d", key.label, key.x, key.y, key.corrected_x, key.corrected_y);
+	}
       }
+    } else {
+      kb_distort_cancel(keys);
     }
   }
 
@@ -646,6 +650,7 @@ void CurveMatch::endCurve(int correlation_id) {
 void CurveMatch::setParameters(QString jsonStr) {
   QJsonDocument doc = QJsonDocument::fromJson(jsonStr.toUtf8());
   params = Params::fromJson(doc.object());
+  kb_preprocess = true;
 }
 
 void CurveMatch::useDefaultParameters() {
