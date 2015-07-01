@@ -20,6 +20,7 @@ from multiprocessing.pool import ThreadPool
 import multiprocessing
 import configparser as ConfigParser
 import params
+import pickle
 
 CLI = "../cli/build/cli"
 TRE_DIR = "../db"
@@ -49,7 +50,7 @@ for p in defparams:
 cfparams = get_params(os.path.join(os.path.dirname(__file__), '..', "okboard.cf"))
 for name, value in cfparams.items():
     if name not in params: raise Exception("Unknown parameter in cf file: %s" % name)
-    params[name]["value"] = params[name]["type"](value)
+    params[name]["value"] = params[name]["default_value"] = params[name]["type"](value)
 
 params["max_candidates"]["value"] = 50
 
@@ -296,11 +297,23 @@ def load_tests():
     tests.sort(key = lambda x: x[0])
     return tests
 
-def run_optim(params, typ, listpara, p_include, p_exclude):
+def run_optim(params, typ, listpara, p_include, p_exclude, param_file):
     params0 = copy.deepcopy(params)
 
     # load test suite
     tests = load_tests()
+
+    # load saved parameters
+    if param_file:
+        saved_params = dict()
+        try:
+            with open(param_file, 'rb') as f:
+                saved_params = pickle.load(f)
+        except: pass  # bad or missing file
+        if typ in saved_params:
+            for p, v in saved_params[typ].items():
+                print("Loading parameter value [%s]: %s = %s" % (typ, p, v[0]))
+                params[p]["value"] = v[0]
 
     print("===== Reference run =====")
     detail0 = dict()
@@ -332,6 +345,15 @@ def run_optim(params, typ, listpara, p_include, p_exclude):
             print("Current(%.3f): %s" % (score, params2str(params)))
             print("Best   (%.3f): %s" % (max_score, params2str(max_params)))
 
+            # save parameters
+            if param_file:
+                if typ not in saved_params: saved_params[typ] = dict()
+                if params[p]["value"] != params[p]["default_value"]:
+                    saved_params[typ][p] = (params[p]["value"], params[p]["default_value"])
+                    with open(param_file + '.tmp', 'wb') as f:
+                        pickle.dump(saved_params, f)
+                    os.rename(param_file + '.tmp', param_file)
+
     result_txt = '\n'.join([ "Parameter change[%s]: %s: %.3f -> %.3f" % (typ, p, params0[p]["value"], v["value"])
                                    for p, v in sorted(max_params.items())
                                    if params0[p] != v ] + [ "Score: %.3f -> %.3f" % (score0, max_score) ])
@@ -354,8 +376,9 @@ if __name__ == "__main__":
     start = time.time()
 
     p_include = p_exclude = None
+    param_file = None
 
-    opts, args =  getopt.getopt(sys.argv[1:], 'l:p:i:x:')
+    opts, args =  getopt.getopt(sys.argv[1:], 'l:p:i:x:s:')
     listpara = None
     for o, a in opts:
         if o == "-l":
@@ -366,6 +389,8 @@ if __name__ == "__main__":
             p_include = a
         elif o == "-x":
             p_exclude = a
+        elif o == "-s":
+            param_file = os.path.realpath(a)
         else:
             print("Bad option: %s", o)
             exit(1)
@@ -377,6 +402,7 @@ if __name__ == "__main__":
         print(" -l <file> : verbose log file")
         print(" -i <regexp> : only update parameters with matching names")
         print(" -x <regexp> : don't update parameters with matching names")
+        print(" -s <file> : save parameters to file (and read them on startup)")
         print("score type can be 'all' or a comma separated list")
         exit(1)
 
@@ -394,7 +420,7 @@ if __name__ == "__main__":
 
     results = dict()
     for typ in typ_list:
-        result = run_optim(copy.deepcopy(params), typ, listpara, p_include, p_exclude)
+        result = run_optim(copy.deepcopy(params), typ, listpara, p_include, p_exclude, param_file)
         results[typ] = result
 
     for typ, result in results.items():
