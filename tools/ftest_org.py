@@ -4,6 +4,7 @@
 
 import sys, re, os
 import json, time
+import getopt
 
 mydir = os.path.dirname(os.path.abspath(__file__))
 mydir = libdir = os.path.join(mydir, '..')
@@ -11,13 +12,21 @@ sys.path.insert(0, libdir)
 
 import predict
 
-if len(sys.argv) < 3:
-    print("usage:", os.path.basename(__file__), "<in/out org index file> <work directory> [<option key=value> ... ]")
+add_new = False
+opts, args =  getopt.getopt(sys.argv[1:], 'a')
+for o, a in opts:
+    if o == "-a": add_new = True
+    else:
+        print("Bad option: %s" % o)
+        exit(1)
+
+if len(args) < 2:
+    print("usage:", os.path.basename(__file__), "[-a] <in/out org index file> <work directory> [<option key=value> ... ]")
     print(" (it reads logs from stdin)")
     exit(1)
 
-index_org, work_dir = sys.argv[1:3]
-params = dict( [ x.split('=', 1) for x in sys.argv[3:] ] )
+index_org, work_dir = args[0:2]
+params = dict( [ x.split('=', 1) for x in args[2:] ] )
 
 current = None
 history = []
@@ -118,8 +127,11 @@ for t in history:
     lang = os.path.basename(result["input"]["treefile"])[:2]
 
     check = True
+    comment = False
     if id in db:
         check, word, context = db[id]
+    elif not add_new:
+        comment = True
 
     if lang != last_lang:
         p = predict.Predict(tools)
@@ -132,15 +144,16 @@ for t in history:
              ("X" if check else " ", id, lang, pre + ".json", pre + ".html", pre + ".png", pre + ".predict.log",
               " ".join(reversed(context)), word)
 
+    if comment: prefix = "  # use -a option to add: " + prefix.strip()
+
     date = time.strftime("%Y-%m-%d %a", time.localtime(ts))
     if last_date != date:
         last_date = date
         f.write("* <%s>\n" % date)
 
-    if not check:
+    if not check or comment:
         f.write("%s\n" % prefix)
         continue
-
 
     tmp = " ".join(reversed(context))
     p.update_surrounding(tmp, len(tmp))

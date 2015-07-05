@@ -19,12 +19,14 @@ mkdir -p "$work_dir"
 max_age=
 reset=
 params=
+opts=
 
 while [ -n "$1" ] ; do
     case "$1" in
-	-a) max_age="$2" ; shift ;;
+	-m) max_age="$2" ; shift ;;
 	-z) reset=1 ;;
 	-p) params="$2" ; shift ;;
+	-a) opts="${opts}-a " ;;
 	*) echo "Unknown parameter: $1" ; exit 1 ;;
     esac
     shift
@@ -92,4 +94,4 @@ else
 
 fi
 
-getlogs | tools/ftest_org.py "tools/ftest.org" "$work_dir" $params
+getlogs | tools/ftest_org.py $opts "tools/ftest.org" "$work_dir" $params

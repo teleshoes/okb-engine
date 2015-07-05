@@ -68,7 +68,7 @@ if __name__ == "__main__":
         elif o == "-n":
             save = False
         else:
-            print("Bad option: %s", o)
+            print("Bad option: %s" % o)
             usage()
 
     params = optim.params
