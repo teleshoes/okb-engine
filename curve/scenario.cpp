@@ -38,6 +38,19 @@ QString qlist2str(QList<T> lst) {
   return str;
 }
 
+QString qlist_nextindex2str(QList<NextIndex> lst) {
+  QString str;
+  if (lst.size() == 0) {
+    str += "empty";
+  } else {
+    for(int i = 0; i < lst.size(); i++) {
+      QTextStream(& str) << lst[i].index << "[" << lst[i].score << "]";
+      if(i < lst.size()-1) { str +=  ","; }
+    }
+  }
+  return str;
+}
+
 /* --- optimized curve --- */
 QuickCurve::QuickCurve() {
   count = -1;
@@ -576,7 +589,7 @@ float Scenario::calc_distance_score(unsigned char letter, int index, int count, 
   return score;
 }
 
-float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &new_index_list, bool incremental, bool &overflow) {
+float Scenario::get_next_key_match(unsigned char letter, int index, QList<NextIndex> &new_index_list, bool incremental, bool &overflow) {
   /* given an index on the curve, and a possible next letter key, evaluate the following:
      - if the next letter is a good candidate (i.e. the curve pass by the key)
      - compute a score based on curve to point distance
@@ -593,6 +606,9 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &
      - 4: inflection points (*removed* this has proven useless or duplicating other checks)
      - 5: Small turn (or near curve tip) -> optionally matches a key
      - 6: (not-so) sharp turn (same as 1) but minimum distance point may be distinct from the turn point (e.g. used for loops)
+
+     now score is returned for each possible index in NextIndex struct
+     return value from this function is now less relevant (@todo remove it completely)
   */
 
   float score = -99999;
@@ -661,8 +677,8 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &
 
       if (st == 2) {
 	new_index_list.clear();
-	if (score > 0) { new_index_list << index; }
-	if (max_score_index < index && max_score > 0) { new_index_list << max_score_index; }
+	if (score > 0) { new_index_list << NextIndex(index, score); }
+	if (max_score_index < index && max_score > 0) { new_index_list << NextIndex(max_score_index, max_score); }
 	if (new_index_list.size() == 0) { failed = 1; }
 	finished = true;
 	break;
@@ -690,20 +706,20 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &
     // nothing more to do
   } else {
     if (! last_turn_point) {
-      new_index_list << max_score_index;
+      new_index_list << NextIndex(max_score_index, max_score);
     } else if (max_score_index < last_turn_point - max_turn_distance) {
-      new_index_list << max_score_index;
+      new_index_list << NextIndex(max_score_index, max_score);
     } else if (max_score_index <= last_turn_point + max_turn_distance) {
       int last_st = curve->getSpecialPoint(last_turn_point);
       if (last_st == 3 || last_st == 6) {
-	new_index_list << max_score_index;
+	new_index_list << NextIndex(max_score_index, max_score);
       } else {
-	if (last_turn_score > 0) { new_index_list << last_turn_point; }
+	if (last_turn_score > 0) { new_index_list << NextIndex(last_turn_point, last_turn_score); }
 
 	int maxd = params->min_turn_index_gap;
 	if ((max_score_index < last_turn_point - maxd) ||
 	    (max_score_index > last_turn_point + maxd && start_st == 0 && start_index >= last_turn_point - max_turn_distance)) {
-	  new_index_list << max_score_index;
+	  new_index_list << NextIndex(max_score_index, max_score);
 	}
       }
       int st = curve->getSharpTurn(last_turn_point);
@@ -718,14 +734,14 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<int> &
     } else { // max_score_index > last_turn_point + max_turn_distance --> turn point was not matched
       int last_st = curve->getSpecialPoint(last_turn_point);
       if (MANDATORY_TURN(last_st)) { failed = 20; }
-      else { new_index_list << max_score_index; }
+      else { new_index_list << NextIndex(max_score_index, max_score); }
     }
   }
 
   DBG("  [get_next_key_match] %s:%c[%d] %s max_score=%.3f[%d] last_turnpoint=%.3f[%d] last_index=%d -> new_indexes=[%s] fail_code=%d",
       getNameCharPtr(), letter, start_index, failed?"*FAIL*":"OK",
       max_score, max_score_index, last_turn_score,
-      last_turn_point, index, failed?"*FAIL*":QSTRING2PCHAR(qlist2str(new_index_list)), failed);
+      last_turn_point, index, failed?"*FAIL*":QSTRING2PCHAR(qlist_nextindex2str(new_index_list)), failed);
 
   if (failed) { return -1; }
   if (use_st_score) { return last_turn_score; } // in case of sharp turn, distance score is taken from the turn position, not the shortest curve-to-key distance
@@ -850,15 +866,14 @@ bool Scenario::childScenarioInternal(LetterNode &childNode, QList<Scenario> &res
   unsigned char letter = childNode.getChar();
   int index = this -> index;
 
-  QList<int> new_index_list;
-  float distance_score;
+  QList<NextIndex> new_index_list;
 
   DBG("==== %s:%c [end=%d, index=%d] ====", getNameCharPtr(), letter, endScenario, index);
 
   if (count == 0) {
     // this is the first letter
-    distance_score = calc_distance_score(letter, 0, count);
-    new_index_list << 0;
+    float distance_score = calc_distance_score(letter, 0, count);
+    new_index_list << NextIndex(0, distance_score);
 
   } else {
     if (endScenario) {
@@ -871,14 +886,14 @@ bool Scenario::childScenarioInternal(LetterNode &childNode, QList<Scenario> &res
       if (st_found) {
 	DBG("debug [%s:%c] * =FAIL= sharp turn found before end", getNameCharPtr(), letter);
       } else {
-	new_index_list << new_index;
-	distance_score = calc_distance_score(letter, new_index, -1);
+	float distance_score = calc_distance_score(letter, new_index, -1);
+	new_index_list << NextIndex(new_index, distance_score);
       }
 
     } else {
 
       bool overflow = false;
-      distance_score = get_next_key_match(letter, index, new_index_list, incremental, overflow);
+      /* resultat ignored */ get_next_key_match(letter, index, new_index_list, incremental, overflow);
       if (incremental && overflow) {
 	return false; // ask me again later
       }
@@ -896,7 +911,10 @@ bool Scenario::childScenarioInternal(LetterNode &childNode, QList<Scenario> &res
   int continue_count = 0;
   Scenario *first_scenario = NULL;
 
-  foreach(int new_index, new_index_list) {
+  foreach(NextIndex nit, new_index_list) {
+    int new_index = nit.index;
+    float distance_score = nit.score;
+
     if (count > 2 && new_index <= index_history[count - 2] + 1) {
       continue; // 3 consecutive letters are matched with the same curve point -> remove this scenario
     }

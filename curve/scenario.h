@@ -200,6 +200,13 @@ typedef struct {
   int length;
 } turn_t;
 
+class NextIndex {
+ public:
+  int index;
+  float score;
+  NextIndex(int index, float score) { this->index = index; this->score = score; }
+};
+
 class Scenario;
 typedef QHash<unsigned char, QList<Scenario> > child_cache_t;
 
@@ -263,7 +270,7 @@ class Scenario {
   float score_inflection(int index, bool st1, bool st2);
   Point computed_curve_tangent(int index);
   Point actual_curve_tangent(int i);
-  float get_next_key_match(unsigned char letter, int index, QList<int> &new_index, bool incremental, bool &overflow);
+  float get_next_key_match(unsigned char letter, int index, QList<NextIndex> &new_index, bool incremental, bool &overflow);
   float evalScore();
   void copy_from(const Scenario &from);
   bool childScenarioInternal(LetterNode &child, QList<Scenario> &result, int &st_fork, bool incremental, bool endScenario);
