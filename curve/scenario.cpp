@@ -1922,6 +1922,37 @@ void Scenario::calc_straight_score_all(turn_t *turn_detail, int turn_count, floa
   }
 }
 
+void Scenario::calc_loop_score_all(turn_t *turn_detail, int turn_count) {
+  for (int i = 0; i < turn_count; i ++) {
+    turn_t *d = &(turn_detail[i]);
+
+    for(int j = d->start_index; j <= d->index; j++) {
+      if (get_turn_kind(j) == -1) {
+	int exp = d->expected;
+	bool ok = false;
+
+	if (abs(exp) > 170) {
+	  ok = true;
+	} else if (abs(exp) > 120 && i > 0 && i < turn_count - 1) {
+	  int exp1 = turn_detail[i - 1].expected;
+	  int exp2 = turn_detail[i + 1].expected;
+	  if ((exp1 * exp < 0 && abs(exp1) > 60) ||
+	      (exp2 * exp < 0 && abs(exp2) > 60)) {
+	    ok = true;
+	  }
+	}
+	
+	DBG("Loop detected: turn #%d (index %d, letter '%c')  OK=%d", i, j, letter_history[j], (int) ok);
+	if (! ok) {
+	  scores[j].misc_score -= params->loop_penalty;
+	  MISC_ACCT(getNameCharPtr(), "loop_penalty", params->loop_penalty, -1);
+	}
+      }
+    }
+    
+  }
+}
+
 bool Scenario::postProcess() {
   DBG("==== Postprocess: %s", getNameCharPtr());
   if (count == 1) {
@@ -1938,6 +1969,8 @@ bool Scenario::postProcess() {
 
   calc_straight_score_all(turn_detail, turn_count, curve->straight);
 
+  calc_loop_score_all(turn_detail, turn_count);
+
   /* particular case: simple turn (ST=1) shared between two keys
      this is an ugly workaround: curve_score works really badly in this case
      fortunately, this is very rare
@@ -1948,7 +1981,7 @@ bool Scenario::postProcess() {
     for(int j = i1 + 1; j < i2 - 1; j ++) {
       if (curve->getSharpTurn(j) == 1 && j - i1 <= gap && i2 - j <= gap) {
 	if (scores[i + 1].curve_score < 0) { error_count --; /* we've just canceled an error */ }
-	scores[i + 1].curve_score = 1;
+	scores[i + 1].curve_score = 0;
 	DBG("  workaround: %s shared turn point (ST=1) %c:%c", getNameCharPtr(), letter_history[i], letter_history[i + 1]);
       }
     }

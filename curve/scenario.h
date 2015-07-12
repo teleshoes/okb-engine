@@ -277,6 +277,7 @@ class Scenario {
   int getLocalTurn(int index);
   void turn_transfer(int turn_count, turn_t *turn_detail);
   void calc_straight_score_all(turn_t *turn_detail, int turn_count, float straight_score);
+  void calc_loop_score_all(turn_t *turn_detail, int turn_count);
 
  public:
   Scenario(LetterTree *tree, QuickKeys *keys, QuickCurve *curve, Params *params);

@@ -45,6 +45,7 @@ class Params {
   int inf_min;
   float lazy_loop_bias;
   float length_penalty;
+  float loop_penalty;
   int match_wait;
   int max_active_scenarios;
   int max_angle;
@@ -165,6 +166,7 @@ static Params default_params = {
   20, // inf_min
   0.02, // lazy_loop_bias
   0.001, // length_penalty
+  0.2, // loop_penalty
   7, // match_wait
   180, // max_active_scenarios
   45, // max_angle
@@ -279,6 +281,7 @@ void Params::toJson(QJsonObject &json) const {
   json["inf_min"] = inf_min;
   json["lazy_loop_bias"] = lazy_loop_bias;
   json["length_penalty"] = length_penalty;
+  json["loop_penalty"] = loop_penalty;
   json["match_wait"] = match_wait;
   json["max_active_scenarios"] = max_active_scenarios;
   json["max_angle"] = max_angle;
@@ -395,6 +398,7 @@ Params Params::fromJson(const QJsonObject &json) {
   p.inf_min = json["inf_min"].toDouble();
   p.lazy_loop_bias = json["lazy_loop_bias"].toDouble();
   p.length_penalty = json["length_penalty"].toDouble();
+  p.loop_penalty = json["loop_penalty"].toDouble();
   p.match_wait = json["match_wait"].toDouble();
   p.max_active_scenarios = json["max_active_scenarios"].toDouble();
   p.max_angle = json["max_angle"].toDouble();
