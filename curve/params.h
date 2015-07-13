@@ -70,6 +70,7 @@ class Params {
   float slow_down_min;
   float slow_down_ratio;
   float small_segment_min_score;
+  float sp_bad;
   int speed_max_index_gap;
   int speed_min_angle;
   float speed_penalty;
@@ -191,6 +192,7 @@ static Params default_params = {
   0.6, // slow_down_min
   1.5, // slow_down_ratio
   0.2, // small_segment_min_score
+  0.2, // sp_bad
   5, // speed_max_index_gap
   15, // speed_min_angle
   0.5, // speed_penalty
@@ -306,6 +308,7 @@ void Params::toJson(QJsonObject &json) const {
   json["slow_down_min"] = slow_down_min;
   json["slow_down_ratio"] = slow_down_ratio;
   json["small_segment_min_score"] = small_segment_min_score;
+  json["sp_bad"] = sp_bad;
   json["speed_max_index_gap"] = speed_max_index_gap;
   json["speed_min_angle"] = speed_min_angle;
   json["speed_penalty"] = speed_penalty;
@@ -423,6 +426,7 @@ Params Params::fromJson(const QJsonObject &json) {
   p.slow_down_min = json["slow_down_min"].toDouble();
   p.slow_down_ratio = json["slow_down_ratio"].toDouble();
   p.small_segment_min_score = json["small_segment_min_score"].toDouble();
+  p.sp_bad = json["sp_bad"].toDouble();
   p.speed_max_index_gap = json["speed_max_index_gap"].toDouble();
   p.speed_min_angle = json["speed_min_angle"].toDouble();
   p.speed_penalty = json["speed_penalty"].toDouble();

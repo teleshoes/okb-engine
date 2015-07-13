@@ -1983,6 +1983,12 @@ bool Scenario::postProcess() {
 	if (scores[i + 1].curve_score < 0) { error_count --; /* we've just canceled an error */ }
 	scores[i + 1].curve_score = 0;
 	DBG("  workaround: %s shared turn point (ST=1) %c:%c", getNameCharPtr(), letter_history[i], letter_history[i + 1]);
+	float len = distancep(curve->point(i1), curve->point(i2));
+	float dlp = dist_line_point(curve->point(i1), curve->point(i2), curve->point(j));
+	if (dlp > len) {
+	  scores[i + 1].misc_score -= params->sp_bad;
+	  MISC_ACCT(getNameCharPtr(), "sp_bad", params->sp_bad, -1);
+	}
       }
     }
   }

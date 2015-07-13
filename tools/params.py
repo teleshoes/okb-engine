@@ -71,6 +71,7 @@ defparams = [
     [ "speed_max_index_gap", int, 1, 6 ],
     [ "speed_min_angle", int, 1, 45 ],
     [ "speed_penalty", float, 0.01, 1 ],
+    [ "sp_bad", float, 0, 1 ],
     [ "st2_ignore", int, 90, 150 ],
     [ "st2_max", int, 120, 179 ],
     [ "st2_min", int, 70, 160 ],
