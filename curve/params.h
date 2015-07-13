@@ -6,6 +6,7 @@
 class Params {
  public:
   /* BEGIN DECL */
+  float aggressive_mode;
   float anisotropy_ratio;
   int atp_excl_gap;
   int atp_max_pts;
@@ -128,6 +129,7 @@ class Params {
 
 static Params default_params = {
   /* BEGIN DEFAULT */
+  0.6, // aggressive_mode
   1.5, // anisotropy_ratio
   7, // atp_excl_gap
   5, // atp_max_pts
@@ -244,6 +246,7 @@ static Params default_params = {
 
 void Params::toJson(QJsonObject &json) const {
   /* BEGIN TOJSON */
+  json["aggressive_mode"] = aggressive_mode;
   json["anisotropy_ratio"] = anisotropy_ratio;
   json["atp_excl_gap"] = atp_excl_gap;
   json["atp_max_pts"] = atp_max_pts;
@@ -362,6 +365,7 @@ Params Params::fromJson(const QJsonObject &json) {
   Params p;
 
   /* BEGIN FROMJSON */
+  p.aggressive_mode = json["aggressive_mode"].toDouble();
   p.anisotropy_ratio = json["anisotropy_ratio"].toDouble();
   p.atp_excl_gap = json["atp_excl_gap"].toDouble();
   p.atp_max_pts = json["atp_max_pts"].toDouble();

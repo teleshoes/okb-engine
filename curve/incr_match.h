@@ -47,8 +47,8 @@ class DelayedScenario {
   void die() { dead = true; }
 
   void updateNextLength();
-  void getChildsIncr(QList<DelayedScenario> &childs, bool finished, stats_t &st, bool recursive = true, bool aggressive = false);
-  int getNextLength(int curve_id, bool aggressive = false);
+  void getChildsIncr(QList<DelayedScenario> &childs, bool finished, stats_t &st, bool recursive = true, float aggressive = 0);
+  int getNextLength(int curve_id, float aggressive = 0);
 
   void setDebug(bool value) { debug = scenario.debug = value; }
 
@@ -58,10 +58,10 @@ class DelayedScenario {
 class IncrementalMatch : public CurveMatch {
  protected:
   void incrementalMatchBegin();
-  void incrementalMatchUpdate(bool finished, bool aggressive = false);
+  void incrementalMatchUpdate(bool finished, float aggressive = 0);
   QString getLengthStr();
 
-  void update_next_iteration_length(bool aggressive);
+  void update_next_iteration_length(float aggressive);
 
   void delayedScenariosFilter();
 

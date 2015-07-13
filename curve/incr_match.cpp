@@ -80,7 +80,7 @@ void DelayedScenario::updateNextLength() {
   }
 }
 
-void DelayedScenario::getChildsIncr(QList<DelayedScenario> &childs, bool curve_finished, stats_t &st, bool recursive, bool aggressive) {
+void DelayedScenario::getChildsIncr(QList<DelayedScenario> &childs, bool curve_finished, stats_t &st, bool recursive, float aggressive) {
   if (dead || scenario.finished) { return; }
 
   if (! nextOk) { updateNextLetters(); }
@@ -95,8 +95,8 @@ void DelayedScenario::getChildsIncr(QList<DelayedScenario> &childs, bool curve_f
     for (int curve_id = 0; curve_id < scenario.curve_count; curve_id ++) {
       /* in "aggressive matching" try to evaluate child scenarios as soon as possible,
 	 even it causes a lot of retries ... */
-      int nl_index = curve_id * 2 + (aggressive?0:1);
-      int min_length = it.value().next_length[nl_index];
+      int nl_index = curve_id * 2;
+      int min_length = aggressive * it.value().next_length[nl_index] + (1 - aggressive) * it.value().next_length[nl_index + 1];
       int cur_length = scenario.curves[curve_id].getTotalLength();
 
       if (min_length == -1) {
@@ -119,7 +119,8 @@ void DelayedScenario::getChildsIncr(QList<DelayedScenario> &childs, bool curve_f
 	  // we are too close to the end of the curve, we'll have to retry later (only occurs when curve is not finished)
 	  DBG("[INCR] Retry: %s + '%c'", QSTRING2PCHAR(scenario.getId()), childNode.getChar());
 	  st.st_retry += 1;
-	  it.value().next_length[nl_index] += scenario.params->incr_retry;
+	  it.value().next_length[nl_index]     += scenario.params->incr_retry;
+	  it.value().next_length[nl_index + 1] += scenario.params->incr_retry;
 	  flag_wait = true;
 	}
 
@@ -148,13 +149,13 @@ void DelayedScenario::getChildsIncr(QList<DelayedScenario> &childs, bool curve_f
 }
 
 
-int DelayedScenario::getNextLength(int curve_id, bool aggressive) {
+int DelayedScenario::getNextLength(int curve_id, float aggressive) {
   if (! nextOk) { updateNextLetters(); }
 
   int next_length = 0;
   QHash<unsigned char, NextLetter>::iterator it;
   for(it = next.begin(); it != next.end(); it ++) {
-    int length = it.value().next_length[curve_id * 2 + (aggressive?0:1) ];
+    int length = aggressive * it.value().next_length[curve_id * 2] + (1 - aggressive) * it.value().next_length[curve_id * 2 + 1];
     if (length > 0 && (length < next_length || ! next_length)) { next_length = length; }
   }
   return next_length;
@@ -208,7 +209,7 @@ void IncrementalMatch::incrementalMatchBegin() {
 }
 
 void IncrementalMatch::aggressiveMatch() {
-  incrementalMatchUpdate(false, true);
+  incrementalMatchUpdate(false, 1.0);
 }
 
 QString IncrementalMatch::getLengthStr() {
@@ -221,7 +222,7 @@ QString IncrementalMatch::getLengthStr() {
   return txt;
 }
 
-void IncrementalMatch::incrementalMatchUpdate(bool finished, bool aggressive) {
+void IncrementalMatch::incrementalMatchUpdate(bool finished, float aggressive) {
   /* incremental algorithm: subsequent iterations */
   if (! loaded || ! keys.size()) { return; }
 
@@ -246,7 +247,7 @@ void IncrementalMatch::incrementalMatchUpdate(bool finished, bool aggressive) {
     if (current_length[i] >= next_iteration_length[i]) { proceed = true; }
   }
 
-  logdebug("[== incrementalMatchUpdate: %sfinished=%d, curveIndex=%d, length=[%s], proceed=%d", aggressive?"[aggressive] ":"", finished, curve.size(), QSTRING2PCHAR(getLengthStr()), proceed);
+  logdebug("[== incrementalMatchUpdate: finished=%d, curveIndex=%d, length=[%s], proceed=%d aggressive=%.2f", finished, curve.size(), QSTRING2PCHAR(getLengthStr()), proceed, aggressive);
 
   if (debug) {
     for(int i = 0; i < delayed_scenarios.size(); i ++) {
@@ -320,12 +321,12 @@ void IncrementalMatch::incrementalMatchUpdate(bool finished, bool aggressive) {
     }
 
   }
-  logdebug("==] incrementalMatchUpdate: %scurveIndex=%d, finished=%d, scenarios=%d, skim=%d, fork=%d, nodes=%d, retry=%d [time=%.3f]",
-	   aggressive?"[aggressive] ":"", curve.size(), finished, delayed_scenarios.size(),
+  logdebug("==] incrementalMatchUpdate: curveIndex=%d, finished=%d, scenarios=%d, skim=%d, fork=%d, nodes=%d, retry=%d [time=%.3f]",
+	   curve.size(), finished, delayed_scenarios.size(),
 	   st.st_skim, st.st_fork, st.st_count, st.st_retry, (float)(t_start.msecsTo(QTime::currentTime())) / 1000);
 }
 
-void IncrementalMatch::update_next_iteration_length(bool aggressive) {
+void IncrementalMatch::update_next_iteration_length(float aggressive) {
   /* records minimal curve length to trigger the next iteration */
   memset(next_iteration_length, 0, sizeof(next_iteration_length));
 
@@ -425,7 +426,7 @@ void IncrementalMatch::addPoint(Point point, int curve_id, int timestamp) {
   if (first_point) {
     incrementalMatchBegin();
   } else if (curve.size() >= next_iteration_index) {
-    incrementalMatchUpdate(false);
+    incrementalMatchUpdate(false, params.aggressive_mode);
   }
   st.st_time = (int) timer.elapsed();
 }

@@ -4,6 +4,7 @@
 """ List of all parameters with type and min/max values """
 
 defparams = [
+    [ "aggressive_mode", float ],
     [ "anisotropy_ratio", float, 1, 2 ],
     [ "atp_excl_gap", int, 2, 10],
     [ "atp_max_pts", int, 3, 12],
