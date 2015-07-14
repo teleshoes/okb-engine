@@ -302,11 +302,18 @@ void CurveMatch::curvePreprocess2() {
   float sc1 = 0, sc2 = 0;
   int total = 0;
   for (int i = 0; i < curve_count; i ++) {
+    QList<int> indexes;
     for (int j = 0; j < curve.size(); j ++) {
       if (curve[j].curve_id != i) { continue; }
+      indexes.append(j);
+    }
+    for(int k = 0; k < indexes.size(); k ++) {
+      int j = indexes[k];
       int turn = curve[j].turn_smooth;
       total += turn;
-      sc1 = max(sc1, (float) abs(turn) / params.straight_max_turn);
+      if (j > 2 && j < indexes.size() - 2) { // ignore near tip anomalies
+	sc1 = max(sc1, (float) abs(turn) / params.straight_max_turn);
+      }
     }
     sc2 = abs(total) * (0.35 + 0.65 * min(1, (float) curve.size() / 250)) / params.straight_max_total; // @todo use parameters
     float straight = max(sc1, sc2);
