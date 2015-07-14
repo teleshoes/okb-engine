@@ -210,10 +210,16 @@ class NextIndex {
 class Scenario;
 typedef QHash<unsigned char, QList<Scenario> > child_cache_t;
 
+#ifdef INCREMENTAL
+class MultiScenario;
+#endif /* INCREMENTAL */
+
 class Scenario {
 #ifdef INCREMENTAL
   friend class DelayedScenario;
+  friend class MultiScenario;
 #endif /* INCREMENTAL */
+
 
  protected:
   unsigned char *index_history; // let's not implement >255 letters words :-)
@@ -315,7 +321,7 @@ class Scenario {
   void toJson(QJsonObject &json);
   QString toString(bool indent = false);
   float getDistSqr() { return dist_sqr; }
-  int getTimestamp();
+  int getTimestamp() const;
   score_t getScoreIndex(int i);
   QString getId() const { return getName(); }
   bool nextLength(unsigned char next_letter, int curve_id, int &min, int &max);

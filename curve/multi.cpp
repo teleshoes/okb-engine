@@ -13,6 +13,11 @@
 int MultiScenario::global_id = -1;
 QList<Scenario> MultiScenario::scenario_root;
 
+void MultiScenario::init() {
+  MultiScenario::global_id = 1;
+  MultiScenario::scenario_root.clear();
+}
+
 MultiScenario::MultiScenario(LetterTree *tree, QuickKeys *keys, QuickCurve *curves, Params *params) {
   this -> node = tree -> getRoot();
   this -> keys = keys;
@@ -35,12 +40,54 @@ MultiScenario::MultiScenario(LetterTree *tree, QuickKeys *keys, QuickCurve *curv
   zombie = false;
 
   id = 0;
-  MultiScenario::global_id = 1;
-  MultiScenario::scenario_root.clear();
+  MultiScenario::init();
 }
 
 MultiScenario::MultiScenario(const MultiScenario &from) {
   copy_from(from);
+}
+
+MultiScenario::MultiScenario(const Scenario &from) {
+  // promote a standard scenario to a multi-touch one
+  params = from.params;
+  curves = from.curve; /* let's assume this was a pointer to a properly size array (which is the case when called from incr_match.cpp */
+  params = from.params;
+  keys = from.keys;
+
+  node = from.node;
+  finished = from.finished;
+  count = from.count;
+  curve_count = 1;
+
+  debug = from.debug;
+
+  dist = from.dist;
+  dist_sqr = from.dist_sqr;
+
+  ts = from.getTimestamp();
+
+  final_score = from.final_score;
+
+  history = new history_t[count + 1];
+  letter_history = new unsigned char[count + 2]; // one more char to allow to keep a '\0' at the end (for use for display as a char*)
+
+  if (count) {
+    memcpy(letter_history, from.letter_history, count * sizeof(unsigned char));
+    for(int i = 0; i < count; i ++) {
+      history[i].curve_id = 0;
+      history[i].index = i;
+      history[i].curve_index = from.index_history[i];
+      history[i].end_curve = (i == count - 1 && from.finished);
+    }
+  }
+
+  letter_history[count] = letter_history[count + 1] = '\0';
+
+  scenarios.clear();
+  scenarios.append(QSharedPointer<Scenario> (new Scenario(from)));
+
+  id = (MultiScenario::global_id ++);
+  zombie = false;
 }
 
 MultiScenario& MultiScenario::operator=(const MultiScenario &from) {

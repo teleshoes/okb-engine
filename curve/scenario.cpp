@@ -1941,7 +1941,7 @@ void Scenario::calc_loop_score_all(turn_t *turn_detail, int turn_count) {
 	    ok = true;
 	  }
 	}
-	
+
 	DBG("Loop detected: turn #%d (index %d, letter '%c')  OK=%d", i, j, letter_history[j], (int) ok);
 	if (! ok) {
 	  scores[j].misc_score -= params->loop_penalty;
@@ -1949,7 +1949,7 @@ void Scenario::calc_loop_score_all(turn_t *turn_detail, int turn_count) {
 	}
       }
     }
-    
+
   }
 }
 
@@ -2140,7 +2140,7 @@ float Scenario::distance() const {
   return dist;
 }
 
-int Scenario::getTimestamp() {
+int Scenario::getTimestamp() const {
   return index?curve->getTimestamp(index - 1):curve->getTimestamp(0);
 }
 

@@ -70,6 +70,7 @@ class MultiScenario {
  public:
   MultiScenario(LetterTree *tree, QuickKeys *keys, QuickCurve *curves, Params *params);
   MultiScenario(const MultiScenario &from);
+  MultiScenario(const Scenario &from);
   MultiScenario& operator=( const MultiScenario &from );
   ~MultiScenario();
 
@@ -103,6 +104,7 @@ class MultiScenario {
   float getScoreV1() const;
 
   static void sortCandidates(QList<MultiScenario *> candidates, Params &params, int debug);
+  static void init();
 
   /* deprecated */
   int getClass() { return 0; }
