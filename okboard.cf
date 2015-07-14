@@ -1,7 +1,7 @@
 # default parameters
 
 [default]
-aggressive_mode = 0.6
+aggressive_mode = 0
 anisotropy_ratio = 1.5
 atp_excl_gap = 7
 atp_max_pts = 5

@@ -129,7 +129,7 @@ class Params {
 
 static Params default_params = {
   /* BEGIN DEFAULT */
-  0.6, // aggressive_mode
+  0.0, // aggressive_mode
   1.5, // anisotropy_ratio
   7, // atp_excl_gap
   5, // atp_max_pts
