@@ -329,6 +329,8 @@ class Scenario {
   void setCache(bool value);
 
   static void sortCandidates(QList<Scenario *> candidates, Params &params, int debug);
+
+  void setCurveCount(int) {}; // for compatibility only
 };
 
 

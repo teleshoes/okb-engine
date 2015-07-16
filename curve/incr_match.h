@@ -8,6 +8,10 @@
 
 #ifdef INCREMENTAL
 
+#ifndef MULTI
+#error "INCREMENTAL requires MULTI"
+#endif
+
 #include "curve_match.h"
 #include "tree.h"
 
@@ -30,18 +34,37 @@ class DelayedScenario {
  private:
   void updateNextLetters();
   bool debug;
+  bool multi;
+  int curve_count;
+  Params *params;
+  QSharedPointer<MultiScenario> multi_p;
+  QSharedPointer<Scenario> single_p;
 
  public:
-  ScenarioType scenario;
+
   bool dead;
   QHash<unsigned char, NextLetter> next;
   bool nextOk;
 
   DelayedScenario(LetterTree *tree, QuickKeys *keys, QuickCurve *curves, Params *params);
   DelayedScenario(const DelayedScenario &from);
-  DelayedScenario(const ScenarioType &from);
+  DelayedScenario(const MultiScenario &from);
+  DelayedScenario(const Scenario &from);
   DelayedScenario& operator=(const DelayedScenario &from);
   ~DelayedScenario();
+
+  bool isFinished();
+  LetterNode getNode();
+  bool nextLength(unsigned char next_letter, int curve_id, int &min_length, int &max_length);
+  int getTotalLength(int curve_id);
+  void setCurveCount(int count);
+  QString getId();
+  float getScore();
+  QString getWordList();
+  MultiScenario getMultiScenario();
+  int getCount();
+  int forkLast();
+  QString getName();
 
   bool operator<(const DelayedScenario &other) const;
   void die() { dead = true; }
@@ -50,7 +73,7 @@ class DelayedScenario {
   void getChildsIncr(QList<DelayedScenario> &childs, bool finished, stats_t &st, bool recursive = true, float aggressive = 0);
   int getNextLength(int curve_id, float aggressive = 0);
 
-  void setDebug(bool value) { debug = scenario.debug = value; }
+  void setDebug(bool value);
 
   void display(char *prefix = NULL);
 };

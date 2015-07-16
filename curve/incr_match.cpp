@@ -7,47 +7,158 @@
 
 #include "functions.h"
 
-DelayedScenario::DelayedScenario(LetterTree *tree, QuickKeys *keys, QuickCurve *curves, Params *params) : scenario(tree, keys, curves, params) {
+#define SC_METHOD(method, ...) (multi?(multi_p.data()->method(__VA_ARGS__)):(single_p.data()->method(__VA_ARGS__)))
+#define SC_PROP(prop) (multi?(multi_p.data()->prop):(single_p.data()->prop))
+
+DelayedScenario::DelayedScenario(LetterTree *tree, QuickKeys *keys, QuickCurve *curves, Params *params) {
   dead = nextOk = false;
   debug = false;
+
+  multi = false;
+  single_p.reset(new Scenario(tree, keys, curves, params));
+
+  this -> params = params;
+  curve_count = 0;
+
+  MultiScenario::init(); // static context -> bad
 };
 
-DelayedScenario::DelayedScenario(const DelayedScenario &from) : scenario(from.scenario) {
+DelayedScenario::DelayedScenario(const DelayedScenario &from) {
   dead = false;
   next = from.next;
   nextOk = from.nextOk;
   debug = from.debug;
-};
 
-DelayedScenario::DelayedScenario(const ScenarioType &from) : scenario(from) {
+  multi = from.multi;
+  multi_p = from.multi_p;
+  single_p = from.single_p;
+  params = from.params;
+  curve_count = from.curve_count;
+}
+
+DelayedScenario::DelayedScenario(const MultiScenario &from) {
   dead = nextOk = false;
   debug = from.debug;
+
+  multi = true;
+  multi_p.reset(new MultiScenario(from));
+
+  params = from.params;
+  curve_count = multi_p.data() -> curve_count;
+}
+
+DelayedScenario::DelayedScenario(const Scenario &from) {
+  dead = nextOk = false;
+  debug = from.debug;
+
+  multi = false;
+  single_p.reset(new Scenario(from));
+
+  params = from.params;
+  curve_count = 1;
 }
 
 DelayedScenario& DelayedScenario::operator=(const DelayedScenario &from) {
-  this->scenario = from.scenario;
+  this->multi_p = from.multi_p;
+  this->single_p = from.single_p;
   this->dead = from.dead;
   this->next.clear();
   this->nextOk = false;
   this->debug = from.debug;
 
+  this->params = from.params;
+  this->multi = from.multi;
+  this->curve_count = from.curve_count;
+
   return (*this);
 };
 
 DelayedScenario::~DelayedScenario() {
+  // nothing to do: smart pointers are smart :)
 };
 
 
 bool DelayedScenario::operator<(const DelayedScenario &other) const {
-  return (this -> scenario.ScenarioType::operator<(other.scenario));
+  if (multi) {
+    return this -> multi_p.data() -> operator<(*(other.multi_p.data()));
+  } else {
+    return this -> single_p.data() -> operator<(*(other.single_p.data()));
+  }
+}
+
+bool DelayedScenario::isFinished() {
+  return SC_METHOD(isFinished);
+}
+
+void DelayedScenario::setDebug(bool value) {
+  SC_METHOD(setDebug, value);
+  this -> debug = value;
+}
+
+void DelayedScenario::setCurveCount(int count) {
+  if (count > 1 && ! multi) {
+    multi = true;
+    this -> multi_p.reset(new MultiScenario(*(this -> single_p.data())));
+    this -> single_p.clear();
+  }
+  SC_METHOD(setCurveCount, count);
+  curve_count = count;
+}
+
+bool DelayedScenario::nextLength(unsigned char next_letter, int curve_id, int &min_length, int &max_length) {
+  return SC_METHOD(nextLength, next_letter, curve_id, min_length, max_length);
+}
+
+int DelayedScenario::getTotalLength(int curve_id) {
+  if (multi) {
+    return this -> multi_p.data() -> curves[curve_id].getTotalLength();
+  } else {
+    return this -> single_p.data() -> curve -> getTotalLength();
+  }
+}
+
+LetterNode DelayedScenario::getNode() {
+  return SC_PROP(node);
+}
+
+QString DelayedScenario::getId() {
+  return SC_METHOD(getId);
+}
+
+float DelayedScenario::getScore() {
+  return SC_METHOD(getScore);
+}
+
+QString DelayedScenario::getWordList() {
+  return SC_METHOD(getWordList);
+}
+
+MultiScenario DelayedScenario::getMultiScenario() {
+  if (multi) {
+    return MultiScenario(*(this -> multi_p.data()));
+  } else {
+    return MultiScenario(*(this -> single_p.data()));
+  }
+}
+
+int DelayedScenario::getCount() {
+  return SC_METHOD(getCount);
+}
+
+int DelayedScenario::forkLast() {
+  return SC_METHOD(forkLast);
+}
+
+QString DelayedScenario::getName() {
+  return SC_METHOD(getName);
 }
 
 void DelayedScenario::updateNextLetters() {
-  if (scenario.isFinished()) { return; }
+  if (isFinished()) { return; }
 
   next.clear();
 
-  foreach (LetterNode child, scenario.node.getChilds()) {
+  foreach (LetterNode child, getNode().getChilds()) {
     unsigned char letter = child.getChar();
     next[letter] = NextLetter(child);
   }
@@ -63,13 +174,13 @@ void DelayedScenario::updateNextLength() {
 
   QHash<unsigned char, NextLetter>::iterator it;
   for(it = next.begin(); it != next.end(); it ++) {
-    while (it.value().next_length.size() < 2 * scenario.curve_count) { it.value().next_length.append(0); }
+    while (it.value().next_length.size() < 2 * curve_count) { it.value().next_length.append(0); }
 
-    for(int curve_id = 0; curve_id < scenario.curve_count; curve_id ++) {
+    for(int curve_id = 0; curve_id < curve_count; curve_id ++) {
       unsigned char next_letter = it.key();
-      int min_length, max_length;
+      int min_length = 0, max_length = 0;
 
-      if (! scenario.nextLength(next_letter, curve_id, min_length, max_length)) {
+      if (! nextLength(next_letter, curve_id, min_length, max_length)) {
 	min_length = max_length = -1; // e.g. trying to add letter to finished sub-scenario
       }
 
@@ -81,35 +192,42 @@ void DelayedScenario::updateNextLength() {
 }
 
 void DelayedScenario::getChildsIncr(QList<DelayedScenario> &childs, bool curve_finished, stats_t &st, bool recursive, float aggressive) {
-  if (dead || scenario.finished) { return; }
+  if (dead || isFinished()) { return; }
 
   if (! nextOk) { updateNextLetters(); }
 
-  QList<ScenarioType> tmpList;
+  QList<MultiScenario> tmpListM;
+  QList<Scenario> tmpListS;
 
   QHash<unsigned char, NextLetter>::iterator it = next.begin();
   while (it != next.end()) {
     LetterNode childNode = it.value().letter_node;
     bool flag_found = false, flag_wait = false;
 
-    for (int curve_id = 0; curve_id < scenario.curve_count; curve_id ++) {
+    for (int curve_id = 0; curve_id < curve_count; curve_id ++) {
       /* in "aggressive matching" try to evaluate child scenarios as soon as possible,
 	 even it causes a lot of retries ... */
       int nl_index = curve_id * 2;
       int min_length = aggressive * it.value().next_length[nl_index] + (1 - aggressive) * it.value().next_length[nl_index + 1];
-      int cur_length = scenario.curves[curve_id].getTotalLength();
+      int cur_length = getTotalLength(curve_id);
 
       if (min_length == -1) {
 	// no child possible for this curve. never retry
 
       } else if (cur_length > min_length || curve_finished) {
 	st.st_count += 1;
-	DBG("[INCR] Evaluate: %s + '%c' [curve_id=%d]", QSTRING2PCHAR(scenario.getId()), childNode.getChar(), curve_id);
+	DBG("[INCR] Evaluate: %s + '%c' [curve_id=%d]", QSTRING2PCHAR(getId()), childNode.getChar(), curve_id);
 
-	int last_size = tmpList.size();
-	if (scenario.childScenario(childNode, tmpList, st, curve_id, ! curve_finished)) {
+	int last_size = tmpListM.size() + tmpListS.size();
+	bool result;
+	if (multi) {
+	  result = multi_p.data()->childScenario(childNode, tmpListM, st, curve_id, ! curve_finished);
+	} else {
+	  result = single_p.data()->childScenario(childNode, tmpListS, st, 0, ! curve_finished);
+	}
+	if (result) {
 	  // we've found all suitable child scenarios (possibly none at all)
-	  if (tmpList.size() > last_size) {
+	  if (tmpListM.size() + tmpListS.size() > last_size) {
 	    // we've actually found a child --> no need to try the other curves
 	    // (warning: this may cause problem in case of "finger collision")
 	    flag_found = 1;
@@ -117,10 +235,10 @@ void DelayedScenario::getChildsIncr(QList<DelayedScenario> &childs, bool curve_f
 
 	} else {
 	  // we are too close to the end of the curve, we'll have to retry later (only occurs when curve is not finished)
-	  DBG("[INCR] Retry: %s + '%c'", QSTRING2PCHAR(scenario.getId()), childNode.getChar());
+	  DBG("[INCR] Retry: %s + '%c'", QSTRING2PCHAR(getId()), childNode.getChar());
 	  st.st_retry += 1;
-	  it.value().next_length[nl_index]     += scenario.params->incr_retry;
-	  it.value().next_length[nl_index + 1] += scenario.params->incr_retry;
+	  it.value().next_length[nl_index]     += params->incr_retry;
+	  it.value().next_length[nl_index + 1] += params->incr_retry;
 	  flag_wait = true;
 	}
 
@@ -136,13 +254,26 @@ void DelayedScenario::getChildsIncr(QList<DelayedScenario> &childs, bool curve_f
     }
   }
 
-  foreach(ScenarioType sc, tmpList) {
-    DBG("[INCR] New scenario: %s", QSTRING2PCHAR(sc.getId()));
-    DelayedScenario ds = DelayedScenario(sc);
-    if (recursive && ! sc.isFinished()) {
-      ds.getChildsIncr(childs, curve_finished, st, recursive, aggressive);
+  QList<DelayedScenario> new_ds;
+
+  if (multi) {
+    foreach(MultiScenario sc, tmpListM) {
+      DBG("[INCR] New scenario: %s", QSTRING2PCHAR(sc.getId()));
+      DelayedScenario ds = DelayedScenario(sc);
+      if (recursive && ! sc.isFinished()) {
+	ds.getChildsIncr(childs, curve_finished, st, recursive, aggressive);
+      }
+      childs.append(ds);
     }
-    childs.append(ds);
+  } else {
+    foreach(Scenario sc, tmpListS) {
+      DBG("[INCR] New scenario: %s", QSTRING2PCHAR(sc.getId()));
+      DelayedScenario ds = DelayedScenario(sc);
+      if (recursive && ! sc.isFinished()) {
+	ds.getChildsIncr(childs, curve_finished, st, recursive, aggressive);
+      }
+      childs.append(ds);
+    }
   }
 
   if (! next.size()) { die(); } // we have explored all possible child scenarios
@@ -166,9 +297,9 @@ void DelayedScenario::display(char *prefix) {
 
   QString txt;
   QTextStream ts(& txt);
-  ts << "DelayedScenario(" << scenario.getId() << "): score=" << scenario.getScore();
+  ts << "DelayedScenario(" << getId() << "): score=" << getScore();
   if (dead) { ts << " [DEAD]"; }
-  if (scenario.finished) { ts << " [finished]"; }
+  if (isFinished()) { ts << " [finished]"; }
   foreach(unsigned char letter, next.keys()) {
     ts << " " << QString(letter) << ":";
     bool first = true;
@@ -199,6 +330,7 @@ void IncrementalMatch::incrementalMatchBegin() {
 
   DelayedScenario root(&wordtree, &quickKeys, (QuickCurve*) &quickCurves, &params);
   root.setDebug(debug);
+  root.setCurveCount(curve_count);
 
   memset(next_iteration_length, 0, sizeof(next_iteration_length));
 
@@ -235,7 +367,7 @@ void IncrementalMatch::incrementalMatchUpdate(bool finished, float aggressive) {
     // new touchpoint registered, user has just started a new curve
     DBG("New curve registered: #%d", curve_count);
     for(int i = 0; i < delayed_scenarios.size(); i ++) {
-      delayed_scenarios[i].scenario.setCurveCount(curve_count);
+      delayed_scenarios[i].setCurveCount(curve_count);
       delayed_scenarios[i].updateNextLength();
     }
     last_curve_count = curve_count;
@@ -283,10 +415,10 @@ void IncrementalMatch::incrementalMatchUpdate(bool finished, float aggressive) {
   // copy back unfinished scenarios to scenario list
   delayed_scenarios.clear();
   for(int i = 0 ; i < new_delayed_scenarios.size(); i ++) {
-    if (new_delayed_scenarios[i].scenario.isFinished()) {
-      if (new_delayed_scenarios[i].scenario.getWordList().size()) {
+    if (new_delayed_scenarios[i].isFinished()) {
+      if (new_delayed_scenarios[i].getWordList().size()) {
 	// This test is a workaround for a real bug (@todo fix this)
-	candidates.append(new_delayed_scenarios[i].scenario); // add to candidate list
+	candidates.append(new_delayed_scenarios[i].getMultiScenario()); // add to candidate list
       }
 
     } else {
@@ -362,7 +494,7 @@ void IncrementalMatch::delayedScenariosFilter() {
     float* scores = new float[nb];
 
     for(int i = 0; i < delayed_scenarios.size(); i ++) {
-      scores[i] = delayed_scenarios[i].scenario.getScore();
+      scores[i] = delayed_scenarios[i].getScore();
     }
     std::qsort(scores, nb, sizeof(float), compareFloat); // wtf ???
     min_score = scores[nb - 1 - params.max_active_scenarios];
@@ -373,21 +505,21 @@ void IncrementalMatch::delayedScenariosFilter() {
   QHash<QString, int> dejavu;
 
   for(int i = 0; i < delayed_scenarios.size(); i ++) {
-    float sc = delayed_scenarios[i].scenario.getScore();
+    float sc = delayed_scenarios[i].getScore();
 
-    if (sc < min_score && delayed_scenarios[i].scenario.getCount() > 2) {
+    if (sc < min_score && delayed_scenarios[i].getCount() > 2) {
 
       st.st_skim ++;
       delayed_scenarios[i].die();
-      DBG("filtering(size): %s (%.3f)", delayed_scenarios[i].scenario.getNameCharPtr(), delayed_scenarios[i].scenario.getScore());
+      DBG("filtering(size): %s (%.3f)", QSTRING2PCHAR(delayed_scenarios[i].getId()), delayed_scenarios[i].getScore());
 
-    } else if (! delayed_scenarios[i].scenario.forkLast()) {
+    } else if (! delayed_scenarios[i].forkLast()) {
 
       // remove scenarios with duplicate words (but not just after a scenario fork)
-      QString name = delayed_scenarios[i].scenario.getName();
+      QString name = delayed_scenarios[i].getName();
       if (dejavu.contains(name)) {
 	int i0 = dejavu[name];
-	float s0 = delayed_scenarios[i0].scenario.getScore();
+	float s0 = delayed_scenarios[i0].getScore();
 	if (sc > s0) {
 	  delayed_scenarios[i0].die();
 	  dejavu.insert(name,i);
@@ -396,7 +528,7 @@ void IncrementalMatch::delayedScenariosFilter() {
 	}
 	continue; // retry iteration
       } else {
-	if (! delayed_scenarios[i].scenario.forkLast()) {
+	if (! delayed_scenarios[i].forkLast()) {
 	  dejavu.insert(name, i);
 	}
       }
