@@ -11,10 +11,12 @@ import cfslm, cdb
 import unicodedata
 import pickle
 
-# uncomment this 3 line to activate python plugins detailed logging
-# from tools.wrapper import LogWrapper
-# cdb = LogWrapper("cdb", cdb)
-# cfslm = LogWrapper("cfslm", cfslm)
+# python plugins detailed logging
+if os.getenv("NGRAM_DEBUG", None):
+    from tools.wrapper import LogWrapper
+    cdb = LogWrapper("cdb", cdb)
+    cfslm = LogWrapper("cfslm", cfslm)
+
 
 class Wordinfo:
     def __init__(self, id, cluster_id, real_word = None):
