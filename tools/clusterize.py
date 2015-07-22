@@ -76,7 +76,9 @@ def truncate():
                               key = lambda x: grams[x][0], reverse = True)
 
             if len(gramlist) > max:
-                for key in gramlist[max:]: del grams[key]
+                for key in gramlist[max:]:
+                    if key.startswith("#NA;#NA;"): continue
+                    del grams[key]
 
         if max: gramlist = gramlist[:max]
 
