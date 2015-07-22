@@ -1,5 +1,5 @@
 predict_words=60000
 cluster_cgrams=500000
-cluster_wgrams=200000
+cluster_wgrams=300000
 cluster_depth=8
 filter_words=NO_FILTER
