@@ -1105,7 +1105,7 @@ class Predict:
                 pickle.dump((self._speed_hist, self._score_hist, HistPercentile.VERSION), f, pickle.HIGHEST_PROTOCOL)
             self._hist_dirty = False
 
-    def guess(self, matches, correlation_id = -1, speed = -1):
+    def guess(self, matches, correlation_id = -1, speed = -1, show_all = False):
         """ main entry point for predictive guess """
 
         self.log('[*] ' + time.ctime() + " - TS: " + self.mod_ts)
@@ -1148,7 +1148,7 @@ class Predict:
         i = 0
         for w in lst:
             i += 1
-            if i > 2 and not words[w].score_predict: continue
+            if i > 2 and not show_all and not words[w].score_predict: continue
             self.log("- " + words[w].message)
 
         self.predict_list = lst[0:self.cf('max_predict', 30, int)]

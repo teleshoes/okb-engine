@@ -162,7 +162,7 @@ for t in history:
     print("====", id, " ".join(reversed(context)), word)
 
     candidates = [ (c["name"], c["score"], c["class"], c["star"], c["words"]) for c in result["candidates"] ]
-    guess = p.guess(candidates, speed = result["stats"]["speed"])
+    guess = p.guess(candidates, speed = result["stats"]["speed"], show_all = True)
 
     ok = (guess == word)
     count += 1
