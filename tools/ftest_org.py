@@ -155,11 +155,13 @@ for t in history:
         f.write("%s\n" % prefix)
         continue
 
+    while context and context[-1] == '#START': context.pop(-1)  # prediction engine will figure #START by itself !
+
     tmp = " ".join(reversed(context))
     p.update_surrounding(tmp, len(tmp))
     p.update_preedit("")
     p._update_last_words()
-    print("====", id, " ".join(reversed(context)), word)
+    print("====", id, tmp, word)
 
     candidates = [ (c["name"], c["score"], c["class"], c["star"], c["words"]) for c in result["candidates"] ]
     guess = p.guess(candidates, speed = result["stats"]["speed"], show_all = True)
