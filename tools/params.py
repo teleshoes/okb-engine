@@ -66,7 +66,6 @@ defparams = [
     [ "same_point_score", float, 0, 1 ],
     [ "score_pow", float, 0.1, 10 ],
     [ "sharp_turn_penalty", float, 0, 1 ],
-    [ "slow_down_min", float, 0, 1],
     [ "slow_down_ratio", float, 1, 2 ],
     [ "small_segment_min_score", float, 0.01, 0.9 ],
     [ "speed_max_index_gap", int, 1, 6 ],

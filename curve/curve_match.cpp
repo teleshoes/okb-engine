@@ -256,9 +256,8 @@ void CurveMatch::curvePreprocess1(int curve_id) {
 
     // slow down point search
     int maxd = params.max_turn_index_gap;
-    for(int i = max(maxd, 0); i < l - maxd; i ++) {
+    for(int i = maxd; i < l - maxd; i ++) {
       int spd0 = oneCurve[i].speed;
-      if (spd0 < max_speed * params.slow_down_min) { continue; }
       int ok = 0;
       for(int j = -maxd; j <= maxd; j ++) {
 	int spd = oneCurve[i + j].speed;
