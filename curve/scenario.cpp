@@ -579,7 +579,7 @@ float Scenario::calc_distance_score(unsigned char letter, int index, int count, 
 
   /* return corrected distance */
   if (return_distance) {
-    *return_distance = params->dist_max_next * dist;
+    *return_distance = ratio * dist;
   }
 
   // @todo add a "more verbose" debug option
