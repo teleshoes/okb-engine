@@ -1714,6 +1714,32 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
     }
   }
 
+  // check for "locally-flat" strokes
+  // (if a segment is between curve tips and/or straigt or 180° turns it should be mostly flat)
+#define IS_FLAT(a) (abs(a) < params->flat_max_angle || abs(abs(a) - 180) < params->flat_max_angle)
+
+  for(int i = 0; i < count - 1; i ++) {
+    if ((i == 0 || IS_FLAT(a_expected[i])) &&
+	(i == count - 2 || IS_FLAT(a_expected[i + 1]))) {
+      int i1 = index_history[i];
+      int i2 = index_history[i + 1];
+      Point pt1 = curve->point(i1);
+      Point pt2 = curve->point(i2);
+      float max_dist = 0;
+      for(int j = i1 + 1; j < i2 - 1; j += 2) {
+	Point cur_pt = curve->point(j);
+	float distance = dist_line_point(pt1, pt2, cur_pt);
+	if (distance > max_dist) { max_dist = distance; }
+      }
+      int max_err = params->flat_max_deviation;
+      float score = max(0, max_dist / max_err - 1);
+      if (! score) { continue; }
+      DBG("[%s] Flat segment not matched: turn #%d->#%d max_dist=%d --> score=%.2f", getNameCharPtr(), i, i + 1, (int) max_dist, score);
+      MISC_ACCT(getNameCharPtr(), "flat_score", params->flat_score, -1);
+      scores[i].misc_score -= 0.5 * params->flat_score * score;
+      scores[i + 1].misc_score -= 0.5 * params->flat_score * score;
+    }
+  }
 }
 
 int Scenario::getLocalTurn(int index) {

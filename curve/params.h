@@ -39,6 +39,9 @@ class Params {
   float final_distance_pow;
   float final_score_v1_coef;
   float final_score_v1_threshold;
+  int flat_max_angle;
+  int flat_max_deviation;
+  float flat_score;
   int incr_retry;
   int incremental_index_gap;
   int incremental_length_lag;
@@ -161,6 +164,9 @@ static Params default_params = {
   0.5, // final_distance_pow
   0.0, // final_score_v1_coef
   0.11, // final_score_v1_threshold
+  10, // flat_max_angle
+  45, // flat_max_deviation
+  0.25, // flat_score
   50, // incr_retry
   5, // incremental_index_gap
   100, // incremental_length_lag
@@ -277,6 +283,9 @@ void Params::toJson(QJsonObject &json) const {
   json["final_distance_pow"] = final_distance_pow;
   json["final_score_v1_coef"] = final_score_v1_coef;
   json["final_score_v1_threshold"] = final_score_v1_threshold;
+  json["flat_max_angle"] = flat_max_angle;
+  json["flat_max_deviation"] = flat_max_deviation;
+  json["flat_score"] = flat_score;
   json["incr_retry"] = incr_retry;
   json["incremental_index_gap"] = incremental_index_gap;
   json["incremental_length_lag"] = incremental_length_lag;
@@ -395,6 +404,9 @@ Params Params::fromJson(const QJsonObject &json) {
   p.final_distance_pow = json["final_distance_pow"].toDouble();
   p.final_score_v1_coef = json["final_score_v1_coef"].toDouble();
   p.final_score_v1_threshold = json["final_score_v1_threshold"].toDouble();
+  p.flat_max_angle = json["flat_max_angle"].toDouble();
+  p.flat_max_deviation = json["flat_max_deviation"].toDouble();
+  p.flat_score = json["flat_score"].toDouble();
   p.incr_retry = json["incr_retry"].toDouble();
   p.incremental_index_gap = json["incremental_index_gap"].toDouble();
   p.incremental_length_lag = json["incremental_length_lag"].toDouble();

@@ -37,6 +37,9 @@ defparams = [
     [ "final_distance_pow", float, 0.1, 5 ],
     [ "final_score_v1_coef", float, 0, 5 ],
     [ "final_score_v1_threshold", float, 0, 1 ],
+    [ "flat_max_angle", int, 5, 25 ],
+    [ "flat_max_deviation", int, 10, 100 ],
+    [ "flat_score", float, 0, 1 ],
     [ "incr_retry", int ],  # no optim => performance only
     [ "incremental_index_gap", int ],
     [ "incremental_length_lag", int ],  # no optimization
