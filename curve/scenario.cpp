@@ -1501,40 +1501,31 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
 	}
       }
 
-      /* step 5: compute length */
-      if (turn_count > 0) {
-	for (int j = 0; j < turn_count; j ++) {
-	  turn_detail[j].corrected = turn_detail[j].actual;
-	}
-
-	int l = 0;
-	for(int k = 0; k < turn_detail[0].start_index; k ++) {
-	  l += segment_length[k];
-	}
-	turn_detail[0].length_before = l;
-
-	for (int j = 1; j < turn_count; j ++) {
-	  l = 0;
-	  for (int k = turn_detail[j-1].index; k <= turn_detail[j].start_index - 1; k ++) {
-	    l += segment_length[k];
-	  }
-	  turn_detail[j].length_before = turn_detail[j-1].length_after = l;
-	}
-
-	int j = turn_count - 1;
-	l = 0;
-	for(int k = turn_detail[j].index; k <= count - 1 ; k ++) {
-	  l += segment_length[k];
-	}
-	turn_detail[j].length_after = l;
-      }
-
       /* let's go to next block */
       i0 = i + 1;
 
     } /* new block */
 
   } /* for(i) */
+
+  /* step 5: compute length */
+  if (turn_count > 0) {
+    for (int j = 0; j < turn_count; j ++) {
+      turn_detail[j].corrected = turn_detail[j].actual;
+    }
+
+    for (int i = 0; i <= turn_count; i ++) {
+      int i1 = (i > 0)?turn_detail[i - 1].index:0;
+      int i2 = (i < turn_count)?turn_detail[i].start_index:(count - 1);
+
+      int l = 0;
+      for(int k = i1; k < i2; k ++) {
+	l += segment_length[k];
+      }
+      if (i > 0) { turn_detail[i - 1].length_after = l; }
+      if (i < turn_count) { turn_detail[i].length_before = l; }
+    }
+  }
 
   if (turn_count_return) { *turn_count_return = turn_count; }
 
@@ -1981,6 +1972,22 @@ void Scenario::calc_loop_score_all(turn_t *turn_detail, int turn_count) {
 
 bool Scenario::postProcess() {
   DBG("==== Postprocess: %s", getNameCharPtr());
+
+  QString str;
+  QTextStream qs(& str);
+
+  // display match-point/key distance
+  for (int i = 0; i < count; i ++) {
+      Point key = keys->get(letter_history[i]);
+      Point pt = curve->point(index_history[i]);
+      int dx = key.x - pt.x;
+      int dy = key.y - pt.y;
+      float dist = sqrt(dx * dx + dy * dy);
+      qs << "#" << i << ": " << int(dist) << " ";
+  }
+  qs << "=> " << int(this->dist);
+  DBG("Distance(%s): %s", getNameCharPtr(), QSTRING2PCHAR(str));
+
   if (count == 1) {
     // special case: curve is just a click (so it always has a perfect score)
     evalScore();
