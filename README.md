@@ -110,18 +110,22 @@ It is provided by the Predict class. All calls should be invoked with pyOtherSid
 TODO
 ----
 ### Short term
-* Support for learning new words: updatable .tre file or separate storage, and new C/QML plugin API.
+* [DONE] Support for learning new words: updatable .tre file or separate storage, and new C/QML plugin API.
   Now we have reduced DB size, this is most needed to allow users to add new words (jargon words, friends name ...)
-* Handle really badly written words -> detect this case and have much more reliance on word prediction engine
+* Handle really badly written words -> detect this case and have much more reliance on word prediction engine. On the contrary add more weight to a simpler algorithm for near-perfect strokes
 * Form for sending detailed logs by e-mail for analysis or post-mortem
-* mmap all data files (our larger language is now 6MB so it may not matter)
+* Package as a single project
+* Package as a layout (such as Dolphin keyboard in OpenRepos), not as a separate maliit plugin. This would allow to get rid of the standalone settings application and the need to restart maliit server. This would require an internal language switcher though.
+* Redo score aggregation (swipe score + prediction + learning ...) based on 2015 data collection: filter word list, adjust for low n-gram counts, etc.
+* Redo turn-score based on 2015 data collection (currently it has very good average results, but some failures that prevent the right word to be selected)
+* [Runs but unusable due to different resolution] Jolla tablet support
 
 ### Middle term
-* Implement two-hand swiping (like Keymonk or Nintype): This is probably useful for landscape mode or new tablet
+* [Initial support done, still not really usable] Implement two-hand swiping (like Keymonk or Nintype): This is probably useful for landscape mode or new tablet
 * Refactoring: Having separate gesture engine (C++ plugin with internal threading) and Python prediction engine makes some features very difficult to implement (e.g. learning new words)
   This would avoid unnecessary data & code duplication, and inefficient communication (python <-> QML <-> C++)
 * Add Xt9 replacement: this would enable us to completely fork from Jolla keyboard. This would require to improve the prediction engine to handle partially typed words (and above refactoring is also a pre-requisite)
-* Improve learning : "learn" usage of cluster n-grams + assign new words to existing cluster: maybe a background task that evaluate perplexity increase for each (word, cluster) values
+* Improve learning: "learn" usage of cluster n-grams + assign new words to existing cluster: maybe a background task that evaluate perplexity increase for each (word, cluster) values
 * Better documentation :-) ... and explain the algorithm because the code is not very friendly (due to lot of trial and error)
 * Allow user hints for word features: double letters, accents, middle key when 3+ keys are aligned (in the last case, user slowing down is detected but it's not always easy to perform), 
   compound words separators (apostrophe, hyphen), capitalization. These should all stay optional.
@@ -143,6 +147,7 @@ TODO
 * All threading should be rewritten in the QT way (see pyotherside source code) instead of home made and error-prone threads plumbing
 * Add new languages [easy: now it's mostly automated, we only need good quality text corpus, and some manual tuning]
 * Large scale testing campaign with lot of users to collect information on different user styles (and improve test cases)
+* Check is there would be a gain if all data files are mmapped (our larger language is now 6MB so it may not matter)
 
 ### Long term / research projects
 * Manually clean dictionary files (i probably don't need Enron guys name)
