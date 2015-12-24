@@ -42,7 +42,7 @@ Language files include:
 * `predict-$LANG.ng`: read-only file for storing stock n-grams in a highly efficient way (read `ngrams/fslm.c` for documentation and references)
 * `predict-$LANG.db`: read-write database (this is just an ugly & dumb c-struct in a file, but it is way smaller and faster than a sqlite database (as previously done)
 
-Where `$LANG` is the 2-letter language ID.
+`$LANG` is the 2-letter language ID.
 
 All tools needed to generate language files are included in `db/` directory
 
@@ -54,10 +54,14 @@ Pre-requisites:
 
 Howto:
 * Define `CORPUS_FILE` and `WORK_DIR` environments variable (or set them in `~/.okboard-build` new configuration file)
-* Package all your corpora files as `$CORPUS_FILE/corpus-$LANG.txt.bz2`. Sentences must be separated by punctuation (".") or blank lines.
+* Package all your corpora files as `$CORPUS_FILE/corpus-$LANG.txt.bz2` (compressed text file). Sentences must be separated by punctuation (".") or blank lines and capitalization should be right (e.g. proper nouns has leading upper case letter)
 * `$WORK_DIR` should point to a directory with enough space available (English + French requires 1.5 GB)
 * Create a `db/lang-$LANG.cf` configuration file (use examples from other languages)
 * Run `db/build.sh` to generate all language files or `db/build.sh <language code>` to build just one language. Add `-r` option to rebuild everything from scratch (this removes all temporary files)
+
+Corpora files should include different chat style. E.g. recommendation is to use formal speech (newletters, wikipedia ...) and informal style (e-mail logs, IRC and chat logs). As they are plain text file you can just concatenate them before bzip2 compression.
+
+As an indication of the size required, the French corpus file is 42 million words.
 
 
 ### Included databases (French & English)
