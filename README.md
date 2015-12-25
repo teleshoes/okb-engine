@@ -54,7 +54,7 @@ Pre-requisites:
 
 Howto:
 * Define `CORPUS_FILE` and `WORK_DIR` environments variable (or set them in `~/.okboard-build` new configuration file)
-* Package all your corpora files as `$CORPUS_FILE/corpus-$LANG.txt.bz2` (compressed text file). Sentences must be separated by punctuation (".") or blank lines and capitalization should be right (e.g. proper nouns has leading upper case letter)
+* Package all your corpora files as `$CORPUS_FILE/corpus-$LANG.txt.bz2` (compressed text file). Sentences must be separated by punctuation (".") or blank lines and capitalization should be right (e.g. proper nouns has leading upper case letter). Text must be encoded as UTF-8, but all punctuation should be ASCII.
 * `$WORK_DIR` should point to a directory with enough space available (English + French requires 1.5 GB)
 * Create a `db/lang-$LANG.cf` configuration file (use examples from other languages)
 * Run `db/build.sh` to generate all language files or `db/build.sh <language code>` to build just one language. Add `-r` option to rebuild everything from scratch (this removes all temporary files)

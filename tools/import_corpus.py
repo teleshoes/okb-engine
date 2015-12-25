@@ -59,6 +59,10 @@ class CorpusImporter:
         if self.debug: print(line)
         self.size += len(line)
         line = line.strip()
+
+        if not re.match(r'^[\ \!-\~\t\r\n\'\u0080-\u023F\u20AC]*$', line):
+            raise Exception("Line contains invalid characters: %s" % line)
+
         if re.match(r'^\s*$', line):
             self.next_sentence()
             return
