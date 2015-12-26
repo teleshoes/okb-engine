@@ -57,9 +57,12 @@ else
 	manifest="$work_dir/manifest.txt"
 	> $manifest
 
+	tmpjson=`mktemp /tmp/log2ftest.XXXXXX`
 	while read prefix id word suffix ; do
-	    read prefix js
+	    read -r prefix js  # -r does not interpret backslash as an escape character
 	    [ "$prefix" = "OUT:" ]
+
+	    js=$(echo "$js" | tools/json-recover-keys.py "$tmpjson") 
 
 	    n=`expr "$n" + 1`
 	    word=`echo "$word" | sed -r "s/^'(.*)'$/\1/"`
@@ -90,6 +93,7 @@ else
 
 	done
 	touch "$ts"
+	rm -f "$tmpjson"
     ) | parallel
 
 fi
