@@ -54,6 +54,9 @@ def check_max(test, get_attr, name, colors):
 def act_distance(test):
     return check_min(test, lambda c: c["distance"], "distance")
 
+def act_new_dist(test):
+    return check_min(test, lambda c: c["new_dist"], "new_dist")
+
 def act_score_misc(test):
     return check_max(test, lambda c: c["avg_score"]["score_misc"], "score_misc", colors = COLORS)
 
@@ -109,6 +112,7 @@ def act_rank(test):
     return dict(txt = "%d" % rank, color = col)
 
 all_actions = dict(distance=act_distance,
+                   newdist=act_new_dist,
                    rank=act_rank,
                    score_turn=act_score_turn,
                    score_misc=act_score_misc,

@@ -106,6 +106,8 @@ class MultiScenario {
   static void sortCandidates(QList<MultiScenario *> candidates, Params &params, int debug);
   static void init();
 
+  float getNewDistance();
+
   /* deprecated */
   int getClass() { return 0; }
   int getStar() { return 0; }

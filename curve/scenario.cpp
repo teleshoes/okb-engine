@@ -346,6 +346,8 @@ Scenario::Scenario(LetterTree *tree, QuickKeys *keys, QuickCurve *curve, Params 
   letter_history[0] = 0;
 
   cache = false;
+
+  new_dist = -1;
 }
 
 Scenario::Scenario(const Scenario &from) {
@@ -406,6 +408,8 @@ void Scenario::copy_from(const Scenario &from) {
   if (cache) {
     cacheChilds = from.cacheChilds;
   }
+
+  new_dist = from.new_dist;
 }
 
 
@@ -1970,8 +1974,31 @@ void Scenario::calc_loop_score_all(turn_t *turn_detail, int turn_count) {
   }
 }
 
+void Scenario::newDistance() {
+  float dist_sqr = 0;
+  QString str;
+  QTextStream qs(& str);
+
+  // display match-point/key distance
+  for (int i = 0; i < count; i ++) {
+    float dist;    
+    /* score ignored */ calc_distance_score(letter_history[i], index_history[i], (i == count - 1)?-1:i, &dist);
+
+    dist_sqr += dist * dist;
+    qs << "#" << i << "[" << (char) letter_history[i] << "]: " << int(dist) << " ";
+  }
+  float new_dist = sqrt(dist_sqr / count);
+
+  qs << "=> " << int(new_dist);
+
+  DBG("New distance(%s): %s", getNameCharPtr(), QSTRING2PCHAR(str));
+  this->new_dist = new_dist;
+}
+
 bool Scenario::postProcess() {
   DBG("==== Postprocess: %s", getNameCharPtr());
+
+  newDistance(); // evaluate improved distance
 
   QString str;
   QTextStream qs(& str);
@@ -2135,6 +2162,7 @@ void Scenario::toJson(QJsonObject &json) {
   json["error"] = error_count;
   json["good"] = good_count;
   json["words"] = getWordList();
+  json["new_dist"] = new_dist;
 
   QJsonArray json_score_array;
   for(int i = 0; i < count; i ++) {
