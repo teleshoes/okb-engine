@@ -397,7 +397,7 @@ if candidates:
 
             for col in [ sub_scenario["name"], sub_scenario["score"], sub_scenario["min_total"], sub_scenario.get("error", ""),
                          sub_scenario.get("good", ""), int(sub_scenario.get("distance", 0)),
-                         int(sub_scenario.get("new_dist", 0)),
+                         sub_scenario.get("new_dist", 0),
                          sub_scenario.get("score_std", ""), sub_scenario.get("score_v1", ""),
                          sub_scenario.get("words", "-") if not multi else "n/a" ]:
                 tr.td(align = "center", bgcolor = bgcol).font(clean_value(col), size="-2")

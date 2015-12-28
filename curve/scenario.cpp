@@ -1980,14 +1980,38 @@ void Scenario::newDistance() {
   QTextStream qs(& str);
 
   // display match-point/key distance
+  float ctotal = 0;
   for (int i = 0; i < count; i ++) {
-    float dist;    
-    /* score ignored */ calc_distance_score(letter_history[i], index_history[i], (i == count - 1)?-1:i, &dist);
+    // float dist;    
+    // /* score ignored */ calc_distance_score(letter_history[i], index_history[i], (i == count - 1)?-1:i, &dist);
+    Point key = keys->get(letter_history[i]);
+    Point pt = curve->point(index_history[i]);
+    float dist = distancep(key, pt);
 
-    dist_sqr += dist * dist;
-    qs << "#" << i << "[" << (char) letter_history[i] << "]: " << int(dist) << " ";
+    float spd;
+    if (i == 0 || i == count - 1) {
+      spd = curve->getSpeed(index_history[i]);
+    } else {
+      spd = (curve->getSpeed((index_history[i - 1] + index_history[i]) / 2) +
+	     curve->getSpeed((index_history[i] + index_history[i + 1]) / 2)) / 2;
+    }
+    float c = 100000.0 * (1.0 + 1.0 / (spd?spd:1));
+
+    // hardcoded key bias & other for quick test
+    unsigned char l = letter_history[i];
+    if (l == 'z' || l == 's' || l == 'w' || l == 'o' || l == 'l') { c /= 2; }
+    if (l == 'a' || l == 'q' || l == 'p' || l == 'm') { c /= 3; }
+
+    if (i == 0 || i == count + 1) { c *= 2; }
+
+#error not really working at the moment :-)
+
+    ctotal += c;
+
+    dist_sqr += c * dist * dist;
+    qs << "#" << i << "[" << (char) letter_history[i] << "," << int(c) << "]=" << int(dist) << " ";
   }
-  float new_dist = sqrt(dist_sqr / count);
+  float new_dist = sqrt(dist_sqr / ctotal);
 
   qs << "=> " << int(new_dist);
 
@@ -2162,7 +2186,7 @@ void Scenario::toJson(QJsonObject &json) {
   json["error"] = error_count;
   json["good"] = good_count;
   json["words"] = getWordList();
-  json["new_dist"] = new_dist;
+  json["new_dist"] = (int) new_dist;
 
   QJsonArray json_score_array;
   for(int i = 0; i < count; i ++) {
