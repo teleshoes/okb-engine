@@ -14,10 +14,12 @@ while line:
     line = re.sub(r'\u2013', '-', line)  # hyphen
     line = re.sub(r'[\u2019\u2018]', "'", line)  # quote
     line = re.sub(r'[\u201C\u201D]', '"', line)  # double-quote
-    line = re.sub(r'\u2026', '...', line)  # "..."
+    line = re.sub(r'[\u2026\u22C5]', '.', line)  # ellipsis & dots
 
     line = re.sub(r'[^\ \!-\~\t\r\n\'\u0080-\u023F\u20AC]', ' ', line)
 
-    print(line.lstrip(), end = '')
+    line = line.lstrip()
+    if line: print(line.lstrip(), end = '')
+    else: print()
 
     line = sys.stdin.readline()

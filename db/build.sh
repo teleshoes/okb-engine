@@ -72,6 +72,8 @@ popd
 
 cp -vauf $mydir/lang-*.cf $mydir/add-words-*.txt $mydir/db.version $WORK_DIR/
 
+[ -x "/bin/bash" ] && export SHELL=/bin/bash  # this may help dash users
+
 cd $WORK_DIR
 for target in $tgt_list ; do
     make -j -f $mydir/makefile CORPUS_DIR=${CORPUS_DIR} TOOLS_DIR=$mydir/../tools $target

@@ -45,13 +45,18 @@ grams-%-full.csv.bz2: %-full.dict %-learn.txt.bz2
 	mv -f grams-$(lang)-full.csv.bz2.tmp grams-$(lang)-full.csv.bz2
 
 # select word to use for prediction engine
-%-predict.dict: grams-%-full.csv.bz2 lang-%.cf
+%-predict.dict: grams-%-full.csv.bz2 lang-%.cf $(wildcard $(CORPUS_DIR)/dict-%.txt)
 	$(eval lang=$*)
 	$(eval words=$(call getconf,lang-$(lang).cf,predict_words))
 	$(eval filter=$(call getconf,lang-$(lang).cf,filter_words))
-	set -o pipefail ; lbzip2 -d < $< | grep ';#NA;#NA;' | cut -f '1,4' -d';' \
-	 | grep -v '#TOTAL' | sort -rn | cut -d';' -f 2 | egrep -v '^$(filter)$$' | tee words-$(lang).txt \
-         | sed -n "1,$(words) p" > $(lang)-predict.dict.tmp  # ok i've re-implemented "head" with sed to avoid ugly sigpipes (which hurt with -o pipefail)
+	if [ -f $(CORPUS_DIR)/dict-$(lang).txt ] ; then \
+		echo "Using provided dictionary file for $(lang) language" \
+		cp -vf $(CORPUS_DIR)/dict-$(lang).txt $(lang)-predict.dict.tmp ; \
+	else \
+		set -o pipefail ; lbzip2 -d < $< | grep ';#NA;#NA;' | cut -f '1,4' -d';' \
+		 | grep -v '#TOTAL' | sort -rn | cut -d';' -f 2 | egrep -v '^$(filter)$$' | tee words-$(lang).txt \
+	         | sed -n "1,$(words) p" > $(lang)-predict.dict.tmp ; \
+	fi # ^^^ ok i've re-implemented "head" with sed to avoid ugly sigpipes (which hurt with -o pipefail)
 	mv -f $(lang)-predict.dict.tmp $@
 
 # build dictionary file for gesture engine
