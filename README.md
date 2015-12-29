@@ -49,20 +49,34 @@ All tools needed to generate language files are included in `db/` directory
 Commands below should be run from a standard Linux host (not from the Sailfish SDK).
 
 Pre-requisites:
-* You need to install lbzip2, python3 development files, QT5 (including qmake). Package name are `lbzip2` `python3-devel` `qt5-qmake` on RPM distributions
+* You need to install lbzip2, python3 development files (`python3-dev` in some distributions), QT5 development files (`qtbase5-dev` in some distributions). Package name are `lbzip2` `qt5-qmake` on RPM distributions. `qmake` command should run qt5 version (check your PATH).
 * Build requires at least 4Gb of RAM and a fast CPU. Language file generation lasts one hour and a half on a 2.8Ghz Core i7 860
 
 Howto:
 * Define `CORPUS_FILE` and `WORK_DIR` environments variable (or set them in `~/.okboard-build` new configuration file)
-* Package all your corpora files as `$CORPUS_FILE/corpus-$LANG.txt.bz2` (compressed text file). Sentences must be separated by punctuation (".") or blank lines and capitalization should be right (e.g. proper nouns has leading upper case letter). Text must be encoded as UTF-8, but all punctuation should be ASCII.
+* Package all your corpora files as `$CORPUS_FILE/corpus-$LANG.txt.bz2` (compressed text file). Sentences must be separated by punctuation (".") or blank lines and capitalization should be right (e.g. proper nouns has leading upper case letter). Text must be encoded as UTF-8, but all punctuation should be ASCII
+* Optionally, create a `$CORPUS_FILE/dict-$LANG.txt` containing list of words to use for prediction engine (UTF-8, on word per line). If you do not provide this file, the most used words in the corpus file will be used. This option is useful for filtering some uncommon words overrepresented in input corpus
 * `$WORK_DIR` should point to a directory with enough space available (English + French requires 1.5 GB)
-* Create a `db/lang-$LANG.cf` configuration file (use examples from other languages)
+* Create a `db/lang-$LANG.cf` configuration file (use examples from other languages). Configuration options include:
+  * `predict_words`: number of words used for prediction engine (only the most used words in the corpus file will be kept). This option will be ignored if you override the dictionary with `$CORPUS_FILE/dict-$LANG.txt`
+  * `cluster_wgrams`: number of N-grams used for words. At run-time there may be more N-grams due to learning from user typing.
+  * `cluster_cgrams`: number of N-grams used for word clusters (see comments in `cluster/cluster.cpp` for detailed explanation)
+  * `cluster_depth`: number of clusters. Actual cluster count will be at most `2^(cluster_depth + 1)`
+  * `filter_words`: words to ignore (as a single regular expression). This is for exemple used for filtering "i" from English because "i" and "I" are the same word so the engine will automatically fall back to "I". It may be more convienient to use a cleaned dictionary (cf. `$CORPUS_FILE/dict-$LANG.txt` file above)
 * Run `db/build.sh` to generate all language files or `db/build.sh <language code>` to build just one language. Add `-r` option to rebuild everything from scratch (this removes all temporary files)
 
-Corpora files should include different chat style. E.g. recommendation is to use formal speech (newletters, wikipedia ...) and informal style (e-mail logs, IRC and chat logs). As they are plain text file you can just concatenate them before bzip2 compression.
+Corpus files should include different chat style. E.g. recommendation is to use formal speech (newletters, wikipedia ...) and informal style (e-mail logs, IRC and chat logs). As they are plain text file you can just concatenate them before bzip2 compression.
 
 As an indication of the size required, the French corpus file is 42 million words.
 
+### How to distribute language files
+You have several options for distributing language files (`$LANG.tre`, `predict-$LANG.ng`, `predict-$LANG.db`):
+* Just copy them to any Jolla device in `~/.local/share/okboard/`. When you switch language on the keyboard, new files will be avalable. No need to restart the keyboard.
+* Package them as RPM files: RPM should contains just gzipped language files under `/usr/share/okboard` (with .gz extension)
+
+There is no license restriction on produced language files.
+
+Warning: as OKBoard is not a stable product yet, language files format will change often. In that case you'll have to rebuild language files with new source version. Format version is shown at the botton of the settings application ("DB format" line).
 
 ### Included databases (French & English)
 Text prediction database included with the distribution has been build with the above process & the following corpora:
