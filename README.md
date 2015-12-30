@@ -65,7 +65,7 @@ Howto:
   * `filter_words`: words to ignore (as a single regular expression). This is for exemple used for filtering "i" from English because "i" and "I" are the same word so the engine will automatically fall back to "I". It may be more convienient to use a cleaned dictionary (cf. `$CORPUS_DIR/dict-$LANG.txt` file above)
 * Run `db/build.sh` to generate all language files or `db/build.sh <language code>` to build just one language. Add `-r` option to rebuild everything from scratch (this removes all temporary files)
 
-Corpus files should include different chat style. E.g. recommendation is to use formal speech (newletters, wikipedia ...) and informal style (e-mail logs, IRC and chat logs). As they are plain text file you can just concatenate them before bzip2 compression.
+Corpus files should include different chat style. E.g. recommendation is to use formal speech (newletters, wikipedia ...) and informal style (e-mail logs, IRC and chat logs, movies subtitles). As they are plain text file you can just concatenate them before bzip2 compression.
 
 As an indication of the size required, the French corpus file is 42 million words.
 
