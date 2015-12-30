@@ -49,20 +49,20 @@ All tools needed to generate language files are included in `db/` directory
 Commands below should be run from a standard Linux host (not from the Sailfish SDK).
 
 Pre-requisites:
-* You need to install lbzip2, python3 development files (`python3-dev` in some distributions), QT5 development files (`qtbase5-dev` in some distributions). Package name are `lbzip2` `qt5-qmake` on RPM distributions. `qmake` command should run qt5 version (check your PATH).
+* You need to install lbzip2, python3 development files (`python3-dev` in some distributions), QT5 development files (`qtbase5-dev` in some distributions), and aspell-$LANG. Package name are `lbzip2` `qt5-qmake`, `aspell-$LANG` on RPM distributions. `qmake` command should run qt5 version (check your PATH).
 * Build requires at least 4Gb of RAM and a fast CPU. Language file generation lasts one hour and a half on a 2.8Ghz Core i7 860
 
 Howto:
-* Define `CORPUS_FILE` and `WORK_DIR` environments variable (or set them in `~/.okboard-build` new configuration file)
-* Package all your corpora files as `$CORPUS_FILE/corpus-$LANG.txt.bz2` (compressed text file). Sentences must be separated by punctuation (".") or blank lines and capitalization should be right (e.g. proper nouns has leading upper case letter). Text must be encoded as UTF-8, but all punctuation should be ASCII
-* Optionally, create a `$CORPUS_FILE/dict-$LANG.txt` containing list of words to use for prediction engine (UTF-8, on word per line). If you do not provide this file, the most used words in the corpus file will be used. This option is useful for filtering some uncommon words overrepresented in input corpus
+* Define `CORPUS_DIR` and `WORK_DIR` environments variable (or set them in `~/.okboard-build` a shell configuration file which gets sourced by the build script). Also add a row `export QMAKE=qmake-qt5` if on Fedora or similar distro.
+* Package all your corpora files as `$CORPUS_DIR/corpus-$LANG.txt.bz2` (compressed text file). Sentences must be separated by punctuation (".") or blank lines and capitalization should be right (e.g. proper nouns has leading upper case letter). Text must be encoded as UTF-8, but all punctuation should be ASCII. Some chars are illegal eg all outside of this set [\ \!-\~\t\r\n\'\u0080-\u023F\u20AC]. This for instance means all kinds of punctuation (eg #x2026), spaces (eg #x2002, #x2009, #x2028), dashes (eg #x2013, #x2212), items (eg #x2022) and quotes (eg #x2018, #x2019, #x201c, #x201d) needs to be replaced if used in your corpus selection.
+* Optionally, create a `$CORPUS_DIR/dict-$LANG.txt` containing list of words to use for prediction engine (UTF-8, on word per line). If you do not provide this file, the most used words in the corpus file will be used. This option is useful for filtering some uncommon words overrepresented in input corpus
 * `$WORK_DIR` should point to a directory with enough space available (English + French requires 1.5 GB)
 * Create a `db/lang-$LANG.cf` configuration file (use examples from other languages). Configuration options include:
-  * `predict_words`: number of words used for prediction engine (only the most used words in the corpus file will be kept). This option will be ignored if you override the dictionary with `$CORPUS_FILE/dict-$LANG.txt`
+  * `predict_words`: number of words used for prediction engine (only the most used words in the corpus file will be kept). This option will be ignored if you override the dictionary with `$CORPUS_DIR/dict-$LANG.txt`
   * `cluster_wgrams`: number of N-grams used for words. At run-time there may be more N-grams due to learning from user typing.
   * `cluster_cgrams`: number of N-grams used for word clusters (see comments in `cluster/cluster.cpp` for detailed explanation)
   * `cluster_depth`: number of clusters. Actual cluster count will be at most `2^(cluster_depth + 1)`
-  * `filter_words`: words to ignore (as a single regular expression). This is for exemple used for filtering "i" from English because "i" and "I" are the same word so the engine will automatically fall back to "I". It may be more convienient to use a cleaned dictionary (cf. `$CORPUS_FILE/dict-$LANG.txt` file above)
+  * `filter_words`: words to ignore (as a single regular expression). This is for exemple used for filtering "i" from English because "i" and "I" are the same word so the engine will automatically fall back to "I". It may be more convienient to use a cleaned dictionary (cf. `$CORPUS_DIR/dict-$LANG.txt` file above)
 * Run `db/build.sh` to generate all language files or `db/build.sh <language code>` to build just one language. Add `-r` option to rebuild everything from scratch (this removes all temporary files)
 
 Corpus files should include different chat style. E.g. recommendation is to use formal speech (newletters, wikipedia ...) and informal style (e-mail logs, IRC and chat logs). As they are plain text file you can just concatenate them before bzip2 compression.
@@ -120,7 +120,7 @@ It is provided by the Predict class. All calls should be invoked with pyOtherSid
 * `update_preedit()` Notify the engine of preedit changes (just hook this to "onPreeditChanged" signal)
 * `update_surrounding(text, position)` Notify the engine of surrounding text changes (hook this to "onSurroundingTextChanged" signal)
 * `replace(old, new)` Notify the engine that the user has replaced a word with another (e.g. with a multiple choice menu)
-* `guess(candidates, correlation_id)` Returns guessed word 
+* `guess(candidates, correlation_id)` Returns guessed word
 * `get_predict_words()` Returns alternate choices (used for prediction bar)
 * `cleanup()` Run periodic tasks (learning, DB flush, cache management). This should be called during user inactivity periods. If return value is True, you should call this function again later.
 * `backtrack()` [IN PROGRESS] when you type a word, it may become obvious that the previous guessed word was wrong, so this function returns information needed to correct it
@@ -145,9 +145,9 @@ TODO
 * Add Xt9 replacement: this would enable us to completely fork from Jolla keyboard. This would require to improve the prediction engine to handle partially typed words (and above refactoring is also a pre-requisite)
 * Improve learning: "learn" usage of cluster n-grams + assign new words to existing cluster: maybe a background task that evaluate perplexity increase for each (word, cluster) values
 * Better documentation :-) ... and explain the algorithm because the code is not very friendly (due to lot of trial and error)
-* Allow user hints for word features: double letters, accents, middle key when 3+ keys are aligned (in the last case, user slowing down is detected but it's not always easy to perform), 
+* Allow user hints for word features: double letters, accents, middle key when 3+ keys are aligned (in the last case, user slowing down is detected but it's not always easy to perform),
   compound words separators (apostrophe, hyphen), capitalization. These should all stay optional.
-* [PARTLY DONE] Better error management (fail gracefully in case of disk full, database corrupted, etc.) 
+* [PARTLY DONE] Better error management (fail gracefully in case of disk full, database corrupted, etc.)
 * [STARTED but very crude] Auto-tune coefficients between curve matching and word prediction to adapt to user style (may be based on speed or error count). Maybe do the same with some parameters (.cf file)
 * Better handling of compound words (i.e. containing hyphens or apostrophs). They should be handled as a sequence of words in the prediction engine. Maybe store go-between characters as n-grams attributes
   Today they are considered as single words, so some of them are rare in the learning corpus and so are difficult to input. Optionally the one-word approach could be kept for high count n-grams.
