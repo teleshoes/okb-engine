@@ -297,6 +297,8 @@ class Predict:
         self._hist_dirty = False
         self.hist_file = None
 
+        self.debug_surrounding = os.environ.get('OKB_DEBUG_SURROUNDING', None)
+
     def _mock_time(self, time):
         self.mock_time = time
 
@@ -539,6 +541,8 @@ class Predict:
         self.surrounding_text = text
         self.cursor_pos = pos
 
+        if self.debug_surrounding: self.log("Surrounding text: %s [%d]" % (text, pos))
+
         self.last_use = time.time()
 
         curve_learn_info = None
@@ -635,6 +639,10 @@ class Predict:
         self._learn(True, new, context, replaces = old)
 
         if not self.cf('predict_auto_tune', True, bool): return
+
+        if not old or context is None: return  # workaround
+
+        if self.debug_surrounding: self.log("Surrounding text (replace_word %s->%s): %s" % (old, new, context))
 
         # use replacement information to auto-tune prediction weight
         oldkey = ':'.join([ old ] + context)
