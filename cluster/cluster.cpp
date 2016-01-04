@@ -2,12 +2,12 @@
  This file is part of OKBoard project
 
  Copyright (c) 2014, Eric Berenguier <eb@cpbm.eu>
- 
+
  This library is free software; you can redistribute it and/or
  modify it under the terms of the GNU Lesser General Public
  License as published by the Free Software Foundation; either
  version 2.1 of the License, or (at your option) any later version.
- 
+
  This library is distributed in the hope that it will be useful,
  but WITHOUT ANY WARRANTY; without even the implied warranty of
  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
@@ -16,11 +16,11 @@
  You should have received a copy of the GNU Lesser General Public
  License along with this library; if not, write to the Free Software
  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
- 
+
  ==============================================================================
 
  Word clustering generator for 3-gram language model
- 
+
 
  This programs generates word clusters for an input text corpus.
  The clusters are following the Brown Clustering model [1]:
@@ -31,7 +31,7 @@
  standard N-grams.
 
  The implementation is a top-down algorithm for performance reasons.
- We start with all words in one cluster, and we recursively split each 
+ We start with all words in one cluster, and we recursively split each
  cluster in two parts. Clusters are chosen to minimize perplexity.
 
  The implementation tries to follow guidelines from [2] (I know it has nothing
@@ -40,13 +40,13 @@
  You can get less clusters than expected if some cluster size drops to 1.
 
  Clusters are not balanced and we use a fixed depth approach.
- 
+
  Existing implementations [3], [4] have not been reused because because they
  are incredibly slow (it was probably quicker to re-implement from scratch
  than just waiting for these to complete).
 
 
- Performance: a 15M words corpus (11.5 millions distinct N-grams) restricted 
+ Performance: a 15M words corpus (11.5 millions distinct N-grams) restricted
  to 30k words (English) takes less than 1.5 hours to produce 1k clusters (2^10)
  on a core-i7 2.8GHz and requires ~3Gb RAM.
 
@@ -61,7 +61,7 @@
      http://research.microsoft.com/en-us/um/people/jfgao/paper/clclp01-1.pdf
 
  [3] https://github.com/percyliang/brown-cluster
- 
+
  [4] https://github.com/mheilman/tan-clustering.git
 */
 
@@ -235,6 +235,7 @@ private:
   QHash<ClusterKey, ClusterGram*> m_clustergrams;
   QList<Gram*> m_grams;
   QList<Gram*> m_test_grams;
+  QSet<Cluster*> m_dead_clusters;
 
   double perplexity_log; // sum of "log(count * P(Ci|Ci-1,Ci-2))" and "log(count * P(wi|Ci))" terms
   double perplexity; // perplexity = exp(- perplexity_log / total_count)
@@ -250,7 +251,8 @@ private:
 
   QList<ClusterGram *> get_all_cluster_grams();
   ClusterGram* find_cluster_gram(Cluster *c1, Cluster *c2, Cluster *c3);
-  void load_ngrams(QTextStream &stream,  QList<Gram*> &grams, Cluster* cluster, bool update_word_counts = false);
+  void load_ngrams(QTextStream &stream,  QList<Gram*> &grams, Cluster* cluster,
+		   Cluster* notfound_cluster, bool update_word_counts = false);
 
   Cluster *test_cluster;
 
@@ -277,9 +279,10 @@ public:
   void perplexity_check();
 
   void save_clusters(QTextStream &stream);
-  void eval_test_corpus();
 
   void reserve(int);
+
+  void garbage_collect();
 
   bool test_mode;
   int debug;
@@ -371,10 +374,11 @@ void Clustering::load_test_ngrams(QTextStream &stream) {
   // this cluster stores words which are in the test corpus but unkown in the learning corpus
   test_cluster = new Cluster("TEST", ++ current_cluster_id, true);
 
-  load_ngrams(stream, m_test_grams, test_cluster, false);
+  load_ngrams(stream, m_test_grams, test_cluster, (Cluster*) NULL, false);
 }
 
-void Clustering::load_ngrams(QTextStream &stream,  QList<Gram*> &in_grams, Cluster* cluster, bool update_word_counts) {
+void Clustering::load_ngrams(QTextStream &stream,  QList<Gram*> &in_grams, Cluster* cluster,
+			     Cluster* notfound_cluster, bool update_word_counts) {
   // load any n-gram file (format: count;word1;word2;word3) from stream
   // store them in given n-gram hash, and if needed create new words (with a default cluster)
   assert(in_grams.empty());
@@ -459,6 +463,21 @@ void Clustering::load_ngrams(QTextStream &stream,  QList<Gram*> &in_grams, Clust
     gram -> denominator -> count += gram -> count;
   }
 
+  // move not found words to specific cluster
+  // (this is caused by words found in n-gram context part, but no n-gram ends with these words)
+  if (notfound_cluster) {
+    foreach(Word * const word, m_words) {
+      if (! word -> count && ! word -> cluster -> special) {
+	cluster -> word_count --;
+	cluster -> words.remove(word);
+
+	word -> cluster = notfound_cluster;
+	notfound_cluster -> word_count ++;
+	// don't add this word to "notfound cluster" word list as we won't use it anymore
+      }
+    }
+  }
+
   in_grams.append(grams.values());
 }
 
@@ -470,16 +489,19 @@ Cluster* Clustering::load(QTextStream &stream) {
   m_clusters["#TOTAL"] = c_total = new Cluster("#TOTAL", 1, true);
   m_clusters["#NA" ] = c_na = new Cluster("#NA", 2, true);
   m_clusters["#START"] = c_start = new Cluster("#START", 3, true);
+
+  Cluster *notfound_cluster = m_clusters["#NOTFOUND"] = new Cluster("#NOTFOUND", 4, false);
+
   m_words["#TOTAL"] = w_total = new Word("#TOTAL", c_total);
   m_words["#NA"] = w_na = new Word("#NA", c_na);
   m_words["#START"] = w_start = new Word("#START", c_start);
   current_gram_id = current_clustergram_id = 1;
-  current_cluster_id = 4;
+  current_cluster_id = 5;
   total_count = 0;
 
   Cluster *default_cluster = m_clusters["C"] = new Cluster(QString("C"), ++ current_cluster_id);
 
-  load_ngrams(stream, m_grams, default_cluster, true);
+  load_ngrams(stream, m_grams, default_cluster, notfound_cluster, true);
 
   eval_full();
 
@@ -498,10 +520,6 @@ void Clustering::save_clusters(QTextStream &stream) {
     }
     stream << endl;
   }
-}
-
-void Clustering::eval_test_corpus() {
-  // not implemented
 }
 
 inline void Clustering::select_gram(Gram *gram) {
@@ -712,7 +730,7 @@ bool Clustering::move(Word *word, Cluster *to, MoveType mode) {
   for(Gram* gram = select_gram_head; gram; gram = gram -> next_gram) {
     gram -> cluster_gram = gram -> new_cluster_gram;
   }
-  
+
   /*
     our global perplexity is now right, but we did not update individual
     partial perplexity for cluster-grams which denominator has been updated
@@ -767,7 +785,7 @@ void Clustering::optim(QSet<Cluster*> &optim_clusters) {
       words += cluster -> words;
       clusternames.append(cluster -> name);
     }
-    qDebug("==> Optimize cluster %s", qPrintable(clusternames.join(" + ")));
+    qDebug("==> Optimize clusters %s", qPrintable(clusternames.join(" + ")));
   }
   int it = 0;
   bool done = false;
@@ -836,8 +854,9 @@ QPair<Cluster*, Cluster*> Clustering::split(Cluster *cluster) {
   // remove original cluster
   m_clusters.remove(cluster -> name);
 
-  // note : unused cluster-grams are not disposed (this is a memory leak, but hopefully it's harmless for a one-shot program)
-  // ("delete cluster" does not work because we still have dead clustergrams pointing to it)
+  // note : unused cluster-grams will be disposed later to avoid memory leak (cf. garbage_collect function)
+  // ("delete cluster" does not work here because we still have dead clustergrams pointing to it)
+  m_dead_clusters.insert(cluster);
   cluster -> name.append("!");
   cluster -> words.empty(); // but we do not require the word list anymore
 
@@ -977,6 +996,36 @@ void Clustering::reserve(int n) {
   m_clustergrams.reserve(n);
 }
 
+void Clustering::garbage_collect() {
+  // Run some sanity checks
+  foreach(Word * const word, m_words) {
+      if (word -> cluster -> special) { continue; }
+      if (m_dead_clusters.contains(word -> cluster)) {
+	QString err;
+	err.sprintf("Word linked to unused cluster: %s => %s (count: %d)",
+		    qPrintable(word -> name), qPrintable(word -> cluster -> name), word -> count);
+	throw err;
+      }
+  }
+
+  foreach(ClusterGram * const cg, get_all_cluster_grams()) {
+    if (m_dead_clusters.contains(cg -> c1) ||
+	m_dead_clusters.contains(cg -> c2) ||
+	m_dead_clusters.contains(cg -> c3)) {
+      QString err;
+      err.sprintf("Cluster-gram linked to unused cluster: [%s:%s:%s]",
+		  qPrintable(cg -> c1 -> name), qPrintable(cg -> c2 -> name), qPrintable(cg -> c3 -> name));
+      throw err;
+    }
+  }
+
+  // delete unused clusters (because they have been split)
+  qDebug("Garbage collecting %d unused clusters ...", m_dead_clusters.size());
+  foreach(Cluster * const cluster, m_dead_clusters) {
+    delete cluster;
+  }
+  m_dead_clusters.clear();
+}
 
 void usage(char* progname) {
   cout << "Usage:" << endl;
@@ -1041,7 +1090,7 @@ int main(int argc, char* argv[]) {
     word_clusters.append(loaded);
     cl.eval_full();
     if (full_dump) { cl.dump(true); }
-    cl.print_stats();    
+    cl.print_stats();
 
     // load test corpus
     if (test_file) {
@@ -1054,7 +1103,7 @@ int main(int argc, char* argv[]) {
     }
 
     cl.reserve(2<<depth);
-      
+
     // split clusters
     for(int i = 0; i < depth; i ++) {
       qDebug("Depth: %d / %d", i + 1, depth);
@@ -1063,19 +1112,16 @@ int main(int argc, char* argv[]) {
 	QPair<Cluster*, Cluster*> split = cl.split(cluster);
 	new_clusters.append(split.first);
 	if (split.second) { new_clusters.append(split.second); }
-
-	if ((i % 50) == 0) { cl.perplexity_check(); } // lame hack: maybe avoid some out-of-memory crashes on my 32bit PC :-( 
       }
       word_clusters = new_clusters;
 
       // force a full perplexity evaluation & remove leaked clusters / cluster-grams
       // (and we get a consistency check for free)
+      cl.garbage_collect();
       cl.perplexity_check();
 
       if (full_dump) { cl.dump(); }
       cl.print_stats();
-
-      cl.eval_test_corpus();
     }
 
     // final optimization
@@ -1085,9 +1131,6 @@ int main(int argc, char* argv[]) {
       if (full_dump) { cl.dump(); }
       cl.print_stats();
     }
-
-    // final test corpus evaluation
-    cl.eval_test_corpus();
 
     // save cluster file
     if (cluster_out_file) {
@@ -1106,6 +1149,7 @@ int main(int argc, char* argv[]) {
 
   } catch(QString &err) {
     qDebug("Exception: %s", qPrintable(err));
+    exit(1);
   }
 }
 
