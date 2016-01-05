@@ -251,6 +251,7 @@ private:
 
   QList<ClusterGram *> get_all_cluster_grams();
   ClusterGram* find_cluster_gram(Cluster *c1, Cluster *c2, Cluster *c3);
+  void free_cluster_gram(ClusterGram *cgram);
   void load_ngrams(QTextStream &stream,  QList<Gram*> &grams, Cluster* cluster,
 		   Cluster* notfound_cluster, bool update_word_counts = false);
 
@@ -718,8 +719,14 @@ bool Clustering::move(Word *word, Cluster *to, MoveType mode) {
 
   // better if perplexity increase <=> log(perplexity) decrease
   // (due to -1/N coefficient)
-  if (mode == TEST_ONLY) { return relative_perplexity_log > EPS; }
-  if (mode == MOVE_IF_BETTER && relative_perplexity_log < EPS) { return false; }
+  bool commit = true;
+  bool return_value = true;
+  if (mode == TEST_ONLY) { commit = false; return_value = (relative_perplexity_log > EPS); }
+  if (mode == MOVE_IF_BETTER && relative_perplexity_log < EPS) { commit = return_value = false; }
+
+  if (! commit) {
+    goto get_out;
+  }
 
   /* step 4 : commit changes */
 
@@ -769,7 +776,39 @@ bool Clustering::move(Word *word, Cluster *to, MoveType mode) {
 
   if (isnan(perplexity)) { throw QString("Perplexity is nan !"); }
 
-  return true;
+ get_out:
+  // purge unused cluster N-grams
+  QSet<ClusterGram*> denominators_to_clean;
+  for(ClusterGram* cgram = select_clustergram_head; cgram; cgram = cgram -> next_clustergram) {
+    if (cgram -> count == 0 && cgram -> denominator) {
+      denominators_to_clean.insert(cgram -> denominator);
+    }
+  }
+  foreach(ClusterGram* const denominator, denominators_to_clean) {
+    ClusterGram ** last_ptr = &(denominator -> first_numerator);
+
+    for(ClusterGram* cgram = denominator -> first_numerator; cgram; cgram = cgram -> next_numerator) {
+      if (cgram -> count == 0) {
+	// remove cluster-gram from numérators linked list for this denominator
+	// the clustergram will be removed just below
+      } else {
+	*last_ptr = cgram;
+	last_ptr = &(cgram -> next_numerator);
+      }
+    }
+    *last_ptr = NULL;
+  }
+
+  ClusterGram* cgram = select_clustergram_head;
+  while (cgram) {
+    ClusterGram* next_cgram = cgram -> next_clustergram;
+    if (! cgram -> count) {
+      free_cluster_gram(cgram);
+    }
+    cgram = next_cgram;
+  }
+
+  return return_value;
 }
 
 void Clustering::optim(QSet<Cluster*> &optim_clusters) {
@@ -873,15 +912,26 @@ QPair<Cluster*, Cluster*> Clustering::split(Cluster *cluster) {
   return QPair<Cluster*, Cluster*>(c1, c2);
 }
 
+#ifdef FAST_KEY
+#define BUILD_KEY(k1, k2, k3) ((quint64)((k1) -> id) + ((quint64)((k2) -> id) << 21) + ((quint64)((k3) -> id) << 42));
+#else
+#define BUILD_KEY(k1, k2, k3) (ClusterKey ck(k1, k2, k3))
+#endif
+
+void Clustering::free_cluster_gram(ClusterGram *cgram) {
+  assert(! cgram -> count);
+
+  ClusterKey ck = BUILD_KEY(cgram -> c1, cgram -> c2, cgram -> c3);
+
+  m_clustergrams.remove(ck);
+  delete cgram;
+}
+
 ClusterGram* Clustering::find_cluster_gram(Cluster *c1, Cluster *c2, Cluster *c3) {
   // find (or create if needed) a cluster-gram for given clusters
   ClusterGram *clustergram;
 
-#ifdef FAST_KEY
-  ClusterKey ck = (quint64)(c1 -> id) + ((quint64)(c2->id) << 21) + ((quint64)(c3->id) << 42);
-#else
-  ClusterKey ck(c1, c2, c3);
-#endif
+  ClusterKey ck = BUILD_KEY(c1, c2, c3);
 
   if (m_clustergrams.contains(ck)) { return m_clustergrams[ck]; }
 
@@ -1105,6 +1155,7 @@ int main(int argc, char* argv[]) {
     cl.reserve(2<<depth);
 
     // split clusters
+    int c = 0;
     for(int i = 0; i < depth; i ++) {
       qDebug("Depth: %d / %d", i + 1, depth);
       QList<Cluster *> new_clusters;
@@ -1117,11 +1168,13 @@ int main(int argc, char* argv[]) {
 
       // force a full perplexity evaluation & remove leaked clusters / cluster-grams
       // (and we get a consistency check for free)
-      cl.garbage_collect();
       cl.perplexity_check();
+      cl.garbage_collect();
 
       if (full_dump) { cl.dump(); }
       cl.print_stats();
+
+      if (((c++) % 500) == 0) { cl.perplexity_check(); } // lame hack is back: maybe avoid some out-of-memory crashes on my 32bit PC :-(
     }
 
     // final optimization
