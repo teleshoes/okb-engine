@@ -78,13 +78,19 @@ There is no license restriction on produced language files.
 
 Warning: as OKBoard is not a stable product yet, language files format will change often. In that case you'll have to rebuild language files with new source version. Format version is shown at the botton of the settings application ("DB format" line).
 
-### Included databases (French & English)
+### Included language databases (French, English & Dutch)
 Text prediction database included with the distribution has been build with the above process & the following corpora:
 
 * English: Enron (https://foundationdb.com/documentation/enron.html) + OANC (http://www.anc.org/). This is US english only
 * French: http://corpora.informatik.uni-leipzig.de, http://www.loria.fr/projets/asila/corpus_en_ligne.html
+* Dutch: http://corpora2.informatik.uni-leipzig.de/download.html
 
 In addition i've added a bunch of chat & IRC logs to these (because original corpora were not good enough for conversation style writing). I won't provide original corpora files because of possible privacy issues.
+
+French & English corpora also include content from http://www.opensubtitles.org/ (movies subtitles).
+They have been downloaded from OPUS (http://opus.lingfil.uu.se).
+By request of this site, here is a link to a paper describing the OPUS project:
+* http://www.lrec-conf.org/proceedings/lrec2012/pdf/463_Paper.pdf - Jörg Tiedemann, 2012, Parallel Data, Tools and Interfaces in OPUS. In Proceedings of the 8th International Conference on Language Resources and Evaluation (LREC 2012)
 
 Text cleaning has been done manually (shell one-liners), and therefore there is no reusable tool available.
 
