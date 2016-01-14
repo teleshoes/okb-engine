@@ -36,7 +36,7 @@ depend: $(patsubst lang-%.cf,.depend-%,$(wildcard lang-*.cf))
 # build full dictionary (only used for gesture engine tests)
 %-full.dict:
 	$(eval lang=$*)
-	( [ -f "add-words-$(lang).txt" ] && cat "add-words-$(lang).txt" ; aspell -l $(lang) dump master ) | sort | uniq > $@
+	( [ -f "add-words-$(lang).txt" ] && cat "add-words-$(lang).txt" ; aspell -l $(lang) dump master | aspell -l $(lang) expand | tr ' ' '\n') | sort | uniq > $@
 
 # build full N-grams list
 grams-%-full.csv.bz2: %-full.dict %-learn.txt.bz2
