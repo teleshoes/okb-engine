@@ -6,8 +6,11 @@
 
 import sys, re
 
-line = sys.stdin.readline()
-while line:
+f = sys.stdin.buffer
+
+buf = f.readline()
+while buf:
+    line = buf.decode('utf-8', 'ignore')  # ignore UTF-8 encoding errors
     line = re.sub('\r', '', line)
 
     # convert some UTF-8 character to ASCII equivalent (very incomplete)
@@ -18,8 +21,6 @@ while line:
 
     line = re.sub(r'[^\ \!-\~\t\r\n\'\u0080-\u023F\u20AC]', ' ', line)
 
-    line = line.lstrip()
-    if line: print(line.lstrip(), end = '')
-    else: print()
+    print(line, end = '')
 
-    line = sys.stdin.readline()
+    buf = f.readline()
