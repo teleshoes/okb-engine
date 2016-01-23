@@ -236,6 +236,9 @@ CurvePoint::CurvePoint(Point p, int curve_id, int t, int l, bool dummy) : Point(
   this -> dummy = dummy;
   this -> curve_id = curve_id;
   this -> end_marker = false;
+  this -> d2x = 0;
+  this -> d2y = 0;
+  this -> lac = 0;
 }
 
 bool CurvePoint::operator<(const CurvePoint &other) const {
@@ -250,6 +253,9 @@ void CurvePoint::toJson(QJsonObject &json) const {
     json["x"] = x;
     json["y"] = y;
     json["t"] = t;
+    json["d2x"] = d2x;
+    json["d2y"] = d2y;
+    json["lac"] = lac;
     json["speed"] = speed;
     json["turn_angle"] = turn_angle;
     json["turn_smooth"] = turn_smooth;
@@ -2004,7 +2010,7 @@ void Scenario::newDistance() {
 
     if (i == 0 || i == count + 1) { c *= 2; }
 
-#error not really working at the moment :-)
+    // @todo - not really working at the moment :-)
 
     ctotal += c;
 

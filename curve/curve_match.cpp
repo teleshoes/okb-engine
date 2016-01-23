@@ -184,6 +184,83 @@ void CurveMatch::curvePreprocess1(int curve_id) {
       last_total_turn = abs(total);
     }
 
+    /* --- acceleration computation --- */
+    // timestamps smoothing
+    int ts[l], len[l];
+    len[0] = 0;
+    for(int i = 1; i < l; i ++) {
+      len[i] = len[i - 1] + distance(oneCurve[i - 1].x, oneCurve[i - 1].y, oneCurve[i].x, oneCurve[i].y);
+    }
+    for(int i = 0; i < l; i ++) {
+      int i1 = max(0, i - 5);
+      int i2 = min(l - 1, i + 5);
+      int t1 = oneCurve[i1].t;
+      int t2 = oneCurve[i2].t;
+      ts[i] = t1 + ((float) (t2 - t1) * (i - i1) / (i2 - i1));
+    }
+
+    // speed evaluation
+    float xspeed[l], yspeed[l];
+    for(int i = 0; i < l - 1; i ++) {
+      float dt = ts[i + 1] - ts[i];
+      if (dt > 0) {
+	xspeed[i] = (oneCurve[i + 1].x - oneCurve[i].x) / dt;
+	yspeed[i] = (oneCurve[i + 1].y - oneCurve[i].y) / dt;
+      } else if (i == 0) {
+	xspeed[i] = yspeed[i] = 0;
+      } else {
+	xspeed[i] = xspeed[i - 1];
+	yspeed[i] = yspeed[i - 1];
+      }
+    }
+
+    // speed smoothing
+    float xsmooth[l], ysmooth[l];
+    for(int i = 0; i < l - 1; i ++) {
+      int sc = 1;
+      float sx = 0, sy = 0;
+
+      sx += 1 * xspeed[i]; sy += 1 * yspeed[i];
+      bool fl = true, fr = true;
+      for (int k = 1; k <= 4; k ++) { // @todo parameter
+	if ((! fl) || (i - k < 0) || (oneCurve[i - k + 1].sharp_turn == 2)) {
+	  fl = false;
+	} else {
+	  sx += xspeed[i - k]; sy += yspeed[i - k]; sc ++;
+	}
+
+	if ((! fr) || (i + k > l - 2) || (oneCurve[i + k].sharp_turn == 2)) {
+	  fr = false;
+	} else {
+	  sx += xspeed[i + k]; sy += yspeed[i + k]; sc ++;
+	}
+      }
+
+      xsmooth[i] = sx / sc;
+      ysmooth[i] = sy / sc;
+    }
+
+    // acceleration evalution
+    int accel[l];
+    for(int i = 1; i < l - 2; i ++) {
+      float dt = ts[i] - ts[i - 1];
+      if (dt > 0) {
+	float ax = (xsmooth[i] - xsmooth[i - 1]) / dt;
+	float ay = (ysmooth[i] - ysmooth[i - 1]) / dt;
+	float spd = distance(0, 0, xsmooth[i], ysmooth[i]);
+	oneCurve[i].d2x = ax * 10000 / spd;
+	oneCurve[i].d2y = ay * 10000 / spd;
+	accel[i] = distance(0, 0, oneCurve[i].d2x, oneCurve[i].d2y);
+	oneCurve[i].lac = (float) (oneCurve[i].d2x * ysmooth[i] - oneCurve[i].d2y * xsmooth[i]) / spd;
+      }
+    }
+
+    // debug output (@todo remove)
+    for(int i = 0; i <  l; i ++) {
+      DBG("speed: %3d [%6d] [%6d] %s (%6.2f,%6.2f) (%6.2f, %6.2f) ---> [%d,%d] = %d",
+	  i, oneCurve[i].t, ts[i], (oneCurve[i].dummy?"*":" "), xspeed[i], yspeed[i], xsmooth[i], ysmooth[i], oneCurve[i].d2x, oneCurve[i].d2y, accel[i]);
+    }
+
     // alternate way of finding turning points
     int cur = 0;
     int total, start_index, max_turn, max_index;

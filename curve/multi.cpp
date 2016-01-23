@@ -421,7 +421,7 @@ float MultiScenario::getNewDistance() {
       dist += s->getNewDistance() * s->getCount();
     });
   return dist / getCount();
-#error Dummy function!
+  // @todo depend on distance used -> to be updated !
 }
 
 void MultiScenario::toJson(QJsonObject &json) {
