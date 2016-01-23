@@ -1351,6 +1351,27 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
 	}
       }
 
+      /* for(int j = i0; j <= i; j ++) {
+	DBG("Turn detail: %d %d[%d] / %d[%d] %d-%d", j, (int) a_actual[j], typ_act[j], (int) a_expected[j], typ_exp[j], index_history[j + 1], index_history[j + 2]);
+      } */
+
+      /* step pre-2 : merge close turns when user cutting through produce bad turn matching
+	 (this is very rare: only one test case involved but i like it) */
+      for(int j = i0; j < i; j ++) {
+	if ((typ_act[j] == 0) && (typ_exp[j] == 0) &&
+	    (typ_act[j + 1] == 0) && (typ_exp[j + 1] == 0) &&
+	    ((abs(a_expected[j]) > min_angle && abs(a_actual[j]) < min_angle && abs(a_expected[j + 1]) < min_angle && abs(a_actual[j + 1]) > min_angle && a_expected[j] * a_actual[j + 1] > 0) ||
+	     (abs(a_expected[j]) < min_angle && abs(a_actual[j]) > min_angle && abs(a_expected[j + 1]) > min_angle && abs(a_actual[j + 1]) < min_angle && a_actual[j] * a_expected[j + 1] > 0)) &&
+	    (index_history[j + 2] - index_history[j + 1]) < params->max_turn_index_gap /* @todo: use a dedicated parameted? */
+	    ) {
+	  DBG("===> merging two close and unmatched turns (index=%d)", j);
+	  a_actual[j] = a_actual[j + 1] = (a_actual[j] + a_actual[j + 1]) / 2;
+	  a_expected[j] = a_expected[j + 1] = (a_expected[j] + a_expected[j + 1]) / 2;
+	  typ_act[j] = typ_exp[j] = typ_act[j + 1] = typ_exp[j + 1] = (a_actual[j] > 0)?1:-1;
+	}
+      }
+
+
       /* step 2 : try to fill the gaps */
       for(int j = i0; j <= i; j++) {
 	if ((typ_exp[j] == 1 || typ_exp[j] == -1) && (typ_exp[j] == typ_act[j])) {
@@ -1988,7 +2009,7 @@ void Scenario::newDistance() {
   // display match-point/key distance
   float ctotal = 0;
   for (int i = 0; i < count; i ++) {
-    // float dist;    
+    // float dist;
     // /* score ignored */ calc_distance_score(letter_history[i], index_history[i], (i == count - 1)?-1:i, &dist);
     Point key = keys->get(letter_history[i]);
     Point pt = curve->point(index_history[i]);
