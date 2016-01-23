@@ -135,7 +135,9 @@ def img2bin(img):
     img.save(out, 'PNG')
     return out.getvalue()
 
-def mkimg(scale = 1, scenario = None, base64 = True):
+def mkimg(scale = 1, xsize = None, scenario = None, base64 = True):
+    if xsize:
+        scale = float(xsize) / width
     img = Image.new("RGB", (int(width * scale), int(height * scale)))
     draw = ImageDraw.Draw(img)
 
@@ -285,7 +287,7 @@ def mux_scenario(scenario):
 
 # just output image
 if image_out:
-    src = mkimg(scale = 2, base64 = False)
+    src = mkimg(xsize = 1024, base64 = False)
     with open(image_out, 'wb') as f:
         f.write(src)
     exit(0)
@@ -300,7 +302,7 @@ body = html.body
 
 body.h3(title)
 body.meta(charset = "UTF-8")
-body.img(src = mkimg(scale = 1.4), border = '0')
+body.img(src = mkimg(xsize = 1280), border = '0')
 body.p()
 body.img(src = mkxygraph(size = 250), border = '0')
 body.span(" ")
@@ -353,7 +355,7 @@ for curve in curves:
                 col = ""
                 if pt.get("dummy", 0): col = "#FFC040"
                 if lbl == "sharp_turn" and pt.get("sharp_turn"): col = "#FF8080"
-                li.td(bgcolor=col).font(clean_value(pt[lbl]), size = "-2")
+                li.td(bgcolor=col).font(clean_value(pt.get(lbl, 0)), size = "-2")
 
 # overview
 if candidates:
@@ -413,7 +415,7 @@ for scenario in candidates:
 
     t0 = body.table(border = "0").tr
 
-    t0.td.img(src = mkimg(scale = 0.75, scenario = scenario), border = '0')
+    t0.td.img(src = mkimg(xsize = 640, scenario = scenario), border = '0')
 
     first = True
     t = t0.td.table(border = "1")
