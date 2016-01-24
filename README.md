@@ -55,6 +55,7 @@ Pre-requisites:
 Howto:
 * Define `CORPUS_DIR` and `WORK_DIR` environments variable (or set them in `~/.okboard-build` a shell configuration file which gets sourced by the build script). Also add a row `export QMAKE=qmake-qt5` if on Fedora or similar distro.
 * Package all your corpora files as `$CORPUS_DIR/corpus-$LANG.txt.bz2` (compressed text file). Sentences must be separated by punctuation (".") or blank lines and capitalization should be right (e.g. proper nouns has leading upper case letter). Text must be encoded as UTF-8, but all punctuation should be ASCII. Some chars are illegal eg all outside of this set [\ \!-\~\t\r\n\'\u0080-\u023F\u20AC]. This for instance means all kinds of punctuation (eg #x2026), spaces (eg #x2002, #x2009, #x2028), dashes (eg #x2013, #x2212), items (eg #x2022) and quotes (eg #x2018, #x2019, #x201c, #x201d) needs to be replaced if used in your corpus selection.
+  * A sample cleaning script is included (`okb-engine/tools/clean_corpus.py`): it removes all forbidden characters and tries to map some Unicode punctuation.
 * Optionally, create a `$CORPUS_DIR/dict-$LANG.txt` containing list of words to use for prediction engine (UTF-8, on word per line). If you do not provide this file, the most used words in the corpus file will be used. This option is useful for filtering some uncommon words overrepresented in input corpus
 * `$WORK_DIR` should point to a directory with enough space available (English + French requires 1.5 GB)
 * Create a `db/lang-$LANG.cf` configuration file (use examples from other languages). Configuration options include:
@@ -173,6 +174,7 @@ TODO
 * Large scale testing campaign with lot of users to collect information on different user styles (and improve test cases)
 * Check is there would be a gain if all data files are mmapped (our larger language is now 6MB so it may not matter)
 * Handle letters that appears multiple times on the keyboard (With and without diacritics, such as "ç" or "å"). As this is not handled by the model, this may be a postprocessing workaround (but matching must use a list of coordinates for each key)
+* Make language file build tools more memory efficient for large corpus files (and if it is not enough, use the same trick as the sort command)
 
 ### Long term / research projects
 * Manually clean dictionary files (i probably don't need Enron guys name)
