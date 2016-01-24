@@ -3,6 +3,10 @@
 [default]
 aggressive_mode = 0
 anisotropy_ratio = 1.5
+accel_gap = 8
+accel_ratio = 0.9
+accel_threshold1 = 120
+accel_threshold2 = 400
 atp_excl_gap = 7
 atp_max_pts = 5
 atp_min_angle1 = 30
@@ -42,6 +46,7 @@ incremental_index_gap = 5
 incremental_length_lag = 100
 inf_max = 120
 inf_min = 20
+inter_pt_min_dist = 20
 lazy_loop_bias = 0.02
 length_penalty = 0.001
 loop_penalty = 0.2
@@ -71,6 +76,7 @@ small_segment_min_score = 0.2
 speed_max_index_gap = 5
 speed_min_angle = 15
 speed_penalty = 0.1
+speed_time_interval = 50
 sp_bad = 0.2
 st2_ignore = 120
 st2_max = 170

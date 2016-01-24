@@ -55,6 +55,8 @@ void CurveMatch::curvePreprocess1(int curve_id) {
   }
   int l = oneCurve.size();
 
+  if (l < 2) { st.st_speed = 0; return; }
+
   for (int i = 1; i < l - 1; i ++) {
     oneCurve[i].turn_angle = (int) int(angle(oneCurve[i].x - oneCurve[i-1].x,
 					     oneCurve[i].y - oneCurve[i-1].y,
@@ -85,36 +87,13 @@ void CurveMatch::curvePreprocess1(int curve_id) {
     oneCurve[l-1].turn_smooth = oneCurve[l-2].turn_angle / 4;
   }
 
-  // speed evaluation
   int max_speed = 0;
-  if (l > 5) {
-    for(int i = 0; i < l; i ++) {
-      int i1 = i - 2, i2 = i + 2;
-      if (i1 < 1) { i1 = 1; i2 = 5; }
-      if (i2 > l - 1) { i1 = l - 5; i2 = l - 1; }
-
-      while(oneCurve[i1].t - oneCurve[0].t < 50 && i2 < l - 1) { i1 ++; i2 ++; }
-      while(oneCurve[i2].t - oneCurve[i1].t < 40 && i2 < l - 1 && i1 > 1 ) { i2 ++; i1 --; }
-
-      float dist = 0;
-      for (int j = i1; j < i2; j ++) {
-	dist += distancep(oneCurve[j], oneCurve[j+1]);
-      }
-      if (oneCurve[i2].t > oneCurve[i1].t) {
-	oneCurve[i].speed = 1000.0 * dist / (oneCurve[i2].t - oneCurve[i1].t);
-      } else {
-	// compatibility with old test cases, should not happen often :-)
-	if (i > 0) { oneCurve[i].speed = oneCurve[i - 1].speed; } else { oneCurve[i].speed = 1; }
-      }
-      if (oneCurve[i].speed > max_speed) { max_speed = oneCurve[i].speed; }
-    }
-  }
 
   for(int i = 0 ; i < l; i ++) {
     oneCurve[i].sharp_turn = 0;
   }
 
-  if (l >= 8) { // do not process small curves, probably a simple 2-letter words @TODO handle this case in multi mode
+  if (l >= 8) { // do not process small curves, probably a simple 2-letter words
 
     /* rotation / turning points */
     int sharp_turn_index = -1;
@@ -184,82 +163,151 @@ void CurveMatch::curvePreprocess1(int curve_id) {
       last_total_turn = abs(total);
     }
 
-    /* --- acceleration computation --- */
-    // timestamps smoothing
-    int ts[l], len[l];
-    len[0] = 0;
-    for(int i = 1; i < l; i ++) {
-      len[i] = len[i - 1] + distance(oneCurve[i - 1].x, oneCurve[i - 1].y, oneCurve[i].x, oneCurve[i].y);
-    }
-    for(int i = 0; i < l; i ++) {
-      int i1 = max(0, i - 5);
-      int i2 = min(l - 1, i + 5);
-      int t1 = oneCurve[i1].t;
-      int t2 = oneCurve[i2].t;
-      ts[i] = t1 + ((float) (t2 - t1) * (i - i1) / (i2 - i1));
+    // for some missed obvious sharp turn (it sometime occurs near curve tips)
+    for(int i = 1 ; i < l - 1; i ++) {
+      if (oneCurve[i].sharp_turn == 0 && oneCurve[i - 1].sharp_turn == 0 && oneCurve[i + 1].sharp_turn == 0 &&
+	  abs(oneCurve[i].turn_angle) > 120) {
+	oneCurve[i].sharp_turn = 2;
+      }
     }
 
-    // speed evaluation
-    float xspeed[l], yspeed[l];
-    for(int i = 0; i < l - 1; i ++) {
-      float dt = ts[i + 1] - ts[i];
-      if (dt > 0) {
-	xspeed[i] = (oneCurve[i + 1].x - oneCurve[i].x) / dt;
-	yspeed[i] = (oneCurve[i + 1].y - oneCurve[i].y) / dt;
-      } else if (i == 0) {
-	xspeed[i] = yspeed[i] = 0;
+  }
+
+  /* --- acceleration computation --- */
+  // timestamps smoothing
+  int ts[l], len[l];
+  len[0] = 0;
+  for(int i = 1; i < l; i ++) {
+    len[i] = len[i - 1] + distance(oneCurve[i - 1].x, oneCurve[i - 1].y, oneCurve[i].x, oneCurve[i].y);
+  }
+  for(int i = 0; i < l; i ++) {
+    int i1 = max(0, i - 5);
+    int i2 = min(l - 1, i + 5);
+    int t1 = oneCurve[i1].t;
+    int t2 = oneCurve[i2].t;
+    ts[i] = t1 + ((float) (t2 - t1) * (i - i1) / (i2 - i1));
+  }
+
+  // speed evaluation
+  float xspeed[l], yspeed[l];
+  for(int i = 0; i < l - 1; i ++) {
+    float dt = ts[i + 1] - ts[i];
+    if (dt > 0) {
+      xspeed[i] = (oneCurve[i + 1].x - oneCurve[i].x) / dt;
+      yspeed[i] = (oneCurve[i + 1].y - oneCurve[i].y) / dt;
+    } else if (i == 0) {
+      xspeed[i] = yspeed[i] = 0;
+    } else {
+      xspeed[i] = xspeed[i - 1];
+      yspeed[i] = yspeed[i - 1];
+    }
+  }
+  xspeed[l - 1] = xspeed[l - 2];
+  yspeed[l - 1] = yspeed[l - 2];
+
+  // speedometer (used to find slow down points)
+  for(int i = 0; i < l; i ++) {
+    int i1 = i, i2 = i;
+    int time_interval = params.speed_time_interval;
+    while (i1 > 0 && oneCurve[i1 - 1].t > oneCurve[i].t - time_interval) { i1 --; }
+    while (i2 < l - 1 && oneCurve[i2 + 1].t < oneCurve[i].t + time_interval) { i2 ++; }
+    float speed = 0;
+    if (i2 > i1 && oneCurve[i2].t > oneCurve[i1].t) {
+      speed = distance(oneCurve[i1].x, oneCurve[i1].y, oneCurve[i2].x, oneCurve[i2].y) / (oneCurve[i2].t - oneCurve[i1].t);
+    }
+
+    oneCurve[i].speed = 1000.0 * speed;
+    if (oneCurve[i].speed > max_speed) { max_speed = oneCurve[i].speed; }
+  }
+
+
+  // speed smoothing
+  float xsmooth[l], ysmooth[l];
+  for(int i = 0; i < l - 1; i ++) {
+    int sc = 1;
+    float sx = 0, sy = 0;
+
+    sx += 1 * xspeed[i]; sy += 1 * yspeed[i];
+    bool fl = true, fr = true;
+    for (int k = 1; k <= 4; k ++) { // @todo parameter
+      if ((! fl) || (i - k < 0) || (oneCurve[i - k + 1].sharp_turn == 2)) {
+	fl = false;
       } else {
-	xspeed[i] = xspeed[i - 1];
-	yspeed[i] = yspeed[i - 1];
+	sx += xspeed[i - k]; sy += yspeed[i - k]; sc ++;
+      }
+
+      if ((! fr) || (i + k > l - 2) || (oneCurve[i + k].sharp_turn == 2)) {
+	fr = false;
+      } else {
+	sx += xspeed[i + k]; sy += yspeed[i + k]; sc ++;
       }
     }
 
-    // speed smoothing
-    float xsmooth[l], ysmooth[l];
-    for(int i = 0; i < l - 1; i ++) {
-      int sc = 1;
-      float sx = 0, sy = 0;
+    xsmooth[i] = sx / sc;
+    ysmooth[i] = sy / sc;
+  }
 
-      sx += 1 * xspeed[i]; sy += 1 * yspeed[i];
-      bool fl = true, fr = true;
-      for (int k = 1; k <= 4; k ++) { // @todo parameter
-	if ((! fl) || (i - k < 0) || (oneCurve[i - k + 1].sharp_turn == 2)) {
-	  fl = false;
-	} else {
-	  sx += xspeed[i - k]; sy += yspeed[i - k]; sc ++;
-	}
+  // acceleration evalution
+  int accel[l];
+  accel[0] = 0;
+  for(int i = 1; i < l - 2; i ++) {
+    float dt = ts[i] - ts[i - 1];
+    if (dt > 0) {
+      float ax = (xsmooth[i] - xsmooth[i - 1]) / dt;
+      float ay = (ysmooth[i] - ysmooth[i - 1]) / dt;
+      float spd = distance(0, 0, xsmooth[i], ysmooth[i]);
 
-	if ((! fr) || (i + k > l - 2) || (oneCurve[i + k].sharp_turn == 2)) {
-	  fr = false;
-	} else {
-	  sx += xspeed[i + k]; sy += yspeed[i + k]; sc ++;
-	}
+      // normalize for speed twice (because acceleration is also "proportional" to speed for a given turn pattern)
+      oneCurve[i].d2x = ax * 10000 / (spd * spd);
+      oneCurve[i].d2y = ay * 10000 / (spd * spd);
+
+      accel[i] = distance(0, 0, oneCurve[i].d2x, oneCurve[i].d2y);
+      oneCurve[i].lac = (float) (oneCurve[i].d2x * ysmooth[i] - oneCurve[i].d2y * xsmooth[i]) / spd;
+    }
+  }
+
+  // debug output (@todo remove)
+  for(int i = 0; i <  l; i ++) {
+    DBG("speed: %3d [%6d] [%6d] S=%5d/A=%5d %s (%6.2f,%6.2f) (%6.2f, %6.2f) ---> [%d,%d] = %d",
+	i, oneCurve[i].t, ts[i], oneCurve[i].speed, accel[i], (oneCurve[i].dummy?"*":" "), xspeed[i], yspeed[i], xsmooth[i], ysmooth[i], oneCurve[i].d2x, oneCurve[i].d2y, accel[i]);
+  }
+
+  // add turning points based on acceleration
+#define ACC(x) abs(accel[x]) /* abs(oneCurve[x].lac) */
+  for(int i = 1; i < l - 1; i ++) {
+    int threshold1 = params.accel_threshold1;
+    int threshold2 = params.accel_threshold2;
+    int gap = params.accel_gap;
+    float ratio = params.accel_ratio;
+
+    if (ACC(i) < threshold1) { continue; }
+    if (oneCurve[i].sharp_turn) { continue; }
+
+    if (ACC(i - 1) < ACC(i) / 3 || ACC(i + 1) < ACC(i) / 3) { continue; } // filter local "shaking"
+    if (abs(oneCurve[i].lac) < ACC(i) / 3) { continue; } // filter acceleration with no radial component
+
+    int min1 = 0, min2 = 0;
+    bool ok = true;
+    for (int j = 1; j <= gap; j ++) {
+      if (i - j > 0) {
+	if (oneCurve[i - j].sharp_turn) { ok = false; break; }
+	if (ACC(i - j) > ACC(i)) { ok = false; break; }
+	if (ACC(i - j) < min1 || ! min1) { min1 = ACC(i - j); }
       }
-
-      xsmooth[i] = sx / sc;
-      ysmooth[i] = sy / sc;
-    }
-
-    // acceleration evalution
-    int accel[l];
-    for(int i = 1; i < l - 2; i ++) {
-      float dt = ts[i] - ts[i - 1];
-      if (dt > 0) {
-	float ax = (xsmooth[i] - xsmooth[i - 1]) / dt;
-	float ay = (ysmooth[i] - ysmooth[i - 1]) / dt;
-	float spd = distance(0, 0, xsmooth[i], ysmooth[i]);
-	oneCurve[i].d2x = ax * 10000 / spd;
-	oneCurve[i].d2y = ay * 10000 / spd;
-	accel[i] = distance(0, 0, oneCurve[i].d2x, oneCurve[i].d2y);
-	oneCurve[i].lac = (float) (oneCurve[i].d2x * ysmooth[i] - oneCurve[i].d2y * xsmooth[i]) / spd;
+      if (i + j < l) {
+	if (oneCurve[i + j].sharp_turn) { ok = false; break; }
+	if (ACC(i + j) > accel[i]) { ok = false; break; }
+	if (ACC(i + j) < min2 || ! min2) { min2 = ACC(i + j); }
       }
     }
 
-    // debug output (@todo remove)
-    for(int i = 0; i <  l; i ++) {
-      DBG("speed: %3d [%6d] [%6d] %s (%6.2f,%6.2f) (%6.2f, %6.2f) ---> [%d,%d] = %d",
-	  i, oneCurve[i].t, ts[i], (oneCurve[i].dummy?"*":" "), xspeed[i], yspeed[i], xsmooth[i], ysmooth[i], oneCurve[i].d2x, oneCurve[i].d2y, accel[i]);
-    }
+    if ((! ok) || (min1 > accel[i] * ratio) || (min2 > accel[i] * ratio)) { continue; }
+
+    oneCurve[i].sharp_turn = (ACC(i) > threshold2)?1:5;
+    DBG("Special point[%d]=%d (acceleration)", i, oneCurve[i].sharp_turn);
+  }
+
+  if (l >= 8) { // do not process small curves, probably a simple 2-letter words
 
     // alternate way of finding turning points
     int cur = 0;
@@ -313,6 +361,37 @@ void CurveMatch::curvePreprocess1(int curve_id) {
       }
     }
 
+    // add intermediate special points where the curve is the most far away from the theoretical segment
+    // this is a bit redundant with above acceleration based part, but it stills find some new turns
+    // (but it probably could be removed without causing any harm)
+    int i0 = 0;
+    for(int i = 0; i < l; i ++) {
+      int st1 = oneCurve[i].sharp_turn;
+      if (st1 == 1 || st1 == 2) {
+	if (i0 && (i - i0) > params.max_turn_index_gap) {
+	  int st0 = oneCurve[i0].sharp_turn;
+	  if (st0 == 1 || st0 == 2) {
+	    int index = 0;
+	    float dmax = 0;
+	    for(int j = i0 + 1; j < i; j ++) {
+	      float d = dist_line_point(oneCurve[i0], oneCurve[i], oneCurve[j]);
+	      if (d > dmax) {
+		dmax = d;
+		index = j;
+	      }
+	    }
+	    if (index > i0 + params.min_turn_index_gap &&
+		index < i - params.min_turn_index_gap &&
+		dmax > params.inter_pt_min_dist) {
+	      oneCurve[index].sharp_turn = 5;
+	      DBG("Special point[%d] = 5 (intermediate point [%d,%d], distance=%d)", index, i0, i, (int) dmax);
+	    }
+	  }
+	}
+	i0 = i;
+      }
+    }
+
     // compute "normal" vector for turns (really lame algorithm)
     for(int i = 2; i < l - 2; i ++) {
       if (oneCurve[i].sharp_turn) {
@@ -356,6 +435,9 @@ void CurveMatch::curvePreprocess1(int curve_id) {
   for(int i = 0; i < idxmap.size(); i++) {
     curve[idxmap[i]] = oneCurve[i];
   }
+
+  // average speed (the simplest and rightest way to get it)
+  st.st_speed = 1000.0 * len[l - 1] / ts[l - 1];
 }
 
 void CurveMatch::curvePreprocess2() {
@@ -365,14 +447,11 @@ void CurveMatch::curvePreprocess2() {
      - check if curve looks like a straight line (used later in scoring)
    */
 
-  /* speed & special count */
-  st.st_speed = st.st_special = 0;
-  int total_speed = 0;
+  /* special points count */
+  st.st_special = 0;
   for(int i = 0; i < curve.size(); i ++) {
     st.st_special += (curve[i].sharp_turn > 0);
-    total_speed += curve[i].speed;
   }
-  st.st_speed = total_speed / curve.size();
 
   /* check for straight line */
   float sc1 = 0, sc2 = 0;

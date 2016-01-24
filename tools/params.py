@@ -6,6 +6,10 @@
 defparams = [
     [ "aggressive_mode", float ],
     [ "anisotropy_ratio", float, 1, 2 ],
+    [ "accel_gap", int, 2, 10 ],
+    [ "accel_ratio", float, 0.2, 1.0 ],
+    [ "accel_threshold1", int, 10, 500 ],
+    [ "accel_threshold2", int, 10, 500 ],
     [ "atp_excl_gap", int, 2, 10],
     [ "atp_max_pts", int, 3, 12],
     [ "atp_min_angle1", int, 10, 45],
@@ -45,6 +49,7 @@ defparams = [
     [ "incremental_length_lag", int ],  # no optimization
     [ "inf_max", int, 40, 180 ],
     [ "inf_min", int, 5, 40 ],
+    [ "inter_pt_min_dist", int, 5, 80 ],
     [ "lazy_loop_bias", float, 0, 1 ],
     [ "length_penalty", float, -0.1, 0.1 ],
     [ "loop_penalty", float, 0, 1 ],
@@ -74,6 +79,7 @@ defparams = [
     [ "speed_max_index_gap", int, 1, 6 ],
     [ "speed_min_angle", int, 1, 45 ],
     [ "speed_penalty", float, 0.01, 1 ],
+    [ "speed_time_interval", int, 10, 300 ],
     [ "sp_bad", float, 0, 1 ],
     [ "st2_ignore", int, 90, 150 ],
     [ "st2_max", int, 120, 179 ],
