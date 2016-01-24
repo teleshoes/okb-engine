@@ -170,6 +170,7 @@ def mkimg(scale = 1, xsize = None, scenario = None, base64 = True):
                     draw.rectangle((lastx - rs, lasty - rs, lastx + rs, lasty + rs), fill='#0000B0')
                 c += 1
 
+                draw.line((lastx, lasty, x, y), fill='#000000', width = int(8 * scale))
                 draw.line((lastx, lasty, x, y), fill=[ '#FFC000', '#E08000' ][ c % 2 if not scenario else 0 ], width = int(6 * scale))
             lastx, lasty = x, y
 
