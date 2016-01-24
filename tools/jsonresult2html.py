@@ -305,9 +305,9 @@ body.h3(title)
 body.meta(charset = "UTF-8")
 body.img(src = mkimg(xsize = 1280), border = '0')
 body.p()
-body.img(src = mkxygraph(size = 250), border = '0')
-body.span(" ")
 body.img(src = mkspeedgraph(sx = 500, sy = 250), border = '0')
+body.span(" ")
+body.img(src = mkxygraph(size = 250), border = '0')
 
 st = js.get("straight", None)
 if st: st = ",".join("%.2f" % x for x in st)
@@ -316,8 +316,8 @@ body.p(font_size="-2").i("Word tree file: %s" % input["treefile"]).br. \
     i("Time: %d ms - Matches: %d - Nodes: %d - Points: %d - Straight: %s - Draw time: %d ms [%s] - Build: [%s]" %
       (js["stats"]["time"], len(candidates), js["stats"]["count"],
        len(curve), st, curve[-1]["t"] - curve[0]["t"], js["ts"],
-       js.get("build", "unknown")))
-
+       js.get("build", "unknown"))).br. \
+    i("Speed: max=%d, average=%d" % (max_speed, js["stats"]["speed"]))
 
 # params
 params = sorted(input["params"].items())
@@ -446,8 +446,8 @@ for scenario in candidates:
         tr.td(clean_value(total[k][0] / total[k][1]) if k in total else "", bgcolor="#C0C0C0", align = "center")
     n += 1
 
-    t0.td.img(src = mkxygraph(size = 300, scenario = scenario), border = '0')
     t0.td.img(src = mkspeedgraph(sx = 400, sy = 300, scenario = scenario), border = '0')
+    t0.td.img(src = mkxygraph(size = 300, scenario = scenario), border = '0')
 
 
 body.hr

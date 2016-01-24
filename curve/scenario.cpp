@@ -1867,7 +1867,8 @@ float Scenario::calc_score_misc(int i) {
     MISC_ACCT(getNameCharPtr(), "tip_small_segment", params->tip_small_segment, -1);
   }
 
-  /* speed -> slow down points (ST=3) must be matched with a key */
+  /* speed -> slow down points (ST=3) must be matched with a key 
+     also reduce score for missed optional points (ST=5) */
   if (i > 0) {
     int i0 = i - 1;
     int i1 = i;
@@ -1875,10 +1876,14 @@ float Scenario::calc_score_misc(int i) {
     for (int j = index_history[i - 1] + maxgap + 1;
 	 j < index_history[i] - maxgap;
 	 j ++) {
-      if (curve->getSpecialPoint(j) == 3 && abs(curve->getTurnSmooth(j)) < params->speed_min_angle) {
+      int st = curve->getSpecialPoint(j);
+
+      if ((st == 3 || st == 5) && abs(curve->getTurnSmooth(j)) < params->speed_min_angle) {
 	DBG("  [score misc] unmatched slow down point (point=%d, index=%d:%d)", j, i0, i1);
-	score -= params->speed_penalty;
-	MISC_ACCT(getNameCharPtr(), "speed_penalty", params->speed_penalty, -1);
+
+	float value = (st==3)?params->speed_penalty:params->st5_score;
+	score -= value;
+	MISC_ACCT(getNameCharPtr(), (st == 3)?"speed_penalty":"st5_score", value, -1);
       }
     }
   }

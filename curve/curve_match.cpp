@@ -412,13 +412,17 @@ void CurveMatch::curvePreprocess1(int curve_id) {
 
     // slow down point search
     int maxd = params.max_turn_index_gap;
-    for(int i = maxd; i < l - maxd; i ++) {
+    for(int i = maxd / 2; i < l - maxd / 2; i ++) {
       int spd0 = oneCurve[i].speed;
       int ok = 0;
       for(int j = -maxd; j <= maxd; j ++) {
+	if (i + j < 0 || i + j >= l) { continue; }
 	int spd = oneCurve[i + j].speed;
 	if (spd < spd0 || oneCurve[i + j].sharp_turn) { ok = 0; break; }
-	if (spd > params.slow_down_ratio * spd0) { ok |= (1 << (j>0)); }
+	if ((spd >= params.slow_down_ratio * spd0) ||
+	    (spd0 == 0 && spd > spd0)) { // case of 0 speed point (if user does move during speed calculation window)
+	  ok |= (1 << (j>0));
+	}
       }
       if (ok == 3) {
 	oneCurve[i].sharp_turn = 3;
