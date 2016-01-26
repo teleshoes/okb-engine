@@ -34,9 +34,13 @@ depend: $(patsubst lang-%.cf,.depend-%,$(wildcard lang-*.cf))
 %-test.txt.bz2: %-learn.txt.bz2
 
 # build full dictionary (only used for gesture engine tests)
-%-full.dict:
+%-full.dict: $(wildcard $(CORPUS_DIR)/words-%.txt)
 	$(eval lang=$*)
-	( [ -f "add-words-$(lang).txt" ] && cat "add-words-$(lang).txt" ; aspell -l $(lang) dump master | aspell -l $(lang) expand | tr ' ' '\n') | sort | uniq > $@
+	( [ -f "add-words-$(lang).txt" ] && cat "add-words-$(lang).txt" ; \
+	  if [ -f $(CORPUS_DIR)/words-$(lang).txt ] ; \
+	  then cp -f $(CORPUS_DIR)/words-$(lang).txt $(lang)-full.dict.tmp ; \
+	  else aspell -l $(lang) dump master | aspell -l $(lang) expand | tr ' ' '\n' ; fi) | sort | uniq > $(lang)-full.dict.tmp
+	mv -f $(lang)-full.dict.tmp $@
 
 # build full N-grams list
 grams-%-full.csv.bz2: %-full.dict %-learn.txt.bz2
@@ -45,17 +49,17 @@ grams-%-full.csv.bz2: %-full.dict %-learn.txt.bz2
 	mv -f grams-$(lang)-full.csv.bz2.tmp grams-$(lang)-full.csv.bz2
 
 # select word to use for prediction engine
-%-predict.dict: grams-%-full.csv.bz2 lang-%.cf $(wildcard $(CORPUS_DIR)/dict-%.txt)
+%-predict.dict: grams-%-full.csv.bz2 lang-%.cf $(wildcard $(CORPUS_DIR)/words-predict-%.txt)
 	$(eval lang=$*)
 	$(eval words=$(call getconf,lang-$(lang).cf,predict_words))
 	$(eval filter=$(call getconf,lang-$(lang).cf,filter_words))
 	set -o pipefail ; lbzip2 -d < $< | grep ';#NA;#NA;' | cut -f '1,4' -d';' \
 	 | grep -v '#TOTAL' | sort -rn | cut -d';' -f 2 | egrep -v '^$(filter)$$' > words-$(lang).txt
 
-	if [ -f $(CORPUS_DIR)/dict-$(lang).txt ] ; then \
+	if [ -f $(CORPUS_DIR)/words-predict-$(lang).txt ] ; then \
 		echo "Using provided dictionary file for $(lang) language" ; \
-		cp -vf $(CORPUS_DIR)/dict-$(lang).txt $(lang)-predict.dict.tmp ; \
-		cat $(CORPUS_DIR)/dict-$(lang).txt words-$(lang).txt | sort | uniq > words-$(lang).txt.tmp ; \
+		cp -vf $(CORPUS_DIR)/words-predict-$(lang).txt $(lang)-predict.dict.tmp ; \
+		cat $(CORPUS_DIR)/words-predict-$(lang).txt words-$(lang).txt | sort | uniq > words-$(lang).txt.tmp ; \
 		mv -f words-$(lang).txt.tmp words-$(lang).txt ; \
 	else \
 	        cat words-$(lang).txt | sed -n "1,$(words) p" > $(lang)-predict.dict.tmp ; \

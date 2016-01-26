@@ -125,7 +125,7 @@ class CorpusImporter:
 
             # in word hyphen
             # @todo: we should find a way to "auto-hyphen" when typing (n-grams tagging?)
-            l = word.split('-')
+            l = re.split(r'[\'\-]', word)
             if not [ w for w in l if w not in self.words ]:
                 self.sentence.extend(l)
                 continue
