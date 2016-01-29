@@ -68,6 +68,13 @@ class Params {
   int min_turn_index_gap;
   int multi_dot_threshold;
   int multi_max_time_rewind;
+  float newdist_c1;
+  float newdist_c2;
+  float newdist_c3;
+  float newdist_c5;
+  float newdist_ctip;
+  float newdist_pow;
+  float newdist_speed;
   float rt_score_coef;
   float rt_score_coef_tip;
   int rt_tip_gaps;
@@ -199,6 +206,13 @@ static Params default_params = {
   2, // min_turn_index_gap
   25, // multi_dot_threshold
   300, // multi_max_time_rewind
+  0.635, // newdist_c1
+  0.49, // newdist_c2
+  8.0, // newdist_c3
+  0.455, // newdist_c5
+  1.3, // newdist_ctip
+  2.0, // newdist_pow
+  1.16, // newdist_speed
   0.12, // rt_score_coef
   0.01, // rt_score_coef_tip
   3, // rt_tip_gaps
@@ -324,6 +338,13 @@ void Params::toJson(QJsonObject &json) const {
   json["min_turn_index_gap"] = min_turn_index_gap;
   json["multi_dot_threshold"] = multi_dot_threshold;
   json["multi_max_time_rewind"] = multi_max_time_rewind;
+  json["newdist_c1"] = newdist_c1;
+  json["newdist_c2"] = newdist_c2;
+  json["newdist_c3"] = newdist_c3;
+  json["newdist_c5"] = newdist_c5;
+  json["newdist_ctip"] = newdist_ctip;
+  json["newdist_pow"] = newdist_pow;
+  json["newdist_speed"] = newdist_speed;
   json["rt_score_coef"] = rt_score_coef;
   json["rt_score_coef_tip"] = rt_score_coef_tip;
   json["rt_tip_gaps"] = rt_tip_gaps;
@@ -451,6 +472,13 @@ Params Params::fromJson(const QJsonObject &json) {
   p.min_turn_index_gap = json["min_turn_index_gap"].toDouble();
   p.multi_dot_threshold = json["multi_dot_threshold"].toDouble();
   p.multi_max_time_rewind = json["multi_max_time_rewind"].toDouble();
+  p.newdist_c1 = json["newdist_c1"].toDouble();
+  p.newdist_c2 = json["newdist_c2"].toDouble();
+  p.newdist_c3 = json["newdist_c3"].toDouble();
+  p.newdist_c5 = json["newdist_c5"].toDouble();
+  p.newdist_ctip = json["newdist_ctip"].toDouble();
+  p.newdist_pow = json["newdist_pow"].toDouble();
+  p.newdist_speed = json["newdist_speed"].toDouble();
   p.rt_score_coef = json["rt_score_coef"].toDouble();
   p.rt_score_coef_tip = json["rt_score_coef_tip"].toDouble();
   p.rt_tip_gaps = json["rt_tip_gaps"].toDouble();

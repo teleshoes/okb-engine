@@ -1867,7 +1867,7 @@ float Scenario::calc_score_misc(int i) {
     MISC_ACCT(getNameCharPtr(), "tip_small_segment", params->tip_small_segment, -1);
   }
 
-  /* speed -> slow down points (ST=3) must be matched with a key 
+  /* speed -> slow down points (ST=3) must be matched with a key
      also reduce score for missed optional points (ST=5) */
   if (i > 0) {
     int i0 = i - 1;
@@ -2007,29 +2007,49 @@ void Scenario::calc_loop_score_all(turn_t *turn_detail, int turn_count) {
 }
 
 void Scenario::newDistance() {
-  float dist_sqr = 0;
+  /* new distance between candidates and expected words 
+     it aims at better accuracy (more likely to find the right word), and if it
+     fails, the expected word is likely to have an higher distance but with a
+     small difference */
+  float dist_exp = 0;
   QString str;
   QTextStream qs(& str);
+
+  float coef[10] = { 1., params->newdist_c1, params->newdist_c2, params->newdist_c3, 0., params->newdist_c5,
+		     0., 0., 0., params->newdist_ctip };
+  float exposant = params->newdist_pow;
 
   // display match-point/key distance
   float ctotal = 0;
   for (int i = 0; i < count; i ++) {
-    // float dist;
-    // /* score ignored */ calc_distance_score(letter_history[i], index_history[i], (i == count - 1)?-1:i, &dist);
     Point key = keys->get(letter_history[i]);
     Point pt = curve->point(index_history[i]);
-    float dist = distancep(key, pt);
+    int speed = curve->getSpeed(index_history[i]);
+    float dist;
 
-    float c = 1; // don't know yet :-)
+    // @todo retry my good old "anisotropic distance"
+    // /* score ignored */ calc_distance_score(letter_history[i], index_history[i], (i == count - 1)?-1:i, &dist);
+
+    int st = curve->getSpecialPoint(index_history[i]);
+
+    if (st == 5 && i > 0 && i < count - 1) {
+      Point v1 = curve->point(index_history[i + 1]) - curve->point(index_history[i - 1]);
+      Point v2 = key - pt;
+      dist = abs(v1.x * v2.y - v1.y * v2.x) / distancep(Point(0, 0), v1);
+    } else {
+      dist = distancep(key, pt);
+    }
+
+    int st2 = (i == 0 || i == count - 1)?9:st; /* tip */
+
+    float c = coef[st2] / (1. + params->newdist_speed * speed / 1000.);
     ctotal += c;
 
-    dist_sqr += c * dist * dist;
-    int st = curve->getSpecialPoint(index_history[i]);
-    if (i == 0 || i == count - 1) { st = 9; /* tip */ }
+    dist_exp += c * pow(dist, exposant);
 
-    qs << "#" << i << "[" << (char) letter_history[i] << "," << st << "]=" << int(dist) << " ";
+    qs << "#" << i << "[" << (char) letter_history[i] << "," << st << "," << speed << "]=" << int(dist) << " ";
   }
-  float new_dist = sqrt(dist_sqr / ctotal);
+  float new_dist = pow(dist_exp / ctotal, 1 / exposant);
 
   qs << "=> " << int(new_dist);
 

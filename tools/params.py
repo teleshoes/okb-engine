@@ -66,6 +66,13 @@ defparams = [
     [ "min_turn_index_gap", int, 1, 5],
     [ "multi_dot_threshold", int ],
     [ "multi_max_time_rewind", int ],  # impact is not continuous
+    [ "newdist_c1", float, 0, 4 ],
+    [ "newdist_c2", float, 0, 4 ],
+    [ "newdist_c3", float, 0, 10 ],
+    [ "newdist_c5", float, 0, 4 ],
+    [ "newdist_ctip", float, 0, 4 ],
+    [ "newdist_pow", float, 0.1, 5 ],
+    [ "newdist_speed", float, 0, 3 ],
     [ "rt_score_coef", float, 0.01, 2 ],
     [ "rt_score_coef_tip", float, 0.01, 2 ],
     [ "rt_tip_gaps", int, 1, 5 ],

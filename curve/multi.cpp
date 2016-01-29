@@ -416,12 +416,14 @@ static void scoreToJson(QJsonObject &json_obj, score_t &score) {
 
 float MultiScenario::getNewDistance() {
   if (! count) { return 0; }
+  float exposant = params->newdist_pow;
   float dist = 0;
+
+  // this must be consistent with formula in Scenario::newDistance()
   FOREACH_ALL_SCENARIOS(s, {
-      dist += s->getNewDistance() * s->getCount();
+      dist += pow(s->getNewDistance() * s->getCount(), exposant);
     });
-  return dist / getCount();
-  // @todo depend on distance used -> to be updated !
+  return pow(dist / getCount(), 1 / exposant);
 }
 
 void MultiScenario::toJson(QJsonObject &json) {
