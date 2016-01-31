@@ -2047,9 +2047,9 @@ void Scenario::newDistance() {
 
     dist_exp += c * pow(dist, exposant);
 
-    qs << "#" << i << "[" << (char) letter_history[i] << "," << st << "," << speed << "]=" << int(dist) << " ";
+    qs << "#" << i << "[" << (char) letter_history[i] << "," << st2 << "," << speed << "]=" << int(dist) << " ";
   }
-  float new_dist = pow(dist_exp / ctotal, 1 / exposant);
+  float new_dist = pow(getCount(), params->newdist_length_bias_pow) * pow(dist_exp / ctotal, 1 / exposant);
 
   qs << "=> " << int(new_dist);
 
@@ -2293,7 +2293,7 @@ void Scenario::sortCandidates(QList<Scenario*> candidates, Params &params, int d
   float min_dist = 0;
   float max_score_v1 = 0;
   for(int i = 0; i < n; i ++) {
-    if (candidates[i]->distance() < min_dist || ! min_dist) {
+    if (candidates[i]->distance() < min_dist || i == 0) {
       min_dist = candidates[i]->distance();
     }
     if (candidates[i]->getScoreV1() > max_score_v1) {

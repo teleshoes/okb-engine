@@ -71,6 +71,7 @@ defparams = [
     [ "newdist_c3", float, 0, 10 ],
     [ "newdist_c5", float, 0, 4 ],
     [ "newdist_ctip", float, 0, 4 ],
+    [ "newdist_length_bias_pow", float, 0, 2],
     [ "newdist_pow", float, 0.1, 5 ],
     [ "newdist_speed", float, 0, 3 ],
     [ "rt_score_coef", float, 0.01, 2 ],

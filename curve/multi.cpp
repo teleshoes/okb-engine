@@ -421,9 +421,9 @@ float MultiScenario::getNewDistance() {
 
   // this must be consistent with formula in Scenario::newDistance()
   FOREACH_ALL_SCENARIOS(s, {
-      dist += pow(s->getNewDistance() * s->getCount(), exposant);
+      dist += pow(s->getNewDistance() / pow(s->getCount(), params->newdist_length_bias_pow), exposant);
     });
-  return pow(dist / getCount(), 1 / exposant);
+  return pow(getCount(), params->newdist_length_bias_pow) * pow(dist, 1 / exposant);
 }
 
 void MultiScenario::toJson(QJsonObject &json) {

@@ -73,6 +73,7 @@ class Params {
   float newdist_c3;
   float newdist_c5;
   float newdist_ctip;
+  float newdist_length_bias_pow;
   float newdist_pow;
   float newdist_speed;
   float rt_score_coef;
@@ -206,13 +207,14 @@ static Params default_params = {
   2, // min_turn_index_gap
   25, // multi_dot_threshold
   300, // multi_max_time_rewind
-  0.635, // newdist_c1
-  0.49, // newdist_c2
-  8.0, // newdist_c3
-  0.455, // newdist_c5
-  1.3, // newdist_ctip
+  0.47, // newdist_c1
+  0.47, // newdist_c2
+  1.92, // newdist_c3
+  0.65, // newdist_c5
+  0.71, // newdist_ctip
+  0.5, // newdist_length_bias_pow
   2.0, // newdist_pow
-  1.16, // newdist_speed
+  1.1, // newdist_speed
   0.12, // rt_score_coef
   0.01, // rt_score_coef_tip
   3, // rt_tip_gaps
@@ -343,6 +345,7 @@ void Params::toJson(QJsonObject &json) const {
   json["newdist_c3"] = newdist_c3;
   json["newdist_c5"] = newdist_c5;
   json["newdist_ctip"] = newdist_ctip;
+  json["newdist_length_bias_pow"] = newdist_length_bias_pow;
   json["newdist_pow"] = newdist_pow;
   json["newdist_speed"] = newdist_speed;
   json["rt_score_coef"] = rt_score_coef;
@@ -477,6 +480,7 @@ Params Params::fromJson(const QJsonObject &json) {
   p.newdist_c3 = json["newdist_c3"].toDouble();
   p.newdist_c5 = json["newdist_c5"].toDouble();
   p.newdist_ctip = json["newdist_ctip"].toDouble();
+  p.newdist_length_bias_pow = json["newdist_length_bias_pow"].toDouble();
   p.newdist_pow = json["newdist_pow"].toDouble();
   p.newdist_speed = json["newdist_speed"].toDouble();
   p.rt_score_coef = json["rt_score_coef"].toDouble();
