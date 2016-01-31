@@ -1,7 +1,7 @@
-# this makefile implements all the steps needed to build language files
-#  input required is only a text corpus ($CORPUS_DIR/corpus-<lang>.fr)
-#  and a settings file (lang-<lang>.cf)
-# -j is your friend if you've got several languages
+# this makefile implements all the steps needed to build language specific resource files.
+# It only requires an input text corpus ($CORPUS_DIR/corpus-<lang>.txt.bz2)
+#  and a settings file (lang-<lang>.cf) per language.
+# The make switch -j is your friend if you want to build several languages at once.
 
 TOOLS_DIR ?= ../tools
 CORPUS_DIR ?= /tmp
@@ -24,7 +24,7 @@ depend: $(patsubst lang-%.cf,.depend-%,$(wildcard lang-*.cf))
 	$(eval lang=$*)
 	cat $(mkfile_path) | egrep '^[a-z0-9\.\%\-]+:.*%' | sed 's/%/$(lang)/g' > .depend-$(lang)
 
-# split input corpus between learning and test
+# split input corpus into learn and test
 %-learn.txt.bz2: $(CORPUS_DIR)/corpus-%.txt.bz2
 	$(eval lang=$*)
 	lbzip2 -d < $(CORPUS_DIR)/corpus-$(lang).txt.bz2 | $(TOOLS_DIR)/corpus-splitter.pl 200 50 $(lang)-learn.tmp.bz2 $(lang)-test.tmp.bz2
@@ -34,6 +34,8 @@ depend: $(patsubst lang-%.cf,.depend-%,$(wildcard lang-*.cf))
 %-test.txt.bz2: %-learn.txt.bz2
 
 # build full dictionary (only used for gesture engine tests)
+# either from provided words-$(lang).txt or aspell lexicon words
+# and if provided add-words-$(lang).txt.
 %-full.dict: $(wildcard $(CORPUS_DIR)/words-%.txt)
 	$(eval lang=$*)
 	( [ -f "add-words-$(lang).txt" ] && cat "add-words-$(lang).txt" ; \
@@ -42,37 +44,37 @@ depend: $(patsubst lang-%.cf,.depend-%,$(wildcard lang-*.cf))
 	  else aspell -l $(lang) dump master | aspell -l $(lang) expand | tr ' ' '\n' ; fi) | sort | uniq > $(lang)-full.dict.tmp
 	mv -f $(lang)-full.dict.tmp $@
 
-# build full N-grams list
+# build full N-grams list from learn corpus
 grams-%-full.csv.bz2: %-full.dict %-learn.txt.bz2
 	$(eval lang=$*)
 	set -o pipefail ; lbzip2 -d < $(lang)-learn.txt.bz2 | $(TOOLS_DIR)/import_corpus.py $(lang)-full.dict | sort -rn | lbzip2 -9 > grams-$(lang)-full.csv.bz2.tmp
 	mv -f grams-$(lang)-full.csv.bz2.tmp grams-$(lang)-full.csv.bz2
 
-# select word to use for prediction engine
+# select words to use with prediction engine from learn corpus
 %-predict.dict: grams-%-full.csv.bz2 lang-%.cf $(wildcard $(CORPUS_DIR)/words-predict-%.txt)
 	$(eval lang=$*)
 	$(eval words=$(call getconf,lang-$(lang).cf,predict_words))
 	$(eval filter=$(call getconf,lang-$(lang).cf,filter_words))
 	set -o pipefail ; lbzip2 -d < $< | grep ';#NA;#NA;' | cut -f '1,4' -d';' \
-	 | grep -v '#TOTAL' | sort -rn | cut -d';' -f 2 | egrep -v '^$(filter)$$' > words-$(lang).txt
+	 | grep -v '#TOTAL' | sort -rn | cut -d';' -f 2 | egrep -v '^$(filter)$$' > tmp-words-$(lang).txt
 
 	if [ -f $(CORPUS_DIR)/words-predict-$(lang).txt ] ; then \
-		echo "Using provided dictionary file for $(lang) language" ; \
+		echo "Using provided prediction dictionary file for language $(lang)" ; \
 		cp -vf $(CORPUS_DIR)/words-predict-$(lang).txt $(lang)-predict.dict.tmp ; \
-		cat $(CORPUS_DIR)/words-predict-$(lang).txt words-$(lang).txt | sort | uniq > words-$(lang).txt.tmp ; \
-		mv -f words-$(lang).txt.tmp words-$(lang).txt ; \
+		cat $(CORPUS_DIR)/words-predict-$(lang).txt tmp-words-$(lang).txt | sort | uniq > tmp-words-$(lang).txt.tmp ; \
+		mv -f tmp-words-$(lang).txt.tmp tmp-words-$(lang).txt ; \
 	else \
-	        cat words-$(lang).txt | sed -n "1,$(words) p" > $(lang)-predict.dict.tmp ; \
+	        cat tmp-words-$(lang).txt | sed -n "1,$(words) p" > $(lang)-predict.dict.tmp ; \
 	fi # ^^^ ok i've re-implemented "head" with sed to avoid ugly sigpipes (which hurt with -o pipefail)
 	mv -f $(lang)-predict.dict.tmp $@
 
-words-%.txt: %-predict.dict
+tmp-words-%.txt: %-predict.dict
 
 # build dictionary file for gesture engine
 %.tre: %-full.dict %-predict.dict
 	$(eval lang=$*)
 	$(TOOLS_DIR)/loadkb.py $(lang)-full.tre < $(lang)-full.dict
-	$(TOOLS_DIR)/loadkb.py $@ < words-$(lang).txt  # all word seens in learn corpus (smaller than full directory, but bigger than prediction learning dictionary)
+	$(TOOLS_DIR)/loadkb.py $@ < tmp-words-$(lang).txt  # all word seen in learn corpus (smaller than full directory, but bigger than prediction learning dictionary)
 
 # build N-grams list for learning & test corpora
 grams-%-learn.csv.bz2: %-predict.dict %-learn.txt.bz2
@@ -116,4 +118,4 @@ predict-%.db: clusters-%.txt grams-%-learn.csv.bz2 lang-%.cf db.version
 
 
 clean:
-	rm -f *.tmp* *-{learn,test}.txt.bz2 grams-*.csv.bz2 *.tre *.dict clusters-*.{txt,log} predict-*.{db,ng,log,rpt,rpt.bz2} words-*.txt
+	rm -f *.tmp* *-{learn,test}.txt.bz2 grams-*.csv.bz2 *.tre *.dict clusters-*.{txt,log} predict-*.{db,ng,log,rpt,rpt.bz2} tmp-words-*.txt
