@@ -49,7 +49,7 @@ class CorpusImporter:
         for word in words:
             word = word.strip()  # .decode('utf-8')
             if not word: continue  # skip blank lines
-            if not re.match(r'^[a-zA-Z\'\-\u0080-\u023F]+$', word):
+            if not re.match(r'^[a-zA-Z\.\'\-\u0080-\u023F]+$', word):
                 raise Exception("Input dictionary contains words with invalid characters: %s" % word)
             self.words.add(word)
             if word.lower() != word:
