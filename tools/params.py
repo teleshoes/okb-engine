@@ -39,6 +39,8 @@ defparams = [
     [ "final_coef_turn", float, 0.1, 5 ],
     [ "final_coef_turn_exp", float, 0.01, 2 ],
     [ "final_distance_pow", float, 0.1, 5 ],
+    [ "final_newdist_pow", float, 0.1, 10 ],
+    [ "final_newdist_range", int, 5, 80 ],
     [ "final_score_v1_coef", float, 0, 5 ],
     [ "final_score_v1_threshold", float, 0, 1 ],
     [ "flat_max_angle", int, 5, 25 ],

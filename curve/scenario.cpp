@@ -2271,11 +2271,6 @@ score_t Scenario::getScoreIndex(int i) {
   return scores[i];
 }
 
-static float signpow(float value, float exp) {
-  if (value < 0) { return - pow(- value, exp); }
-  return pow(value, exp);
-}
-
 void Scenario::sortCandidates(QList<Scenario*> candidates, Params &params, int debug) {
   /* try to find the most likely candidates by combining multiple methods :
      - score (linear combination of multiple scores)
@@ -2293,8 +2288,8 @@ void Scenario::sortCandidates(QList<Scenario*> candidates, Params &params, int d
   float min_dist = 0;
   float max_score_v1 = 0;
   for(int i = 0; i < n; i ++) {
-    if (candidates[i]->distance() < min_dist || i == 0) {
-      min_dist = candidates[i]->distance();
+    if (candidates[i]->getNewDistance() < min_dist || i == 0) {
+      min_dist = candidates[i]->getNewDistance();
     }
     if (candidates[i]->getScoreV1() > max_score_v1) {
       max_score_v1 = candidates[i]->getScoreV1();
@@ -2316,7 +2311,8 @@ void Scenario::sortCandidates(QList<Scenario*> candidates, Params &params, int d
     float new_score = (params.final_coef_misc * sc.misc_score
 		       + params.final_coef_turn * pow(max(0, sc.turn_score), params.final_coef_turn_exp)
 		       - params.final_score_v1_coef * max(0, max_score_v1 - params.final_score_v1_threshold - candidates[i]->getScoreV1())
-		       - 0.1 * signpow(0.1 * (candidates[i]->distance() - min_dist), params.final_distance_pow)
+		       /* old distance: - 0.1 * signpow(0.1 * (candidates[i]->distance() - min_dist), params.final_distance_pow) */
+		       - 0.1 * pow((candidates[i]->getNewDistance() - min_dist) / params.final_newdist_range, params.final_newdist_pow)
 		       ) / (1 + params.final_coef_turn)
       - params.coef_error * candidates[i]->getErrorCount();
     tmpsc[i] = new_score;

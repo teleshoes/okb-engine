@@ -41,6 +41,8 @@ class Params {
   float final_coef_turn;
   float final_coef_turn_exp;
   float final_distance_pow;
+  float final_newdist_pow;
+  int final_newdist_range;
   float final_score_v1_coef;
   float final_score_v1_threshold;
   int flat_max_angle;
@@ -180,6 +182,8 @@ static Params default_params = {
   1.0, // final_coef_turn
   0.33, // final_coef_turn_exp
   0.5, // final_distance_pow
+  1.0, // final_newdist_pow
+  40, // final_newdist_range
   0.0, // final_score_v1_coef
   0.11, // final_score_v1_threshold
   10, // flat_max_angle
@@ -313,6 +317,8 @@ void Params::toJson(QJsonObject &json) const {
   json["final_coef_turn"] = final_coef_turn;
   json["final_coef_turn_exp"] = final_coef_turn_exp;
   json["final_distance_pow"] = final_distance_pow;
+  json["final_newdist_pow"] = final_newdist_pow;
+  json["final_newdist_range"] = final_newdist_range;
   json["final_score_v1_coef"] = final_score_v1_coef;
   json["final_score_v1_threshold"] = final_score_v1_threshold;
   json["flat_max_angle"] = flat_max_angle;
@@ -448,6 +454,8 @@ Params Params::fromJson(const QJsonObject &json) {
   p.final_coef_turn = json["final_coef_turn"].toDouble();
   p.final_coef_turn_exp = json["final_coef_turn_exp"].toDouble();
   p.final_distance_pow = json["final_distance_pow"].toDouble();
+  p.final_newdist_pow = json["final_newdist_pow"].toDouble();
+  p.final_newdist_range = json["final_newdist_range"].toDouble();
   p.final_score_v1_coef = json["final_score_v1_coef"].toDouble();
   p.final_score_v1_threshold = json["final_score_v1_threshold"].toDouble();
   p.flat_max_angle = json["flat_max_angle"].toDouble();
