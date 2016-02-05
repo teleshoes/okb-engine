@@ -211,14 +211,14 @@ static Params default_params = {
   2, // min_turn_index_gap
   25, // multi_dot_threshold
   300, // multi_max_time_rewind
-  0.47, // newdist_c1
-  0.47, // newdist_c2
-  1.92, // newdist_c3
-  0.65, // newdist_c5
+  0.43, // newdist_c1
+  0.42, // newdist_c2
+  2.63, // newdist_c3
+  0.67, // newdist_c5
   0.71, // newdist_ctip
   0.5, // newdist_length_bias_pow
   2.0, // newdist_pow
-  1.1, // newdist_speed
+  3.12, // newdist_speed
   0.12, // rt_score_coef
   0.01, // rt_score_coef_tip
   3, // rt_tip_gaps

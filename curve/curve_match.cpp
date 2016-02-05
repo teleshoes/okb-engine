@@ -214,6 +214,8 @@ void CurveMatch::curvePreprocess1(int curve_id) {
     float speed = 0;
     if (i2 > i1 && oneCurve[i2].t > oneCurve[i1].t) {
       speed = distance(oneCurve[i1].x, oneCurve[i1].y, oneCurve[i2].x, oneCurve[i2].y) / (oneCurve[i2].t - oneCurve[i1].t);
+    } else if (i > 0) {
+      speed = (float) oneCurve[i - 1].speed / 1000;
     }
 
     oneCurve[i].speed = 1000.0 * speed;
