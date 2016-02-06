@@ -135,7 +135,9 @@ def img2bin(img):
     img.save(out, 'PNG')
     return out.getvalue()
 
-def mkimg(scale = 1, scenario = None, base64 = True):
+def mkimg(scale = 1, xsize = None, scenario = None, base64 = True):
+    if xsize:
+        scale = float(xsize) / width
     img = Image.new("RGB", (int(width * scale), int(height * scale)))
     draw = ImageDraw.Draw(img)
 
@@ -168,6 +170,7 @@ def mkimg(scale = 1, scenario = None, base64 = True):
                     draw.rectangle((lastx - rs, lasty - rs, lastx + rs, lasty + rs), fill='#0000B0')
                 c += 1
 
+                draw.line((lastx, lasty, x, y), fill='#000000', width = int(8 * scale))
                 draw.line((lastx, lasty, x, y), fill=[ '#FFC000', '#E08000' ][ c % 2 if not scenario else 0 ], width = int(6 * scale))
             lastx, lasty = x, y
 
@@ -285,7 +288,7 @@ def mux_scenario(scenario):
 
 # just output image
 if image_out:
-    src = mkimg(scale = 2, base64 = False)
+    src = mkimg(xsize = 1024, base64 = False)
     with open(image_out, 'wb') as f:
         f.write(src)
     exit(0)
@@ -300,11 +303,11 @@ body = html.body
 
 body.h3(title)
 body.meta(charset = "UTF-8")
-body.img(src = mkimg(scale = 1.4), border = '0')
+body.img(src = mkimg(xsize = 1280), border = '0')
 body.p()
-body.img(src = mkxygraph(size = 250), border = '0')
-body.span(" ")
 body.img(src = mkspeedgraph(sx = 500, sy = 250), border = '0')
+body.span(" ")
+body.img(src = mkxygraph(size = 250), border = '0')
 
 st = js.get("straight", None)
 if st: st = ",".join("%.2f" % x for x in st)
@@ -313,8 +316,8 @@ body.p(font_size="-2").i("Word tree file: %s" % input["treefile"]).br. \
     i("Time: %d ms - Matches: %d - Nodes: %d - Points: %d - Straight: %s - Draw time: %d ms [%s] - Build: [%s]" %
       (js["stats"]["time"], len(candidates), js["stats"]["count"],
        len(curve), st, curve[-1]["t"] - curve[0]["t"], js["ts"],
-       js.get("build", "unknown")))
-
+       js.get("build", "unknown"))).br. \
+    i("Speed: max=%d, average=%d" % (max_speed, js["stats"]["speed"]))
 
 # params
 params = sorted(input["params"].items())
@@ -347,13 +350,13 @@ for curve in curves:
         for i in range(0, len(curve1)):
             li.td(bgcolor="#E0E0E0").font(str(c), size = "-2")
             c += 1
-        for lbl in ['x', 'y', 't', 'speed', 'turn_angle', 'turn_smooth', 'sharp_turn', 'length']:
+        for lbl in ['x', 'y', 't', 'speed', 'turn_angle', 'turn_smooth', 'sharp_turn', 'length', 'd2x', 'd2y', 'lac']:
             li = t.tr(align = "center").td.font(lbl, size = "-2", bgcolor="#C0FFC0")
             for pt in curve1:
                 col = ""
                 if pt.get("dummy", 0): col = "#FFC040"
                 if lbl == "sharp_turn" and pt.get("sharp_turn"): col = "#FF8080"
-                li.td(bgcolor=col).font(clean_value(pt[lbl]), size = "-2")
+                li.td(bgcolor=col).font(clean_value(pt.get(lbl, 0)), size = "-2")
 
 # overview
 if candidates:
@@ -413,7 +416,7 @@ for scenario in candidates:
 
     t0 = body.table(border = "0").tr
 
-    t0.td.img(src = mkimg(scale = 0.75, scenario = scenario), border = '0')
+    t0.td.img(src = mkimg(xsize = 640, scenario = scenario), border = '0')
 
     first = True
     t = t0.td.table(border = "1")
@@ -443,8 +446,8 @@ for scenario in candidates:
         tr.td(clean_value(total[k][0] / total[k][1]) if k in total else "", bgcolor="#C0C0C0", align = "center")
     n += 1
 
-    t0.td.img(src = mkxygraph(size = 300, scenario = scenario), border = '0')
     t0.td.img(src = mkspeedgraph(sx = 400, sy = 300, scenario = scenario), border = '0')
+    t0.td.img(src = mkxygraph(size = 300, scenario = scenario), border = '0')
 
 
 body.hr

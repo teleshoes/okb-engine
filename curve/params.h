@@ -6,6 +6,10 @@
 class Params {
  public:
   /* BEGIN DECL */
+  int accel_gap;
+  float accel_ratio;
+  int accel_threshold1;
+  int accel_threshold2;
   float aggressive_mode;
   float anisotropy_ratio;
   int atp_excl_gap;
@@ -37,6 +41,8 @@ class Params {
   float final_coef_turn;
   float final_coef_turn_exp;
   float final_distance_pow;
+  float final_newdist_pow;
+  int final_newdist_range;
   float final_score_v1_coef;
   float final_score_v1_threshold;
   int flat_max_angle;
@@ -47,6 +53,7 @@ class Params {
   int incremental_length_lag;
   int inf_max;
   int inf_min;
+  int inter_pt_min_dist;
   float lazy_loop_bias;
   float length_penalty;
   float loop_penalty;
@@ -63,6 +70,14 @@ class Params {
   int min_turn_index_gap;
   int multi_dot_threshold;
   int multi_max_time_rewind;
+  float newdist_c1;
+  float newdist_c2;
+  float newdist_c3;
+  float newdist_c5;
+  float newdist_ctip;
+  float newdist_length_bias_pow;
+  float newdist_pow;
+  float newdist_speed;
   float rt_score_coef;
   float rt_score_coef_tip;
   int rt_tip_gaps;
@@ -77,6 +92,7 @@ class Params {
   int speed_max_index_gap;
   int speed_min_angle;
   float speed_penalty;
+  int speed_time_interval;
   int st2_ignore;
   int st2_max;
   int st2_min;
@@ -131,6 +147,10 @@ class Params {
 
 static Params default_params = {
   /* BEGIN DEFAULT */
+  5, // accel_gap
+  0.9, // accel_ratio
+  120, // accel_threshold1
+  400, // accel_threshold2
   0.0, // aggressive_mode
   1.5, // anisotropy_ratio
   7, // atp_excl_gap
@@ -162,8 +182,10 @@ static Params default_params = {
   1.0, // final_coef_turn
   0.33, // final_coef_turn_exp
   0.5, // final_distance_pow
-  0.0, // final_score_v1_coef
-  0.11, // final_score_v1_threshold
+  1.0, // final_newdist_pow
+  40, // final_newdist_range
+  1.0, // final_score_v1_coef
+  0.12, // final_score_v1_threshold
   10, // flat_max_angle
   45, // flat_max_deviation
   0.25, // flat_score
@@ -172,6 +194,7 @@ static Params default_params = {
   100, // incremental_length_lag
   120, // inf_max
   20, // inf_min
+  20, // inter_pt_min_dist
   0.02, // lazy_loop_bias
   0.001, // length_penalty
   0.2, // loop_penalty
@@ -188,6 +211,14 @@ static Params default_params = {
   2, // min_turn_index_gap
   25, // multi_dot_threshold
   300, // multi_max_time_rewind
+  0.43, // newdist_c1
+  0.42, // newdist_c2
+  2.63, // newdist_c3
+  0.67, // newdist_c5
+  0.71, // newdist_ctip
+  0.5, // newdist_length_bias_pow
+  2.0, // newdist_pow
+  3.12, // newdist_speed
   0.12, // rt_score_coef
   0.01, // rt_score_coef_tip
   3, // rt_tip_gaps
@@ -199,9 +230,10 @@ static Params default_params = {
   2.2, // slow_down_ratio
   0.2, // small_segment_min_score
   0.2, // sp_bad
-  5, // speed_max_index_gap
+  2, // speed_max_index_gap
   15, // speed_min_angle
   0.1, // speed_penalty
+  50, // speed_time_interval
   120, // st2_ignore
   170, // st2_max
   115, // st2_min
@@ -250,6 +282,10 @@ static Params default_params = {
 
 void Params::toJson(QJsonObject &json) const {
   /* BEGIN TOJSON */
+  json["accel_gap"] = accel_gap;
+  json["accel_ratio"] = accel_ratio;
+  json["accel_threshold1"] = accel_threshold1;
+  json["accel_threshold2"] = accel_threshold2;
   json["aggressive_mode"] = aggressive_mode;
   json["anisotropy_ratio"] = anisotropy_ratio;
   json["atp_excl_gap"] = atp_excl_gap;
@@ -281,6 +317,8 @@ void Params::toJson(QJsonObject &json) const {
   json["final_coef_turn"] = final_coef_turn;
   json["final_coef_turn_exp"] = final_coef_turn_exp;
   json["final_distance_pow"] = final_distance_pow;
+  json["final_newdist_pow"] = final_newdist_pow;
+  json["final_newdist_range"] = final_newdist_range;
   json["final_score_v1_coef"] = final_score_v1_coef;
   json["final_score_v1_threshold"] = final_score_v1_threshold;
   json["flat_max_angle"] = flat_max_angle;
@@ -291,6 +329,7 @@ void Params::toJson(QJsonObject &json) const {
   json["incremental_length_lag"] = incremental_length_lag;
   json["inf_max"] = inf_max;
   json["inf_min"] = inf_min;
+  json["inter_pt_min_dist"] = inter_pt_min_dist;
   json["lazy_loop_bias"] = lazy_loop_bias;
   json["length_penalty"] = length_penalty;
   json["loop_penalty"] = loop_penalty;
@@ -307,6 +346,14 @@ void Params::toJson(QJsonObject &json) const {
   json["min_turn_index_gap"] = min_turn_index_gap;
   json["multi_dot_threshold"] = multi_dot_threshold;
   json["multi_max_time_rewind"] = multi_max_time_rewind;
+  json["newdist_c1"] = newdist_c1;
+  json["newdist_c2"] = newdist_c2;
+  json["newdist_c3"] = newdist_c3;
+  json["newdist_c5"] = newdist_c5;
+  json["newdist_ctip"] = newdist_ctip;
+  json["newdist_length_bias_pow"] = newdist_length_bias_pow;
+  json["newdist_pow"] = newdist_pow;
+  json["newdist_speed"] = newdist_speed;
   json["rt_score_coef"] = rt_score_coef;
   json["rt_score_coef_tip"] = rt_score_coef_tip;
   json["rt_tip_gaps"] = rt_tip_gaps;
@@ -321,6 +368,7 @@ void Params::toJson(QJsonObject &json) const {
   json["speed_max_index_gap"] = speed_max_index_gap;
   json["speed_min_angle"] = speed_min_angle;
   json["speed_penalty"] = speed_penalty;
+  json["speed_time_interval"] = speed_time_interval;
   json["st2_ignore"] = st2_ignore;
   json["st2_max"] = st2_max;
   json["st2_min"] = st2_min;
@@ -371,6 +419,10 @@ Params Params::fromJson(const QJsonObject &json) {
   Params p;
 
   /* BEGIN FROMJSON */
+  p.accel_gap = json["accel_gap"].toDouble();
+  p.accel_ratio = json["accel_ratio"].toDouble();
+  p.accel_threshold1 = json["accel_threshold1"].toDouble();
+  p.accel_threshold2 = json["accel_threshold2"].toDouble();
   p.aggressive_mode = json["aggressive_mode"].toDouble();
   p.anisotropy_ratio = json["anisotropy_ratio"].toDouble();
   p.atp_excl_gap = json["atp_excl_gap"].toDouble();
@@ -402,6 +454,8 @@ Params Params::fromJson(const QJsonObject &json) {
   p.final_coef_turn = json["final_coef_turn"].toDouble();
   p.final_coef_turn_exp = json["final_coef_turn_exp"].toDouble();
   p.final_distance_pow = json["final_distance_pow"].toDouble();
+  p.final_newdist_pow = json["final_newdist_pow"].toDouble();
+  p.final_newdist_range = json["final_newdist_range"].toDouble();
   p.final_score_v1_coef = json["final_score_v1_coef"].toDouble();
   p.final_score_v1_threshold = json["final_score_v1_threshold"].toDouble();
   p.flat_max_angle = json["flat_max_angle"].toDouble();
@@ -412,6 +466,7 @@ Params Params::fromJson(const QJsonObject &json) {
   p.incremental_length_lag = json["incremental_length_lag"].toDouble();
   p.inf_max = json["inf_max"].toDouble();
   p.inf_min = json["inf_min"].toDouble();
+  p.inter_pt_min_dist = json["inter_pt_min_dist"].toDouble();
   p.lazy_loop_bias = json["lazy_loop_bias"].toDouble();
   p.length_penalty = json["length_penalty"].toDouble();
   p.loop_penalty = json["loop_penalty"].toDouble();
@@ -428,6 +483,14 @@ Params Params::fromJson(const QJsonObject &json) {
   p.min_turn_index_gap = json["min_turn_index_gap"].toDouble();
   p.multi_dot_threshold = json["multi_dot_threshold"].toDouble();
   p.multi_max_time_rewind = json["multi_max_time_rewind"].toDouble();
+  p.newdist_c1 = json["newdist_c1"].toDouble();
+  p.newdist_c2 = json["newdist_c2"].toDouble();
+  p.newdist_c3 = json["newdist_c3"].toDouble();
+  p.newdist_c5 = json["newdist_c5"].toDouble();
+  p.newdist_ctip = json["newdist_ctip"].toDouble();
+  p.newdist_length_bias_pow = json["newdist_length_bias_pow"].toDouble();
+  p.newdist_pow = json["newdist_pow"].toDouble();
+  p.newdist_speed = json["newdist_speed"].toDouble();
   p.rt_score_coef = json["rt_score_coef"].toDouble();
   p.rt_score_coef_tip = json["rt_score_coef_tip"].toDouble();
   p.rt_tip_gaps = json["rt_tip_gaps"].toDouble();
@@ -442,6 +505,7 @@ Params Params::fromJson(const QJsonObject &json) {
   p.speed_max_index_gap = json["speed_max_index_gap"].toDouble();
   p.speed_min_angle = json["speed_min_angle"].toDouble();
   p.speed_penalty = json["speed_penalty"].toDouble();
+  p.speed_time_interval = json["speed_time_interval"].toDouble();
   p.st2_ignore = json["st2_ignore"].toDouble();
   p.st2_max = json["st2_max"].toDouble();
   p.st2_min = json["st2_min"].toDouble();

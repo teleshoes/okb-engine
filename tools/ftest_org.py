@@ -201,7 +201,7 @@ if __name__ == '__main__':
         # @todo add wiring to learning / backtracking
 
         with open(pre + ".predict.log", 'w') as pf:
-            pf.write("Summary: %s %s %s\n" % (word, guess, ok))
+            pf.write("Summary: %s %s %s %s\n" % (lang, word, guess, ok))
             pf.write("\n".join(tools.messages))
         tools.messages = []
 

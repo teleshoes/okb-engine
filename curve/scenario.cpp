@@ -236,6 +236,9 @@ CurvePoint::CurvePoint(Point p, int curve_id, int t, int l, bool dummy) : Point(
   this -> dummy = dummy;
   this -> curve_id = curve_id;
   this -> end_marker = false;
+  this -> d2x = 0;
+  this -> d2y = 0;
+  this -> lac = 0;
 }
 
 bool CurvePoint::operator<(const CurvePoint &other) const {
@@ -250,6 +253,9 @@ void CurvePoint::toJson(QJsonObject &json) const {
     json["x"] = x;
     json["y"] = y;
     json["t"] = t;
+    json["d2x"] = d2x;
+    json["d2y"] = d2y;
+    json["lac"] = lac;
     json["speed"] = speed;
     json["turn_angle"] = turn_angle;
     json["turn_smooth"] = turn_smooth;
@@ -1345,6 +1351,27 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
 	}
       }
 
+      /* for(int j = i0; j <= i; j ++) {
+	DBG("Turn detail: %d %d[%d] / %d[%d] %d-%d", j, (int) a_actual[j], typ_act[j], (int) a_expected[j], typ_exp[j], index_history[j + 1], index_history[j + 2]);
+      } */
+
+      /* step pre-2 : merge close turns when user cutting through produce bad turn matching
+	 (this is very rare: only one test case involved but i like it) */
+      for(int j = i0; j < i; j ++) {
+	if ((typ_act[j] == 0) && (typ_exp[j] == 0) &&
+	    (typ_act[j + 1] == 0) && (typ_exp[j + 1] == 0) &&
+	    ((abs(a_expected[j]) > min_angle && abs(a_actual[j]) < min_angle && abs(a_expected[j + 1]) < min_angle && abs(a_actual[j + 1]) > min_angle && a_expected[j] * a_actual[j + 1] > 0) ||
+	     (abs(a_expected[j]) < min_angle && abs(a_actual[j]) > min_angle && abs(a_expected[j + 1]) > min_angle && abs(a_actual[j + 1]) < min_angle && a_actual[j] * a_expected[j + 1] > 0)) &&
+	    (index_history[j + 2] - index_history[j + 1]) < params->max_turn_index_gap /* @todo: use a dedicated parameted? */
+	    ) {
+	  DBG("===> merging two close and unmatched turns (index=%d)", j);
+	  a_actual[j] = a_actual[j + 1] = (a_actual[j] + a_actual[j + 1]) / 2;
+	  a_expected[j] = a_expected[j + 1] = (a_expected[j] + a_expected[j + 1]) / 2;
+	  typ_act[j] = typ_exp[j] = typ_act[j + 1] = typ_exp[j + 1] = (a_actual[j] > 0)?1:-1;
+	}
+      }
+
+
       /* step 2 : try to fill the gaps */
       for(int j = i0; j <= i; j++) {
 	if ((typ_exp[j] == 1 || typ_exp[j] == -1) && (typ_exp[j] == typ_act[j])) {
@@ -1735,6 +1762,7 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
       scores[i + 1].misc_score -= 0.5 * params->flat_score * score;
     }
   }
+
 }
 
 int Scenario::getLocalTurn(int index) {
@@ -1840,7 +1868,8 @@ float Scenario::calc_score_misc(int i) {
     MISC_ACCT(getNameCharPtr(), "tip_small_segment", params->tip_small_segment, -1);
   }
 
-  /* speed -> slow down points (ST=3) must be matched with a key */
+  /* speed -> slow down points (ST=3) must be matched with a key
+     also reduce score for missed optional points (ST=5) */
   if (i > 0) {
     int i0 = i - 1;
     int i1 = i;
@@ -1848,10 +1877,14 @@ float Scenario::calc_score_misc(int i) {
     for (int j = index_history[i - 1] + maxgap + 1;
 	 j < index_history[i] - maxgap;
 	 j ++) {
-      if (curve->getSpecialPoint(j) == 3 && abs(curve->getTurnSmooth(j)) < params->speed_min_angle) {
-	DBG("  [score misc] unmatched slow down point (point=%d, index=%d:%d)", j, i0, i1);
-	score -= params->speed_penalty;
-	MISC_ACCT(getNameCharPtr(), "speed_penalty", params->speed_penalty, -1);
+      int st = curve->getSpecialPoint(j);
+
+      if ((st == 3 || st == 5) && abs(curve->getTurnSmooth(j)) < params->speed_min_angle) {
+	DBG("  [score misc] unmatched special point (point=%d, type=%d, index=%d:%d)", j, st, i0, i1);
+
+	float value = (st==3)?params->speed_penalty:params->st5_score;
+	score -= value;
+	MISC_ACCT(getNameCharPtr(), (st == 3)?"speed_penalty":"st5_score", value, -1);
       }
     }
   }
@@ -1892,6 +1925,34 @@ float Scenario::calc_score_misc(int i) {
       }
     }
   }
+
+  // find bad tangents at curve tips
+  // (usefull for small turn that would be overlooked by turn score)
+  int cl = curve->size();
+  if (cl > 4 && count > 1) {
+    Point tg_act, tg_exp;
+    bool proceed = true;
+    if (i == 0) {
+      tg_act = curve->point(2) - curve->point(0);
+      tg_exp = keys->get(letter_history[1]) - keys->get(letter_history[0]);
+    } else if (i == count - 1) {
+      tg_act = curve->point(cl - 1) - curve->point(cl - 3);
+      tg_exp = keys->get(letter_history[count - 1]) - keys->get(letter_history[count - 2]);
+    } else {
+      proceed = false;
+    }
+
+    if (proceed) {
+      float acos = cos(anglep(tg_act, tg_exp));
+      //acos = (acos / 1.2) + 0.2;
+      if (acos < 0) {
+	DBG("  [score misc] bad %s tip tangent : acos()=%.2f", (i == 0)?"begin":"end", acos);
+	score += .2 * acos; // hardcoded because I did not find any case where value is important
+	MISC_ACCT(getNameCharPtr(), "None", .2, acos);
+      }
+    }
+  }
+
 
   return score;
 }
@@ -1975,43 +2036,49 @@ void Scenario::calc_loop_score_all(turn_t *turn_detail, int turn_count) {
 }
 
 void Scenario::newDistance() {
-  float dist_sqr = 0;
+  /* new distance between candidates and expected words
+     it aims at better accuracy (more likely to find the right word), and if it
+     fails, the expected word is likely to have an higher distance but with a
+     small difference */
+  float dist_exp = 0;
   QString str;
   QTextStream qs(& str);
+
+  float coef[10] = { 1., params->newdist_c1, params->newdist_c2, params->newdist_c3, 0., params->newdist_c5,
+		     0., 0., 0., params->newdist_ctip };
+  float exposant = params->newdist_pow;
 
   // display match-point/key distance
   float ctotal = 0;
   for (int i = 0; i < count; i ++) {
-    // float dist;    
-    // /* score ignored */ calc_distance_score(letter_history[i], index_history[i], (i == count - 1)?-1:i, &dist);
     Point key = keys->get(letter_history[i]);
     Point pt = curve->point(index_history[i]);
-    float dist = distancep(key, pt);
+    int speed = curve->getSpeed(index_history[i]);
+    float dist;
 
-    float spd;
-    if (i == 0 || i == count - 1) {
-      spd = curve->getSpeed(index_history[i]);
+    // @todo retry my good old "anisotropic distance"
+    // /* score ignored */ calc_distance_score(letter_history[i], index_history[i], (i == count - 1)?-1:i, &dist);
+
+    int st = curve->getSpecialPoint(index_history[i]);
+
+    if (st == 5 && i > 0 && i < count - 1) {
+      Point v1 = curve->point(index_history[i + 1]) - curve->point(index_history[i - 1]);
+      Point v2 = key - pt;
+      dist = abs(v1.x * v2.y - v1.y * v2.x) / distancep(Point(0, 0), v1);
     } else {
-      spd = (curve->getSpeed((index_history[i - 1] + index_history[i]) / 2) +
-	     curve->getSpeed((index_history[i] + index_history[i + 1]) / 2)) / 2;
+      dist = distancep(key, pt);
     }
-    float c = 100000.0 * (1.0 + 1.0 / (spd?spd:1));
 
-    // hardcoded key bias & other for quick test
-    unsigned char l = letter_history[i];
-    if (l == 'z' || l == 's' || l == 'w' || l == 'o' || l == 'l') { c /= 2; }
-    if (l == 'a' || l == 'q' || l == 'p' || l == 'm') { c /= 3; }
+    int st2 = (i == 0 || i == count - 1)?9:st; /* tip */
 
-    if (i == 0 || i == count + 1) { c *= 2; }
-
-#error not really working at the moment :-)
-
+    float c = coef[st2] / (1. + params->newdist_speed * speed / 1000.);
     ctotal += c;
 
-    dist_sqr += c * dist * dist;
-    qs << "#" << i << "[" << (char) letter_history[i] << "," << int(c) << "]=" << int(dist) << " ";
+    dist_exp += c * pow(dist, exposant);
+
+    qs << "#" << i << "[" << (char) letter_history[i] << "," << st2 << "," << speed << "]=" << int(dist) << " ";
   }
-  float new_dist = sqrt(dist_sqr / ctotal);
+  float new_dist = pow(getCount(), params->newdist_length_bias_pow) * pow(dist_exp / ctotal, 1 / exposant);
 
   qs << "=> " << int(new_dist);
 
@@ -2233,11 +2300,6 @@ score_t Scenario::getScoreIndex(int i) {
   return scores[i];
 }
 
-static float signpow(float value, float exp) {
-  if (value < 0) { return - pow(- value, exp); }
-  return pow(value, exp);
-}
-
 void Scenario::sortCandidates(QList<Scenario*> candidates, Params &params, int debug) {
   /* try to find the most likely candidates by combining multiple methods :
      - score (linear combination of multiple scores)
@@ -2255,8 +2317,8 @@ void Scenario::sortCandidates(QList<Scenario*> candidates, Params &params, int d
   float min_dist = 0;
   float max_score_v1 = 0;
   for(int i = 0; i < n; i ++) {
-    if (candidates[i]->distance() < min_dist || ! min_dist) {
-      min_dist = candidates[i]->distance();
+    if (candidates[i]->getNewDistance() < min_dist || i == 0) {
+      min_dist = candidates[i]->getNewDistance();
     }
     if (candidates[i]->getScoreV1() > max_score_v1) {
       max_score_v1 = candidates[i]->getScoreV1();
@@ -2278,7 +2340,8 @@ void Scenario::sortCandidates(QList<Scenario*> candidates, Params &params, int d
     float new_score = (params.final_coef_misc * sc.misc_score
 		       + params.final_coef_turn * pow(max(0, sc.turn_score), params.final_coef_turn_exp)
 		       - params.final_score_v1_coef * max(0, max_score_v1 - params.final_score_v1_threshold - candidates[i]->getScoreV1())
-		       - 0.1 * signpow(0.1 * (candidates[i]->distance() - min_dist), params.final_distance_pow)
+		       /* old distance: - 0.1 * signpow(0.1 * (candidates[i]->distance() - min_dist), params.final_distance_pow) */
+		       - 0.1 * pow((candidates[i]->getNewDistance() - min_dist) / params.final_newdist_range, params.final_newdist_pow)
 		       ) / (1 + params.final_coef_turn)
       - params.coef_error * candidates[i]->getErrorCount();
     tmpsc[i] = new_score;
