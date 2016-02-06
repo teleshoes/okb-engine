@@ -155,8 +155,8 @@ if __name__ == '__main__':
             p.load_db()
             last_lang = lang
 
-        prefix = "  - [%s] %s %s [[file:%s][json]] [[file:%s][html]] [[file:%s][png]] [[file:%s][predict log]] %s %s" % \
-                 ("X" if check else " ", id, lang, pre + ".json", pre + ".html", pre + ".png", pre + ".predict.log",
+        prefix = "  - [%s] %s %s [[file:%s][json]] [[file:%s][log]] [[file:%s][html]] [[file:%s][png]] [[file:%s][predict log]] %s %s" % \
+                 ("X" if check else " ", id, lang, pre + ".json", pre + ".log", pre + ".html", pre + ".png", pre + ".predict.log",
                   " ".join(reversed(context)), word)
 
         if comment: prefix = "  # use -a option to add: " + prefix.strip()
@@ -201,6 +201,7 @@ if __name__ == '__main__':
         # @todo add wiring to learning / backtracking
 
         with open(pre + ".predict.log", 'w') as pf:
+            pf.write("Summary: %s %s %s\n" % (word, guess, ok))
             pf.write("\n".join(tools.messages))
         tools.messages = []
 

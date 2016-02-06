@@ -32,7 +32,7 @@ def check_min(test, get_attr, name, colors = None):
     if exp_val <= min_val:
         return dict(txt="OK %s[%s]=%.2f gap=%.2f ratio=%.2f" % (name, test["expected"], exp_val, gap, ratio), count = [ "ok" ])
 
-    rank = [ get_attr(x) for x in test["ch"].values() ].index(exp_val)
+    rank = sorted([ get_attr(x) for x in test["ch"].values() ]).index(exp_val)
     return dict(txt="NOK %s[%s]=%.2f min=%.2f gap=%.2f ratio=%.2f rank=%d" % (name, test["expected"], exp_val, min_val, gap, ratio, rank), color="yellow")
 
 def check_max(test, get_attr, name, colors):
@@ -53,6 +53,9 @@ def check_max(test, get_attr, name, colors):
 
 def act_distance(test):
     return check_min(test, lambda c: c["distance"], "distance")
+
+def act_new_dist(test):
+    return check_min(test, lambda c: c["new_dist"], "new_dist")
 
 def act_score_misc(test):
     return check_max(test, lambda c: c["avg_score"]["score_misc"], "score_misc", colors = COLORS)
@@ -109,6 +112,7 @@ def act_rank(test):
     return dict(txt = "%d" % rank, color = col)
 
 all_actions = dict(distance=act_distance,
+                   newdist=act_new_dist,
                    rank=act_rank,
                    score_turn=act_score_turn,
                    score_misc=act_score_misc,

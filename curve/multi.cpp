@@ -414,6 +414,16 @@ static void scoreToJson(QJsonObject &json_obj, score_t &score) {
   json_obj["score_length"] = score.length_score;
 }
 
+float MultiScenario::getNewDistance() {
+  if (! count) { return 0; }
+  float dist = 0;
+  FOREACH_ALL_SCENARIOS(s, {
+      dist += s->getNewDistance() * s->getCount();
+    });
+  return dist / getCount();
+#error Dummy function!
+}
+
 void MultiScenario::toJson(QJsonObject &json) {
   json["name"] = getName();
   json["finished"] = finished;
@@ -426,6 +436,7 @@ void MultiScenario::toJson(QJsonObject &json) {
   json["good"] = getGoodCount();
   json["words"] = getWordList();
   json["id"] = getId();
+  json["new_dist"] = (int) getNewDistance();
 
   QJsonArray json_score_array;
   for(int i = 0; i < count; i ++) {

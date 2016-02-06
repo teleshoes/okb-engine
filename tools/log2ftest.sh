@@ -45,7 +45,7 @@ last=`ls -rt "$log_dir"/*/2*.log.bz2 | tail -n 1`
 [ -n "$last" ] && [ -f "$ts2" ] && [ "$ts2" -ot "$last" ] && force_check=1 && echo "force_check=1"
 
 ts="$work_dir/.ts"
-if [ -z "$force_check" -a -z "$reset" -a -f "$ts" -a "$bin" -ot "$ts" ] ; then
+if [ -z "$force_check" -a -z "$reset" -a -f "$ts" ] ; then
     : # no change
 else
 
@@ -59,8 +59,6 @@ else
 	    read -r prefix js  # -r does not interpret backslash as an escape character
 	    [ "$prefix" = "OUT:" ]
 
-	    js=$(echo "$js" | tools/json-recover-keys.py "$tmpjson") 
-
 	    n=`expr "$n" + 1`
 	    word=`echo "$word" | sed -r "s/^'(.*)'$/\1/"`
 
@@ -68,7 +66,8 @@ else
 
 	    echo "$id $word" >> $manifest
 
-	    if [ ! -f "$pre.png" -o "$pre.png" -ot "$bin" -o -n "$reset" ] ; then
+	    if [ ! -f "$pre.png" -o -n "$reset" ] ; then
+		js=$(echo "$js" | tools/json-recover-keys.py "$tmpjson")
 
 		lang=`echo "$js" | head -n 1 | sed 's/^.*treefile[^\}]*\///' | less | cut -c 1-2`
 

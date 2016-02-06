@@ -259,6 +259,8 @@ class Scenario {
 
   int good_count;
 
+  float new_dist;
+
   // cache
   bool cache;
   QSharedPointer<child_cache_t> cacheChilds;
@@ -327,6 +329,9 @@ class Scenario {
   bool nextLength(unsigned char next_letter, int curve_id, int &min, int &max);
   float getScoreV1() { return score_v1; };
   void setCache(bool value);
+
+  void newDistance();
+  float getNewDistance() { return new_dist; };
 
   static void sortCandidates(QList<Scenario *> candidates, Params &params, int debug);
 

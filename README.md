@@ -1,6 +1,9 @@
 OKboard engine: framework for gesture keyboards
 ===============================================
 
+For TMO readers: this is a dead branch, please use this URL: http://git.tuxfamily.org/okboard/okb-engine.git/tree/README.md
+
+
 Description
 -----------
 This is a set of libraries & tools for building gesture based virtual keyboards for mobile phones (and maybe tablets?).
