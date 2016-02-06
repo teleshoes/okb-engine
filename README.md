@@ -1,9 +1,6 @@
 OKboard engine: framework for gesture keyboards
 ===============================================
 
-For TMO readers: this is a dead branch, please use this URL: http://git.tuxfamily.org/okboard/okb-engine.git/tree/README.md
-
-
 Description
 -----------
 This is a set of libraries & tools for building gesture based virtual keyboards for mobile phones (and maybe tablets?).
@@ -164,7 +161,8 @@ TODO
 * [STARTED but very crude] Auto-tune coefficients between curve matching and word prediction to adapt to user style (may be based on speed or error count). Maybe do the same with some parameters (.cf file)
 * Better handling of compound words (i.e. containing hyphens or apostrophs). They should be handled as a sequence of words in the prediction engine. Maybe store go-between characters as n-grams attributes
   Today they are considered as single words, so some of them are rare in the learning corpus and so are difficult to input. Optionally the one-word approach could be kept for high count n-grams.
-  No change to be done to curve matching part, we need to be able to type these words as a single swipe.
+  No change to be done to curve matching part, we need to be able to type these words as a single swipe
+* Include punctuation information in the prediction model to auto-type word separators (apostrophs / hyphens)
 * [DONE but could be more user friendly] Tools for easily adding and packaging new languages
 * Automatic non-regression tests for all the word prediction part and language file generation
 * Tool for collecting user data (learning data, logs) ... with user permission.
