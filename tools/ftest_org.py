@@ -5,12 +5,20 @@
 import sys, re, os
 import json, time
 import getopt
+import pickle
 
 mydir = os.path.dirname(os.path.abspath(__file__))
 mydir = libdir = os.path.join(mydir, '..')
 sys.path.insert(0, libdir)
 
 import predict
+
+def obj2dict(o):
+    d = dict()
+    for a in dir(o):
+        if a.startswith('_') or a == "copy": continue
+        d[a] = getattr(o, a)
+    return d
 
 def remove_quotes(word):
     return  re.sub(r'^([\'\"])(.*)\1$', r'\2', word)
@@ -121,6 +129,7 @@ if __name__ == '__main__':
     p = None
 
     tools = Tools(params)
+    all_predict = []
 
     for t in history:
         id = t["id"]
@@ -132,7 +141,7 @@ if __name__ == '__main__':
 
         lang = os.path.basename(result["input"]["treefile"])[:2]
 
-        check = True
+        check = False
         comment = False
         if id in db:
             check, word, context = db[id]
@@ -176,6 +185,10 @@ if __name__ == '__main__':
         count += 1
         if ok: ok_count += 1
 
+        ga = p.guess_history_last[0]
+        ga["words"] = [ obj2dict(x) for x in ga["words"].values() ]
+        all_predict.append(dict(ok = ok, expected = word, id = id, word = word, context = context, guess = ga))
+
         if not ok:
             candidates.sort(key = lambda x: x[1], reverse = True)
             rank = -1
@@ -213,3 +226,7 @@ if __name__ == '__main__':
 
     f.close()
     os.rename(index_org + ".tmp", index_org)
+
+    pck_file = os.path.join(work_dir, "ftest.pck")
+    with open(pck_file, 'wb') as f:
+        pickle.dump(all_predict, f)
