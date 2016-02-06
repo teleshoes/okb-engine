@@ -270,12 +270,14 @@ void CurveMatch::curvePreprocess1(int curve_id) {
 
   // debug output (@todo remove)
   for(int i = 0; i <  l; i ++) {
-    DBG("speed: %3d [%6d] [%6d] S=%5d/A=%5d %s (%6.2f,%6.2f) (%6.2f, %6.2f) ---> [%d,%d] = %d",
-	i, oneCurve[i].t, ts[i], oneCurve[i].speed, accel[i], (oneCurve[i].dummy?"*":" "), xspeed[i], yspeed[i], xsmooth[i], ysmooth[i], oneCurve[i].d2x, oneCurve[i].d2y, accel[i]);
+    DBG("speed: %3d [%6d] [%6d] S=%5d/A=%5d %s (%6.2f,%6.2f) (%6.2f, %6.2f) ---> [%d,%d] = %d (%d)",
+	i, oneCurve[i].t, ts[i], oneCurve[i].speed, accel[i], (oneCurve[i].dummy?"*":" "),
+	xspeed[i], yspeed[i], xsmooth[i], ysmooth[i], oneCurve[i].d2x, oneCurve[i].d2y,
+	accel[i], oneCurve[i].lac);
   }
 
   // add turning points based on acceleration
-#define ACC(x) abs(accel[x]) /* abs(oneCurve[x].lac) */
+#define ACC(x) (accel[x]) /* abs(oneCurve[x].lac) */
   for(int i = 1; i < l - 1; i ++) {
     int threshold1 = params.accel_threshold1;
     int threshold2 = params.accel_threshold2;
@@ -298,7 +300,7 @@ void CurveMatch::curvePreprocess1(int curve_id) {
       }
       if (i + j < l) {
 	if (oneCurve[i + j].sharp_turn) { ok = false; break; }
-	if (ACC(i + j) > accel[i]) { ok = false; break; }
+	if (ACC(i + j) > ACC(i)) { ok = false; break; }
 	if (ACC(i + j) < min2 || ! min2) { min2 = ACC(i + j); }
       }
     }
@@ -360,6 +362,40 @@ void CurveMatch::curvePreprocess1(int curve_id) {
 	max_index = i;
 	max_turn = turn;
 	st_found = (oneCurve[i].sharp_turn != 0);
+      }
+    }
+
+    // ugly workaround : adjust special points (1 & 3) that near missed an sharp angle turn
+    for(int i = 2; i < l - 2; i ++) {
+      if (oneCurve[i].sharp_turn != 1 && oneCurve[i].sharp_turn != 5) { continue; }
+      for(int j = i - 1; j <= i + 1; j += 2) {
+	if (abs(oneCurve[j].turn_angle > 50) and abs(oneCurve[j].turn_angle > 2 * oneCurve[i].turn_angle)) {
+	  DBG("Special point moved: %d->%d (ST=%d)", i, j, oneCurve[i].sharp_turn);
+	  oneCurve[j].sharp_turn = oneCurve[i].sharp_turn;
+	  oneCurve[i].sharp_turn = 0;
+	  break;
+	}
+      }
+    }
+
+    // catch some leftover obvious special points (partial slow down)
+    int gap = params.accel_gap;
+    for(int i = gap; i < l - gap; i ++) {
+      if (oneCurve[i].sharp_turn) { continue; }
+      bool ok = true;
+      unsigned char m = 0;
+      for(int j = 1; j <= gap; j ++) {
+	if (oneCurve[i + j].speed < oneCurve[i].speed ||
+	    oneCurve[i - j].speed < oneCurve[i].speed) { ok = false; break; }
+	if (oneCurve[i + j].sharp_turn || oneCurve[i - j].sharp_turn) { ok = false; break; }
+
+	if (oneCurve[i + j].speed > oneCurve[i].speed * 1.5) { m |= 1; }
+	if (oneCurve[i - j].speed > oneCurve[i].speed * 1.5) { m |= 2; }
+      }
+      if (ok && m == 3 &&
+	  abs(oneCurve[i].turn_smooth + oneCurve[i - 1].turn_smooth + oneCurve[i + 1].turn_smooth) > 30) {
+	DBG("Partial slow down ST[%d] = 5", i);
+	oneCurve[i].sharp_turn = 5;
       }
     }
 

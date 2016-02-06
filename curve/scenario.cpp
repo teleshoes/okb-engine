@@ -1762,6 +1762,7 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
       scores[i + 1].misc_score -= 0.5 * params->flat_score * score;
     }
   }
+
 }
 
 int Scenario::getLocalTurn(int index) {
@@ -1879,7 +1880,7 @@ float Scenario::calc_score_misc(int i) {
       int st = curve->getSpecialPoint(j);
 
       if ((st == 3 || st == 5) && abs(curve->getTurnSmooth(j)) < params->speed_min_angle) {
-	DBG("  [score misc] unmatched slow down point (point=%d, index=%d:%d)", j, i0, i1);
+	DBG("  [score misc] unmatched special point (point=%d, type=%d, index=%d:%d)", j, st, i0, i1);
 
 	float value = (st==3)?params->speed_penalty:params->st5_score;
 	score -= value;
@@ -1924,6 +1925,34 @@ float Scenario::calc_score_misc(int i) {
       }
     }
   }
+
+  // find bad tangents at curve tips
+  // (usefull for small turn that would be overlooked by turn score)
+  int cl = curve->size();
+  if (cl > 4 && count > 1) {
+    Point tg_act, tg_exp;
+    bool proceed = true;
+    if (i == 0) {
+      tg_act = curve->point(2) - curve->point(0);
+      tg_exp = keys->get(letter_history[1]) - keys->get(letter_history[0]);
+    } else if (i == count - 1) {
+      tg_act = curve->point(cl - 1) - curve->point(cl - 3);
+      tg_exp = keys->get(letter_history[count - 1]) - keys->get(letter_history[count - 2]);
+    } else {
+      proceed = false;
+    }
+
+    if (proceed) {
+      float acos = cos(anglep(tg_act, tg_exp));
+      //acos = (acos / 1.2) + 0.2;
+      if (acos < 0) {
+	DBG("  [score misc] bad %s tip tangent : acos()=%.2f", (i == 0)?"begin":"end", acos);
+	score += .2 * acos; // hardcoded because I did not find any case where value is important
+	MISC_ACCT(getNameCharPtr(), "None", .2, acos);
+      }
+    }
+  }
+
 
   return score;
 }
@@ -2007,7 +2036,7 @@ void Scenario::calc_loop_score_all(turn_t *turn_detail, int turn_count) {
 }
 
 void Scenario::newDistance() {
-  /* new distance between candidates and expected words 
+  /* new distance between candidates and expected words
      it aims at better accuracy (more likely to find the right word), and if it
      fails, the expected word is likely to have an higher distance but with a
      small difference */

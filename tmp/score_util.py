@@ -14,6 +14,7 @@ def load_files(files):
         word = re.sub(r'^.*\.', '', word)
         word = re.sub(r'^[a-z][a-z]-', '', word)
         word = re.sub(r'[0-9]+$', '', word)
+        word = re.sub(r'\-.*$', '', word)
         word = re.sub(r'(.)\1+', lambda m: m.group(1), word)
 
         js['expected'] = word

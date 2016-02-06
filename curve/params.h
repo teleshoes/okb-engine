@@ -147,7 +147,7 @@ class Params {
 
 static Params default_params = {
   /* BEGIN DEFAULT */
-  8, // accel_gap
+  5, // accel_gap
   0.9, // accel_ratio
   120, // accel_threshold1
   400, // accel_threshold2
@@ -184,8 +184,8 @@ static Params default_params = {
   0.5, // final_distance_pow
   1.0, // final_newdist_pow
   40, // final_newdist_range
-  0.0, // final_score_v1_coef
-  0.11, // final_score_v1_threshold
+  1.0, // final_score_v1_coef
+  0.12, // final_score_v1_threshold
   10, // flat_max_angle
   45, // flat_max_deviation
   0.25, // flat_score
@@ -230,7 +230,7 @@ static Params default_params = {
   2.2, // slow_down_ratio
   0.2, // small_segment_min_score
   0.2, // sp_bad
-  0, // speed_max_index_gap
+  2, // speed_max_index_gap
   15, // speed_min_angle
   0.1, // speed_penalty
   50, // speed_time_interval
