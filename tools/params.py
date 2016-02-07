@@ -35,7 +35,7 @@ defparams = [
     [ "end_scenario_wait", int ],
     [ "error_correct", int ],
     [ "error_ignore_count", int, 3, 10 ],
-    [ "final_coef_misc", float, 0.1, 5],
+    [ "final_coef_misc", float, 0.1, 5 ],
     [ "final_coef_turn", float, 0.1, 5 ],
     [ "final_coef_turn_exp", float, 0.01, 2 ],
     [ "final_distance_pow", float, 0.1, 5 ],

@@ -181,7 +181,7 @@ static Params default_params = {
   1, // error_correct
   5, // error_ignore_count
   1.0, // final_coef_misc
-  1.0, // final_coef_turn
+  2.0, // final_coef_turn
   0.33, // final_coef_turn_exp
   0.5, // final_distance_pow
   1.0, // final_newdist_pow
