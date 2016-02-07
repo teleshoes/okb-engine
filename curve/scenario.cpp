@@ -1207,6 +1207,7 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
 
   float a_actual[count];
   float a_expected[count];
+  float a_expected_real[count];
   bool  a_same[count];
   memset(a_same, 0, sizeof(a_same));
 
@@ -1257,8 +1258,14 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
     Point k2 = keys->get_raw(l2);
     Point k3 = keys->get_raw(l3);
 
+    // corrected key coordinates
+    Point ck1 = keys->get(l1);
+    Point ck2 = keys->get(l2);
+    Point ck3 = keys->get(l3);
+
     // actual/expected angles
     float expected = anglep(k2 - k1, k3 - k2) * 180 / M_PI;
+    float c_expected = anglep(ck2 - ck1, ck3 - ck2) * 180 / M_PI; // corrected
 
     // a bit of cheating for U-turn (+180 is the same as -180, but it is
     // not handled by the code below)
@@ -1266,8 +1273,28 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
     if (abs(expected) >= 130 && abs(actual) > 130 && expected * actual < 0) {
       expected = expected - 360 * ((expected > 0) - (expected < 0));
     }
+    if (abs(c_expected) >= 130 && abs(actual) > 130 && c_expected * actual < 0) {
+      c_expected = c_expected - 360 * ((c_expected > 0) - (c_expected < 0));
+    }
 
-    a_expected[i] = expected;
+    // choose between displayed key coordinates and corrected ones
+    // warning : this may make turn score less discriminating (especially with dynamic key position adjustment)
+    float new_expected = expected;
+    if ((actual - expected) * (actual - c_expected) < 0) {
+      // actual is between expected & c_expected
+      new_expected = actual;
+    } else if (abs(actual - c_expected) < abs(actual - expected)) {
+      // actual is nearer from c_expected than expected
+      new_expected = c_expected;
+    }
+
+    if (new_expected != expected) {
+      DBG("Expected turn updated(#%d): a:%d / e:%d (corrected:%d) --> new expected = %d",
+	  i, (int) actual, (int) expected, (int) c_expected, (int) new_expected);
+    }
+
+    a_expected[i] = new_expected;
+    a_expected_real[i] = expected;
   }
   a_expected[count - 1] = 0;
 
@@ -1543,6 +1570,11 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
   if (turn_count > 0) {
     for (int j = 0; j < turn_count; j ++) {
       turn_detail[j].corrected = turn_detail[j].actual;
+      float total = 0;
+      for (int k = turn_detail[j].start_index; k <= turn_detail[j].index; k ++) {
+	total += a_expected_real[k];
+      }
+      turn_detail[j].expected_real = total;
     }
 
     for (int i = 0; i <= turn_count; i ++) {
@@ -1584,7 +1616,7 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
       float score = 1;
       float scale = -1, scale2 = 0;
 
-      if (abs(expected) > 270) {
+      if (abs(expected) > params->turn_threshold_ignore) {
 	score = 1; // too large turn, no check
       } else {
 	float t = (abs(expected) < 90)?t1:t3;
@@ -1598,20 +1630,29 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
 	}
 
 	int tip = 0;
-	if ((d->start_index == 1) && (d->length_before < params->turn_tip_min_distance)) { tip |= 1; }
-	if ((d->index == count - 2) && (d->length_after < params->turn_tip_min_distance)) { tip |= 2; }
-	if (tip) {
-	  scale *= params->turn_tip_scale_ratio;
-	  scale2 = params->turn_scale2_tip;
-	  if (tip == 3 && fabs(turn_detail[0].expected) > 180) { scale2 = params->turn_scale2_tip2; }
-	  add_score = - params -> turn_tip_len_penalty;
+
+	if ((((d->start_index == 1) && (d->length_before < params->turn_tip_verysmall)) ||
+	     ((d->index == count - 2) && (d->length_after < params->turn_tip_verysmall))) && turn_count > 0) {
+	  // no negative scoring for very small tips
+
+	} else {
+
+	  if ((d->start_index == 1) && (d->length_before < params->turn_tip_min_distance)) { tip |= 1; }
+	  if ((d->index == count - 2) && (d->length_after < params->turn_tip_min_distance)) { tip |= 2; }
+	  if (tip) {
+	    scale *= params->turn_tip_scale_ratio;
+	    scale2 = params->turn_scale2_tip;
+	    if (tip == 3 && fabs(turn_detail[0].expected) > 180) { scale2 = params->turn_scale2_tip2; }
+	    add_score = - params -> turn_tip_len_penalty;
+	  }
+
+	  scale = t + (t2 - t) * sin(min(abs(actual), abs(expected)) * M_PI / 180);
+
+	  float diff = abs(actual - expected);
+	  float sc0 = max(0, diff - scale2) / (scale - scale2);
+	  score = 1 - pow(sc0, params->turn_diff_pow) + add_score;
+
 	}
-
-	scale = t + (t2 - t) * sin(min(abs(actual), abs(expected)) * M_PI / 180);
-
-	float diff = abs(actual - expected);
-	float sc0 = max(0, diff - scale2) / (scale - scale2);
-	score = 1 - pow(sc0, params->turn_diff_pow) + add_score;
 
       }
 
@@ -1963,8 +2004,8 @@ void Scenario::calc_straight_score_all(turn_t *turn_detail, int turn_count, floa
   int real_turn_count = 0;
   for (int i = 0; i < turn_count; i ++) {
     turn_t *d = &(turn_detail[i]);
-    if ((abs(d->expected) < 10) ||
-	((d->length_after < 45 || d->length_before < 45) && (abs(d->expected) < 30))) { // @todo use parameters
+    if ((abs(d->expected_real) < 10) ||
+	((d->length_after < 45 || d->length_before < 45) && (abs(d->expected_real) < 30))) { // @todo use parameters
       // not "significant" turn
     } else {
       real_turn_count ++;

@@ -190,6 +190,7 @@ typedef struct {
   int direction; // was char, but char to int conversion seems to handle these as unsigned chars (didn't investigate)
   int corrected_direction;
   float expected;
+  float expected_real;
   float replace_expected;
   float actual;
   float corrected;

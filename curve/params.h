@@ -120,9 +120,11 @@ class Params {
   int turn_threshold;
   int turn_threshold2;
   int turn_threshold3;
+  int turn_threshold_ignore;
   float turn_tip_len_penalty;
   int turn_tip_min_distance;
   float turn_tip_scale_ratio;
+  int turn_tip_verysmall;
   int user_dict_learn;
   int user_dict_size;
   float ut_coef;
@@ -261,9 +263,11 @@ static Params default_params = {
   75, // turn_threshold
   140, // turn_threshold2
   115, // turn_threshold3
+  230, // turn_threshold_ignore
   0.01, // turn_tip_len_penalty
   125, // turn_tip_min_distance
   2.0, // turn_tip_scale_ratio
+  25, // turn_tip_verysmall
   1, // user_dict_learn
   2000, // user_dict_size
   0.45, // ut_coef
@@ -396,9 +400,11 @@ void Params::toJson(QJsonObject &json) const {
   json["turn_threshold"] = turn_threshold;
   json["turn_threshold2"] = turn_threshold2;
   json["turn_threshold3"] = turn_threshold3;
+  json["turn_threshold_ignore"] = turn_threshold_ignore;
   json["turn_tip_len_penalty"] = turn_tip_len_penalty;
   json["turn_tip_min_distance"] = turn_tip_min_distance;
   json["turn_tip_scale_ratio"] = turn_tip_scale_ratio;
+  json["turn_tip_verysmall"] = turn_tip_verysmall;
   json["user_dict_learn"] = user_dict_learn;
   json["user_dict_size"] = user_dict_size;
   json["ut_coef"] = ut_coef;
@@ -533,9 +539,11 @@ Params Params::fromJson(const QJsonObject &json) {
   p.turn_threshold = json["turn_threshold"].toDouble();
   p.turn_threshold2 = json["turn_threshold2"].toDouble();
   p.turn_threshold3 = json["turn_threshold3"].toDouble();
+  p.turn_threshold_ignore = json["turn_threshold_ignore"].toDouble();
   p.turn_tip_len_penalty = json["turn_tip_len_penalty"].toDouble();
   p.turn_tip_min_distance = json["turn_tip_min_distance"].toDouble();
   p.turn_tip_scale_ratio = json["turn_tip_scale_ratio"].toDouble();
+  p.turn_tip_verysmall = json["turn_tip_verysmall"].toDouble();
   p.user_dict_learn = json["user_dict_learn"].toDouble();
   p.user_dict_size = json["user_dict_size"].toDouble();
   p.ut_coef = json["ut_coef"].toDouble();
