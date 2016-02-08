@@ -1649,7 +1649,7 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
 	  scale = t + (t2 - t) * sin(min(abs(actual), abs(expected)) * M_PI / 180);
 
 	  float diff = abs(actual - expected);
-	  float sc0 = max(0, diff - scale2) / (scale - scale2);
+	  float sc0 = (scale2 > scale - 0.1)?0:max(0, diff - scale2) / (scale - scale2);
 	  score = 1 - pow(sc0, params->turn_diff_pow) + add_score;
 
 	}
