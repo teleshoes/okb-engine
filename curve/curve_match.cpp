@@ -164,7 +164,7 @@ void CurveMatch::curvePreprocess1(int curve_id) {
     }
 
     // for some missed obvious sharp turn (it sometime occurs near curve tips)
-    for(int i = 1 ; i < l - 1; i ++) {
+    for(int i = 2 ; i < l - 2; i ++) {
       if (oneCurve[i].sharp_turn == 0 && oneCurve[i - 1].sharp_turn == 0 && oneCurve[i + 1].sharp_turn == 0 &&
 	  abs(oneCurve[i].turn_angle) > 120) {
 	oneCurve[i].sharp_turn = 2;
@@ -248,11 +248,13 @@ void CurveMatch::curvePreprocess1(int curve_id) {
     xsmooth[i] = sx / sc;
     ysmooth[i] = sy / sc;
   }
+  xsmooth[l - 1] = xsmooth[l - 2];
+  ysmooth[l - 1] = ysmooth[l - 2];
 
   // acceleration evalution
   int accel[l];
   accel[0] = 0;
-  for(int i = 1; i < l - 2; i ++) {
+  for(int i = 1; i < l; i ++) {
     float dt = ts[i] - ts[i - 1];
     if (dt > 0) {
       float ax = (xsmooth[i] - xsmooth[i - 1]) / dt;
@@ -343,15 +345,17 @@ void CurveMatch::curvePreprocess1(int curve_id) {
 	  for(int j = max(max_index - excl_gap, tip_gap); j < min(max_index + excl_gap, l - tip_gap); j ++) {
 	    if (oneCurve[j].sharp_turn) { st_found = true; }
 	  }
-	  DBG("New turn %d->%d total=%d max_index=%d st_found=%d", start_index, end_index, total, max_index, st_found);
-	  if (abs(total) > min_angle1 &&
-	      abs(oneCurve[max_index].turn_smooth) >= min_turn1 &&
-	      end_index - start_index <= max_pts &&
-	      ! st_found) {
-	    int value = 1;
-	    if (start_index <= opt_gap || end_index >= l - opt_gap) { value = 5; }
-	    DBG("Special point[%d]=%d (try 2)", max_index, value);
-	    oneCurve[max_index].sharp_turn = value;
+	  if (max_index >= 2 && max_index < l + 2) {
+	    DBG("New turn %d->%d total=%d max_index=%d st_found=%d", start_index, end_index, total, max_index, st_found);
+	    if (abs(total) > min_angle1 &&
+		abs(oneCurve[max_index].turn_smooth) >= min_turn1 &&
+		end_index - start_index <= max_pts &&
+		! st_found) {
+	      int value = 1;
+	      if (start_index <= opt_gap || end_index >= l - opt_gap) { value = 5; }
+	      DBG("Special point[%d]=%d (try 2)", max_index, value);
+	      oneCurve[max_index].sharp_turn = value;
+	    }
 	  }
 	  cur = 0;
 	}

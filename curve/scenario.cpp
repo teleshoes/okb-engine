@@ -1985,7 +1985,6 @@ float Scenario::calc_score_misc(int i) {
 
     if (proceed) {
       float acos = cos(anglep(tg_act, tg_exp));
-      //acos = (acos / 1.2) + 0.2;
       if (acos < 0) {
 	DBG("  [score misc] bad %s tip tangent : acos()=%.2f", (i == 0)?"begin":"end", acos);
 	score += .2 * acos; // hardcoded because I did not find any case where value is important
@@ -1993,7 +1992,6 @@ float Scenario::calc_score_misc(int i) {
       }
     }
   }
-
 
   return score;
 }
@@ -2022,11 +2020,16 @@ void Scenario::calc_straight_score_all(turn_t *turn_detail, int turn_count, floa
     }
 
     /* check if line orientation is OK */
-    Point k1 = keys->get_raw(letter_history[0]);
-    Point k2 = keys->get_raw(letter_history[count - 1]);
-    Point p1 = curve->point(0);
-    Point p2 = curve->point(index);
-    float a_sin = abs(sin_angle(k2.x - k1.x, k2.y - k1.y, p2.x - p1.x, p2.y - p1.y));
+    float a_sin;
+    if (letter_history[0] == letter_history[count - 1]) {
+      a_sin = 1;
+    } else {
+      Point k1 = keys->get_raw(letter_history[0]);
+      Point k2 = keys->get_raw(letter_history[count - 1]);
+      Point p1 = curve->point(0);
+      Point p2 = curve->point(index);
+      a_sin = abs(sin_angle(k2.x - k1.x, k2.y - k1.y, p2.x - p1.x, p2.y - p1.y));
+    }
 
     result += params->straight_slope * (sqrt(1 - a_sin * a_sin) - 1);
 
@@ -2041,8 +2044,10 @@ void Scenario::calc_straight_score_all(turn_t *turn_detail, int turn_count, floa
 
   // spread score as this is a global score
   for(int i = 0; i < count; i ++) {
+    MISC_ACCT(getNameCharPtr(), "straight", 1, result / count);
     scores[i].misc_score += result / count;
   }
+
 }
 
 void Scenario::calc_loop_score_all(turn_t *turn_detail, int turn_count) {
@@ -2152,9 +2157,11 @@ bool Scenario::postProcess() {
     evalScore();
     return true;
   }
+
   for(int i = 0; i < count; i++) {
     scores[i].misc_score = calc_score_misc(i);
   }
+
   turn_t turn_detail[count];
   int turn_count;
   calc_turn_score_all(turn_detail, &turn_count);
