@@ -1448,7 +1448,9 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
       }
 
       for(int j = i0; j <= i; j ++) {
-	DBG("  [score turn]  > turn point #%d:%c %.2f[%d] %.2f[%d]", j, letter_history[j], a_actual[j], typ_act[j], a_expected[j], typ_exp[j]);
+	DBG("  [score turn] > \"%s\" turn point #%d:%c %.2f[%d] %.2f[%d] length=(%d,%d)",
+	    getNameCharPtr(), j, letter_history[j], a_actual[j], typ_act[j], a_expected[j], typ_exp[j],
+	    (int) segment_length[j - 1], (int) segment_length[j]);
       }
 
       /* step 4 : put everything together, calculate turns list and find unmatched turns */
@@ -1660,8 +1662,9 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
 
       int index = d -> index;
       float trn = (d->corrected - d->actual) * ((d->expected > 0)?1:-1);
-      DBG("  [score turn]  turn #%d: %.2f[%.2f] / %.2f trn=%.2f length[%d:%d:%d] index=[%d:%d]->[%c:%c]->[%d:%d] (scale=%.2f:%.2f) ---> score=%.2f",
-	  i, d->actual, d->corrected, d->expected, trn, (int) d->length_before, int(length), (int) d->length_after, d->start_index, index,
+      DBG("  [score turn] \"%s\" turn #%d/%d: %.2f[%.2f] / %.2f trn=%.2f length[%d:%d:%d] index=[%d:%d]->[%c:%c]->[%d:%d] (scale=%.2f:%.2f) ---> score=%.2f",
+	  getNameCharPtr(), i, turn_count, d->actual, d->corrected, d->expected, trn,
+	  (int) d->length_before, int(length), (int) d->length_after, d->start_index, index,
 	  letter_history[d->start_index], letter_history[index],
 	  index_history[d->start_index], index_history[index], scale, scale2, score);
 
