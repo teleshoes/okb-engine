@@ -114,6 +114,7 @@ defparams = [
     [ "turn_scale2_tip2", int, 0, 90 ],
     [ "turn_scale2_ut", int, 0, 90 ],
     [ "turn_scale_ut", float, 1, 5 ],
+    [ "turn_score_unmatched", float, 0, 1],
     [ "turn_separation", int, 30, 300 ],
     [ "turn_threshold", int, 10, 85 ],
     [ "turn_threshold2", int, 120, 179 ],

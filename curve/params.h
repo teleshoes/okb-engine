@@ -116,6 +116,7 @@ class Params {
   int turn_scale2_tip2;
   int turn_scale2_ut;
   float turn_scale_ut;
+  float turn_score_unmatched;
   int turn_separation;
   int turn_threshold;
   int turn_threshold2;
@@ -251,7 +252,7 @@ static Params default_params = {
   0.65, // turn_distance_ratio
   0.01, // turn_distance_score
   60, // turn_distance_threshold
-  20, // turn_max_angle
+  10, // turn_max_angle
   45, // turn_max_transfer
   10, // turn_min_angle
   120, // turn_optim
@@ -259,6 +260,7 @@ static Params default_params = {
   40, // turn_scale2_tip2
   50, // turn_scale2_ut
   2.0, // turn_scale_ut
+  0.3, // turn_score_unmatched
   120, // turn_separation
   75, // turn_threshold
   140, // turn_threshold2
@@ -396,6 +398,7 @@ void Params::toJson(QJsonObject &json) const {
   json["turn_scale2_tip2"] = turn_scale2_tip2;
   json["turn_scale2_ut"] = turn_scale2_ut;
   json["turn_scale_ut"] = turn_scale_ut;
+  json["turn_score_unmatched"] = turn_score_unmatched;
   json["turn_separation"] = turn_separation;
   json["turn_threshold"] = turn_threshold;
   json["turn_threshold2"] = turn_threshold2;
@@ -535,6 +538,7 @@ Params Params::fromJson(const QJsonObject &json) {
   p.turn_scale2_tip2 = json["turn_scale2_tip2"].toDouble();
   p.turn_scale2_ut = json["turn_scale2_ut"].toDouble();
   p.turn_scale_ut = json["turn_scale_ut"].toDouble();
+  p.turn_score_unmatched = json["turn_score_unmatched"].toDouble();
   p.turn_separation = json["turn_separation"].toDouble();
   p.turn_threshold = json["turn_threshold"].toDouble();
   p.turn_threshold2 = json["turn_threshold2"].toDouble();
