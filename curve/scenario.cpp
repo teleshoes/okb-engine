@@ -1320,13 +1320,15 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
     Point k1 = keys->get_raw(letter_history[i]);
     Point k2 = keys->get_raw(letter_history[j]);
     Point tgt = actual_curve_tangent(index_history[i]);
-    if ((k2.x - k1.x) * tgt.x + (k2.y - k1.y) * tgt.y < 0) { break; }
+    if ((k2.x - k1.x) * tgt.x + (k2.y - k1.y) * tgt.y < 0 &&
+	curve -> getSpecialPoint(index_history[i]) != 2) { continue; }
 
-    if (abs(expected) >= 130 && abs(actual) > 130 && expected * actual < 0 &&
+    float new_expected = expected - 360 * ((expected > 0) - (expected < 0));
+    if (abs(expected) >= 100 && abs(actual) > 100 && expected * actual < 0 &&
+	abs(new_expected - actual) < abs(expected - actual) &&
 	abs(actual) < 360) {
-      float old_exp = expected;
-      expected = expected - 360 * ((expected > 0) - (expected < 0));
-      DBG("Reversing expected angles for shared match point [%d:%d] %d->%d", i, j, (int) old_exp, (int) expected);
+      DBG("Reversing expected angles for shared match point [%d:%d] %d->%d", i, j, (int) expected, (int) new_expected);
+      expected = new_expected;
       for (int k = i; k <= j; k ++) {
 	a_expected[k] = expected / (j - i + 1);
       }
