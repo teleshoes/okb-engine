@@ -1235,6 +1235,7 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
 
     if (i3 > i2 && i2 > i1) {
       float actual = anglep(p2 - p1, p3 - p2) * 180 / M_PI;
+
       for(int j = i_; j <= i; j++) {
 	a_actual[j] = actual / (1 + i - i_);  // in case of "null-point" we spread the turn rate over all matches at the same position
       }
@@ -1312,8 +1313,8 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
       j ++;
       if (j >= count - 1) { break; }
     }
-    if (i == j) { break; }
-    if (j > i + 1) { break; } // don't manage more than two keys matched at the same point
+    if (i == j) { continue; }
+    if (j > i + 1) { continue; } // don't manage more than two keys matched at the same point
 
     // check if curve tangent at the matching point is consistent with letter order
     Point k1 = keys->get_raw(letter_history[i]);
