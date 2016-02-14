@@ -1281,23 +1281,38 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
     // choose between displayed key coordinates and corrected ones
     // warning : this may make turn score less discriminating (especially with dynamic key position adjustment)
     float new_expected = expected;
-    if ((actual - expected) * (actual - c_expected) < 0) {
-      // actual is between expected & c_expected
-      new_expected = actual;
-    } else if (abs(actual - c_expected) < abs(actual - expected)) {
-      // actual is nearer from c_expected than expected
-      new_expected = c_expected;
-    }
 
-    if (new_expected != expected) {
-      DBG("Expected turn updated(#%d): a:%d / e:%d (corrected:%d) --> new expected = %d",
-	  i, (int) actual, (int) expected, (int) c_expected, (int) new_expected);
+    if ((c_expected * expected < 0) || (abs(expected - actual) > 100)) {
+      // extreme cases we decide not to handle
+
+    } else {
+
+      if ((actual - expected) * (actual - c_expected) < 0) {
+	// actual is between expected & c_expected
+	new_expected = actual;
+      } else if (abs(actual - c_expected) < abs(actual - expected)) {
+	// actual is nearer from c_expected than expected
+	new_expected = c_expected;
+      }
+
+      if (new_expected != expected) {
+	DBG("Expected turn updated(#%d): a:%d / e:%d (corrected:%d) --> new expected = %d",
+	    i, (int) actual, (int) expected, (int) c_expected, (int) new_expected);
+      }
     }
 
     a_expected[i] = new_expected;
     a_expected_real[i] = expected;
   }
   a_expected[count - 1] = 0;
+
+  /* in case of merged match-points, spread overall expected turn angle over both letters */
+  for(int i = 1; i < count - 1; i ++) {
+    if (a_same[i] && ! a_same[i + 1]) {
+      a_expected[i] = a_expected[i + 1] = 0.5 * (a_expected[i] + a_expected[i + 1]);
+      a_expected_real[i] = a_expected_real[i + 1] = 0.5 * (a_expected_real[i] + a_expected_real[i + 1]);
+    }
+  }
 
   // another version of the U-turn test above for when two keys are matched
   // at the same point
