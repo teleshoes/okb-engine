@@ -1092,13 +1092,10 @@ bool Scenario::forkLast() {
 void Scenario::turn_transfer(int turn_count, turn_t *turn_detail) {
   // transfer "turn rate" between turns to enable users to cut through (users are lazy)
 
-  bool ok[turn_count];
-
   int max_transfer = params->turn_max_transfer;
 
   for(int i = 0; i < turn_count; i++) {
     turn_t *d = &(turn_detail[i]);
-    ok[i] = (fabs(d -> actual) < fabs(d -> expected));
     d->replace_expected = max(d -> actual - max_transfer, min(d -> actual + max_transfer, d->expected));
   }
 
@@ -1113,15 +1110,12 @@ void Scenario::turn_transfer(int turn_count, turn_t *turn_detail) {
     for(int i = 0; i < turn_count; i++) {
       turn_t *d = &(turn_detail[i]);
 
-      if (! ok[i]) { continue; }
-
       float nb_wants[2] = { 0.0, 0.0 };
       for(int ni = 0; ni <= 1; ni ++) {
 	int j = i - 1 + 2 * ni;
 	if (j < 0 || j >= turn_count) { continue; }
 	turn_t *d2 = &(turn_detail[j]);
-	if (! ok[j]) { continue; }
-	if (d->replace_expected * d2->replace_expected >= 0) { continue; }
+	// also transfer between same direction turn: if (d->replace_expected * d2->replace_expected >= 0) { continue; }
 
 	int len = ni?d->length_after:d->length_before;
 	if (len > params -> turn_optim) { continue; }
@@ -1168,7 +1162,6 @@ void Scenario::turn_transfer(int turn_count, turn_t *turn_detail) {
     for(int i = 0; i < turn_count; i++) {
       turn_t *d = &(turn_detail[i]);
 
-      if (! ok[i]) { continue; }
       for(int ni = 0; ni <= 1; ni ++) {
 	int j = i - 1 + 2 * ni;
 	if (i > j) { continue; }

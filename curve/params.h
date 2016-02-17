@@ -182,7 +182,7 @@ static Params default_params = {
   1, // error_correct
   5, // error_ignore_count
   1.0, // final_coef_misc
-  2.0, // final_coef_turn
+  3.0, // final_coef_turn
   0.33, // final_coef_turn_exp
   0.5, // final_distance_pow
   1.0, // final_newdist_pow
@@ -255,7 +255,7 @@ static Params default_params = {
   10, // turn_max_angle
   45, // turn_max_transfer
   10, // turn_min_angle
-  120, // turn_optim
+  160, // turn_optim
   25, // turn_scale2_tip
   40, // turn_scale2_tip2
   50, // turn_scale2_ut
