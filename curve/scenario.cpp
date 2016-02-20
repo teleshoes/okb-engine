@@ -1092,13 +1092,6 @@ bool Scenario::forkLast() {
 void Scenario::turn_transfer(int turn_count, turn_t *turn_detail) {
   // transfer "turn rate" between turns to enable users to cut through (users are lazy)
 
-  int max_transfer = params->turn_max_transfer;
-
-  for(int i = 0; i < turn_count; i++) {
-    turn_t *d = &(turn_detail[i]);
-    d->replace_expected = max(d -> actual - max_transfer, min(d -> actual + max_transfer, d->expected));
-  }
-
   float give[turn_count * 2];
 
   bool change = true;
@@ -1115,21 +1108,24 @@ void Scenario::turn_transfer(int turn_count, turn_t *turn_detail) {
 	int j = i - 1 + 2 * ni;
 	if (j < 0 || j >= turn_count) { continue; }
 	turn_t *d2 = &(turn_detail[j]);
-	// also transfer between same direction turn: if (d->replace_expected * d2->replace_expected >= 0) { continue; }
 
 	int len = ni?d->length_after:d->length_before;
-	if (len > params -> turn_optim) { continue; }
 
-	nb_wants[ni] = d2->replace_expected - d2->corrected;
+	float max_change = params -> turn_max_transfer * (1 - len / params -> turn_optim);
+	if (max_change <= 0) { continue; }
+
+	nb_wants[ni] = min(d2->actual + max_change, max(d2->actual - max_change, d2->expected)) - d2->corrected;
       }
 
-      float i_want = d->replace_expected - d->corrected;
+      float i_want = d->expected - d->corrected;
       float they_want = nb_wants[0] + nb_wants[1];
       int give_count = (nb_wants[0] != 0) + (nb_wants[1] != 0);
       if (! give_count) { continue; }
 
       int sgn = (they_want > 0) - (they_want < 0);
-      if (fabs(they_want) <= fabs(i_want)) {
+      if (they_want * i_want > 0) {
+	// no solution in this case
+      } else if (fabs(they_want) <= fabs(i_want)) {
 	give[i << 1] = - nb_wants[0];
 	give[(i << 1) + 1] = - nb_wants[1];
       } else if (give_count <= 1) {
@@ -1174,7 +1170,7 @@ void Scenario::turn_transfer(int turn_count, turn_t *turn_detail) {
 	float absv = min(fabs(t_ij), fabs(t_ji));
 	if (absv <= 2) { continue; }
 
-	int diff = d->replace_expected - d->corrected;
+	int diff = d->expected - d->corrected;
 	int sens = (diff > 0)?1:-1;
 
 	d->corrected += sens * absv;

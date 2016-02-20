@@ -191,7 +191,6 @@ typedef struct {
   int corrected_direction;
   float expected;
   float expected_real;
-  float replace_expected;
   float actual;
   float corrected;
   float length_before;

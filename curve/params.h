@@ -182,7 +182,7 @@ static Params default_params = {
   1, // error_correct
   5, // error_ignore_count
   1.0, // final_coef_misc
-  3.0, // final_coef_turn
+  2.5, // final_coef_turn
   0.33, // final_coef_turn_exp
   0.5, // final_distance_pow
   1.0, // final_newdist_pow
@@ -253,7 +253,7 @@ static Params default_params = {
   0.01, // turn_distance_score
   60, // turn_distance_threshold
   10, // turn_max_angle
-  45, // turn_max_transfer
+  55, // turn_max_transfer
   10, // turn_min_angle
   160, // turn_optim
   25, // turn_scale2_tip
@@ -261,7 +261,7 @@ static Params default_params = {
   50, // turn_scale2_ut
   2.0, // turn_scale_ut
   0.3, // turn_score_unmatched
-  120, // turn_separation
+  160, // turn_separation
   75, // turn_threshold
   140, // turn_threshold2
   115, // turn_threshold3
