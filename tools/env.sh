@@ -10,7 +10,7 @@ else
     _mydir=$(cd $(dirname "$_me") ; cd .. ; pwd)
     
     machine=`uname -m`
-    ngram_lib=`find "${_mydir}/ngrams/build/" -type d -name "lib.*" | grep "$machine"`
+    ngram_lib=`find "${_mydir}/ngrams/build/" -type d -name "lib.*" | grep '\b'"$machine"'\b' | sort | tail -n 1`
     
     export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${_mydir}/curve/build"
     export QML2_IMPORT_PATH=`readlink -f "${_mydir}/${OKB_QML}"`
