@@ -72,7 +72,10 @@ popd
 
 cp -vauf $mydir/lang-*.cf $mydir/add-words-*.txt $mydir/db.version $WORK_DIR/
 
-[ -x "/bin/bash" ] && export SHELL=/bin/bash  # this may help dash users
+bash=$(which bash)
+[ -z "$bash" ] && echo "You must install bash shell" && exit 1  # just fail if there is no bash available
+echo "Using bash: $bash"
+export SHELL="$bash"  # this may help dash users
 
 cd $WORK_DIR
 for target in $tgt_list ; do
