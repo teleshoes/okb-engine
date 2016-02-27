@@ -1641,12 +1641,6 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
       float y2 = max(y1 * yscaleratio, y1 + params -> turn2_min_y2);
       float y0 = 0;
 
-      if (abs(actual) < abs(expected) && y2 > abs(expected)) {
-	float adjust = y2 - abs(expected);
-	y1 -= adjust;
-	y2 -= adjust;
-      }
-
       if (abs(expected) > params->turn2_large_threshold) {
 	y0 = params -> turn2_large_y0;
       } else if (tip_case && xtip < xscale_tip) {
@@ -1656,6 +1650,8 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
       float sc1 = params->turn2_score1;
       if (actual * expected < 0) {
        	score = 0;
+      } else if (abs(expected) > 2 * params -> turn2_min_y2 && abs(actual) < params -> turn2_min_y2) {
+	d->unmatched = true; /* an expected turn is actually too small (rare case at this point) */
       } else if (y <= y0) {
 	score = 1;
       } else if ((y - y0) < y1) {
