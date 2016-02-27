@@ -242,8 +242,8 @@ static Params default_params = {
   0.5, // straight_score1
   0.2, // straight_score2
   0.5, // straight_slope
-  1.0, // straight_threshold_high
-  0.5, // straight_threshold_low
+  1.2, // straight_threshold_high
+  0.6, // straight_threshold_low
   1, // thumb_correction
   0.02, // tip_small_segment
   228, // turn2_large_threshold
