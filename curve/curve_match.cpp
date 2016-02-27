@@ -206,11 +206,11 @@ void CurveMatch::curvePreprocess1(int curve_id) {
   yspeed[l - 1] = yspeed[l - 2];
 
   // speedometer (used to find slow down points)
+  int time_interval = params.speed_time_interval;
   for(int i = 0; i < l; i ++) {
     int i1 = i, i2 = i;
-    int time_interval = params.speed_time_interval;
-    while (i1 > 0 && oneCurve[i1 - 1].t > oneCurve[i].t - time_interval) { i1 --; }
-    while (i2 < l - 1 && oneCurve[i2 + 1].t < oneCurve[i].t + time_interval) { i2 ++; }
+    while (i1 > 0 && oneCurve[i1].t > oneCurve[i].t - time_interval) { i1 --; }
+    while (i2 < l - 1 && oneCurve[i2].t < oneCurve[i].t + time_interval) { i2 ++; }
     float speed = 0;
     if (i2 > i1 && oneCurve[i2].t > oneCurve[i1].t) {
       speed = distance(oneCurve[i1].x, oneCurve[i1].y, oneCurve[i2].x, oneCurve[i2].y) / (oneCurve[i2].t - oneCurve[i1].t);
@@ -267,6 +267,9 @@ void CurveMatch::curvePreprocess1(int curve_id) {
 
       accel[i] = distance(0, 0, oneCurve[i].d2x, oneCurve[i].d2y);
       oneCurve[i].lac = (float) (oneCurve[i].d2x * ysmooth[i] - oneCurve[i].d2y * xsmooth[i]) / spd;
+    } else {
+      accel[i] = 0;
+      oneCurve[i].lac = 0;
     }
   }
 
