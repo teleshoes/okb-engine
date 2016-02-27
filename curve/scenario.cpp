@@ -1636,7 +1636,7 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
       float x = abs(len);
       float y = abs(actual - expected);
       float xtip = (turn_count == 1)?len:abs(i?l2:l1);
-       
+
       float y1 = yscale;
       float y2 = max(y1 * yscaleratio, y1 + params -> turn2_min_y2);
       float y0 = 0;
@@ -1646,7 +1646,7 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
       } else if (tip_case && xtip < xscale_tip) {
 	y0 = yscale_tip * pow(1 - xtip / xscale_tip, powscale_tip);
       }
-      
+
       float sc1 = params->turn2_score1;
       if (actual * expected < 0) {
        	score = 0;
@@ -1659,7 +1659,7 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
       } else {
 	score = 1 - sc1 - (1 - sc1) * pow(((y - y0) - y1) / (y2 - y1), params -> turn2_score_pow);
       }
-      
+
       if (d->unmatched) { score -= params->turn_score_unmatched; }
 
       if (score < 0) { score = 0.01; } // we can keep this scenario in case other are even worse
@@ -1670,7 +1670,7 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
 	  getNameCharPtr(), i, turn_count, d->actual, d->corrected, d->expected, trn,
 	  (int) d->length_before, int(length), (int) d->length_after, d->start_index, index,
 	  letter_history[d->start_index], letter_history[index],
-	  index_history[d->start_index], index_history[index], 
+	  index_history[d->start_index], index_history[index],
 	  tip_case?"tip":"std", (int) x, (int) y0, (int) y, (int) y1, (int) y2,
 	  score, d->unmatched?"*unmatched*":"");
 
@@ -2019,7 +2019,7 @@ void Scenario::calc_straight_score_all(turn_t *turn_detail, int turn_count, floa
     }
   }
 
-  if (straight_score < 1) {
+  if (straight_score < params->straight_threshold_low) {
     /* user has drawn a straight line (score is 0 for a perfect stroke)
        we should not accept scenarios with turns (or they must be very small or near small tips) */
     float coef = 1 - straight_score;
@@ -2044,7 +2044,7 @@ void Scenario::calc_straight_score_all(turn_t *turn_detail, int turn_count, floa
     result += params->straight_slope * (sqrt(1 - a_sin * a_sin) - 1);
 
 
-  } else {
+  } else if (straight_score > params->straight_threshold_high) {
     /* other curve: penalty for straight candidates (geometrically speaking) */
     if (! real_turn_count) {
       result = - params->straight_score2 * min(1, straight_score - 1);
@@ -2054,7 +2054,7 @@ void Scenario::calc_straight_score_all(turn_t *turn_detail, int turn_count, floa
 
   // spread score as this is a global score
   for(int i = 0; i < count; i ++) {
-    MISC_ACCT(getNameCharPtr(), "straight", 1, result / count);
+    if (result) { MISC_ACCT(getNameCharPtr(), "straight", 1, result / count); }
     scores[i].misc_score += result / count;
   }
 

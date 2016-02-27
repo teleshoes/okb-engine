@@ -514,8 +514,8 @@ void CurveMatch::curvePreprocess2() {
     for(int k = 0; k < indexes.size(); k ++) {
       int j = indexes[k];
       int turn = curve[j].turn_smooth;
-      total += turn;
       if (j > 2 && j < indexes.size() - 2) { // ignore near tip anomalies
+	total += turn;
 	sc1 = max(sc1, (float) abs(turn) / params.straight_max_turn);
       }
     }
