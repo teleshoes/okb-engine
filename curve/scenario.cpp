@@ -1606,11 +1606,6 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
   if (turn_count) {
     turn_transfer(turn_count, turn_detail);
 
-    // thresholds
-    int t1 = params->max_turn_error1;
-    int t2 = params->max_turn_error2;
-    int t3 = params->max_turn_error3;
-
     for(int i = 0; i < turn_count; i++) {
       turn_t *d = &(turn_detail[i]);
 
@@ -1625,60 +1620,63 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
       float actual = d -> corrected;
       float expected = d -> expected;
       float score = 1;
-      float scale = -1, scale2 = 0;
 
-      if (abs(expected) > params->turn_threshold_ignore) {
-	score = 1; // too large turn, no check
-      } else {
-	float t = (abs(expected) < 90)?t1:t3;
-	float add_score = 0;
+      int l1 = (int) d->length_before;
+      int l2 = (int) d->length_after;
+      int len = min(l1, l2);
 
-	if (abs(expected) > 180) {
-	  scale = t3 * params -> turn_scale_ut;
-	  scale2 = params->turn_scale2_ut;
-	} else {
-	  scale = t + (t2 - t) * sin(min(abs(actual), abs(expected)) * M_PI / 180);
-	}
+      bool tip_case = (i == 0) || (i == turn_count - 1);
 
-	int tip = 0;
+      float yscale = params -> turn2_yscale;
+      float yscaleratio = params -> turn2_yscaleratio;
+      float xscale_tip = params -> turn2_xscale_tip;
+      float yscale_tip = params -> turn2_yscale_tip;
+      float powscale_tip = params -> turn2_powscale_tip;
 
-	if ((((d->start_index == 1) && (d->length_before < params->turn_tip_verysmall)) ||
-	     ((d->index == count - 2) && (d->length_after < params->turn_tip_verysmall))) && turn_count > 0) {
-	  // no negative scoring for very small tips
+      float x = abs(len);
+      float y = abs(actual - expected);
+      float xtip = (turn_count == 1)?len:abs(i?l2:l1);
+       
+      float y1 = yscale;
+      float y2 = max(y1 * yscaleratio, y1 + params -> turn2_min_y2);
+      float y0 = 0;
 
-	} else {
-
-	  if ((d->start_index == 1) && (d->length_before < params->turn_tip_min_distance)) { tip |= 1; }
-	  if ((d->index == count - 2) && (d->length_after < params->turn_tip_min_distance)) { tip |= 2; }
-	  if (tip) {
-	    scale *= params->turn_tip_scale_ratio;
-	    scale2 = params->turn_scale2_tip;
-	    if (tip == 3 && fabs(turn_detail[0].expected) > 180) { scale2 = params->turn_scale2_tip2; }
-	    add_score = - params -> turn_tip_len_penalty;
-	  }
-
-	  scale = t + (t2 - t) * sin(min(abs(actual), abs(expected)) * M_PI / 180);
-
-	  float diff = abs(actual - expected);
-	  float sc0 = (scale2 > scale - 0.1)?0:max(0, diff - scale2) / (scale - scale2);
-	  score = 1 - pow(sc0, params->turn_diff_pow) + add_score;
-
-	}
-
+      if (abs(actual) < abs(expected) && y2 > abs(expected)) {
+	float adjust = y2 - abs(expected);
+	y1 -= adjust;
+	y2 -= adjust;
       }
 
+      if (abs(expected) > params->turn2_large_threshold) {
+	y0 = params -> turn2_large_y0;
+      } else if (tip_case && xtip < xscale_tip) {
+	y0 = yscale_tip * pow(1 - xtip / xscale_tip, powscale_tip);
+      }
+      
+      float sc1 = params->turn2_score1;
+      if (actual * expected < 0) {
+       	score = 0;
+      } else if (y <= y0) {
+	score = 1;
+      } else if ((y - y0) < y1) {
+	score = 1 - sc1 * (y - y0) / y1;
+      } else {
+	score = 1 - sc1 - (1 - sc1) * pow(((y - y0) - y1) / (y2 - y1), params -> turn2_score_pow);
+      }
+      
       if (d->unmatched) { score -= params->turn_score_unmatched; }
 
       if (score < 0) { score = 0.01; } // we can keep this scenario in case other are even worse
 
       int index = d -> index;
       float trn = (d->corrected - d->actual) * ((d->expected > 0)?1:-1);
-      DBG("  [score turn] \"%s\" turn #%d/%d: %.2f[%.2f] / %.2f trn=%.2f length[%d:%d:%d] index=[%d:%d]->[%c:%c]->[%d:%d] (scale=%.2f:%.2f) ---> score=%.2f %s",
+      DBG("  [score turn] \"%s\" turn #%d/%d: %.2f[%.2f] / %.2f trn=%.2f length[%d:%d:%d] index=[%d:%d]->[%c:%c]->[%d:%d] {%s: %d, [%d]%d<(%d:%d)} ---> score=%.2f %s",
 	  getNameCharPtr(), i, turn_count, d->actual, d->corrected, d->expected, trn,
 	  (int) d->length_before, int(length), (int) d->length_after, d->start_index, index,
 	  letter_history[d->start_index], letter_history[index],
-	  index_history[d->start_index], index_history[index], scale, scale2, score,
-	  d->unmatched?"*unmatched*":"");
+	  index_history[d->start_index], index_history[index], 
+	  tip_case?"tip":"std", (int) x, (int) y0, (int) y, (int) y1, (int) y2,
+	  score, d->unmatched?"*unmatched*":"");
 
       if (scores[index + 1].turn_score >= 0) { scores[index + 1].turn_score = score; }
     }
@@ -2030,6 +2028,7 @@ void Scenario::calc_straight_score_all(turn_t *turn_detail, int turn_count, floa
        we should not accept scenarios with turns (or they must be very small or near small tips) */
     float coef = 1 - straight_score;
     if (real_turn_count > 0) {
+      // if (real_turn_count == 1 and turn_detail[i].expected_
       result = - params->straight_score1 * coef * real_turn_count;
       DBG(" [score_straight] (1) bad=%d score=%.2f", real_turn_count, result);
     }
