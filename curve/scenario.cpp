@@ -878,7 +878,7 @@ bool Scenario::childScenarioInternal(LetterNode &childNode, QList<Scenario> &res
 
   QList<NextIndex> new_index_list;
 
-  DBG("==== %s:%c [end=%d, index=%d] ====", getNameCharPtr(), letter, endScenario, index);
+  DBG("==== %s:%c [end=%d, index=%d, errors=%d] ====", getNameCharPtr(), letter, endScenario, index, error_count);
 
   if (count == 0) {
     // this is the first letter
@@ -2143,7 +2143,7 @@ void Scenario::newDistance() {
 }
 
 bool Scenario::postProcess() {
-  DBG("==== Postprocess: %s", getNameCharPtr());
+  DBG("==== Postprocess: %s (error count: %d)", getNameCharPtr(), error_count);
 
   newDistance(); // evaluate improved distance
 
@@ -2201,6 +2201,14 @@ bool Scenario::postProcess() {
       }
     }
   }
+
+
+  /* workaround: if the two error cancelling checks (one above and one in
+     calc_turn_score_all) are triggered, we end up with a negative error
+     count.
+     As it is very rare and only occured for bad candidates, just stuff 
+     them under the carpet */
+  if (error_count < 0) { error_count = 0; }
 
   return (evalScore() > 0);
 }
