@@ -459,7 +459,10 @@ void Clustering::load_ngrams(QTextStream &stream,  QList<Gram*> &in_grams, Clust
   foreach(Gram * const gram, grams) {
     if (gram -> w3 == w_total) { continue; }
     QString new_key = gram -> w1 -> name + ':' + gram -> w2 -> name + ':' + w_total -> name;
-    assert(grams.contains(new_key));
+    if (! grams.contains(new_key)) {
+      // re-create missing denominator n-gram
+      grams[new_key] = new Gram(++ current_gram_id, gram -> w1, gram -> w2, w_total);
+    }
     gram -> denominator = grams[new_key];
     gram -> denominator -> count += gram -> count;
   }
