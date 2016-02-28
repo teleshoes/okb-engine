@@ -23,9 +23,8 @@
 
 using namespace std;
 
-
 template <typename T>
-QString qlist2str(QList<T> lst) {
+QString qlist2str(const QList<T> lst) {
   QString str;
   if (lst.size() == 0) {
     str += "empty";
@@ -1851,9 +1850,18 @@ int Scenario::get_turn_kind(int index) {
   }
 }
 
+
+#define TYPE_NONE 99
+typedef struct part {
+  int start;
+  int end;
+  int type;
+  part(int s, int e, int t) : start(s), end(e), type(t) {};
+} part_t;
+
 void Scenario::check_reverse_turn(int index1, int index2, int direction1, int direction2) {
   if (direction1 == RT_DIRECTION_UNKNOWN ||
-      direction2 == RT_DIRECTION_UNKNOWN) { return; /* not handled case */ }
+      direction2 == RT_DIRECTION_UNKNOWN) { return; /* case not handled */ }
 
   int i1 = index_history[index1];
   int i2 = index_history[index2];
@@ -1865,42 +1873,157 @@ void Scenario::check_reverse_turn(int index1, int index2, int direction1, int di
   int bad = 0;
 
   int kind1 = 0, kind2 = 0;
+  int st2 = 0;
   if (curve->getSharpTurn(i1) == 2) {
     kind1 = get_turn_kind(index1);
     if (kind1 == 0) {
-      DBG(" [check_reverse_turn] [%d:%d]->[%d:%d] direction=%d:%d --> skipped due to ST=2 point [begin: %d]", index1, index2, i1, i2, direction1, direction2, index1);
-      return;
-    }
-    if (kind1 < 0) { direction1 = -direction1; }
+      st2 |= 1;
+    } else if (kind1 < 0) { direction1 = -direction1; }
   }
   if (curve->getSharpTurn(i2) == 2) {
     kind2 = get_turn_kind(index2);
     if (kind2 == 0) {
-      DBG(" [check_reverse_turn] [%d:%d]->[%d:%d] direction=%d:%d --> skipped due to ST=2 point [end: %d]", index1, index2, i1, i2, direction1, direction2, index2);
+      st2 |= 2;
+    } else if (kind2 < 0) { direction2 = -direction2; }
+  }
+
+  float score = 0;
+
+  if (! st2) {
+    /* standard processing (when there are no ST=2 points) */
+    int direction = direction1;
+    int total = 0;
+    for(int i = max(tip_gap, i1); i <= min(i2, curve->size() - 1 - tip_gap); i++) {
+      int turn = int(0.5 * curve->getTurnSmooth(i) + 0.25 * curve->getTurnSmooth(i - 1) + 0.25 * curve->getTurnSmooth(i));
+
+      total += turn;
+
+      if ((abs(turn) > threshold) && (turn * direction < 0 || ! direction)) {
+	if (direction2 != direction1 && direction == direction1 && turn * direction2 >= 0) { direction = direction2; i --; continue; }
+	bad ++;
+      }
+    }
+
+    score = 1.0 * bad / (i2 - i1 + 1);
+
+  }
+
+  DBG(" [check_reverse_turn] [%d:%d]->[%d:%d] kind=[%d:%d] direction=%d:%d --> score=%.2f", index1, index2, i1, i2, kind1, kind2, direction1, direction2, score);
+  if (score) {
+    for(int i = index1; i <= index2; i ++) {
+      scores[i].misc_score -= coef_score * score / (index2 - index1 + 1);
+      MISC_ACCT(getNameCharPtr(), (direction1 && direction2)?"rt_score_coef":"rt_score_coef_tip", coef_score, - score / (index2 - index1 + 1));
+    }
+  }
+
+  /*
+    more generic processing when one of the turn is a pointy one (ST=2)
+    but it also find bad candidates in standard case, so we run it everytime
+    we do not know the expected behaviour, so just check there are no
+    too many changes (which would mean we have skipped some key)
+  */
+  score = 0;
+
+  int last_type = TYPE_NONE;
+  int type_count = 0;
+  int start_index = 0;
+  QList<part_t> parts;
+
+  int i;
+  for(i = max(tip_gap, i1); i <= min(i2, curve->size() - 1 - tip_gap); i++) {
+    if (i > i1 && i < i2 && curve -> getSpecialPoint(i) == 2) {
+      DBG(" [check_reverse_turn] [%d:%d] ST2 in the middle: bailing out!", i1, i2); // only one test does this :-)
       return;
     }
-    if (kind2 < 0) { direction2 = -direction2; }
+
+    int turn = curve -> getTurnSmooth(i);
+    int type = TYPE_NONE;
+    if (abs(turn) < params -> rt2_low) {
+      type = 0;
+    } else if (turn >= params -> rt2_high) {
+      type = 1;
+    } else if (turn <= - params -> rt2_high) {
+      type = -1;
+    }
+    if (type == TYPE_NONE) { continue; }
+    if (type == last_type) {
+      type_count += 1;
+    } else {
+      if (type_count >= (last_type?params -> rt2_count_nz:params -> rt2_count_z)) { parts.append(part(start_index, i - 1, last_type)); }
+      type_count = 1;
+      last_type = type;
+      start_index = i;
+    }
   }
+  if (type_count >= (last_type?params -> rt2_count_nz:params -> rt2_count_z)) { parts.append(part(start_index, i - 1, last_type)); }
 
-  int direction = direction1;
-  int total = 0;
-  for(int i = max(tip_gap, i1); i <= min(i2, curve->size() - 1 - tip_gap); i++) {
-    int turn = int(0.5 * curve->getTurnSmooth(i) + 0.25 * curve->getTurnSmooth(i - 1) + 0.25 * curve->getTurnSmooth(i));
-
-    total += turn;
-
-    if ((abs(turn) > threshold) && (turn * direction < 0 || ! direction)) {
-      if (direction2 != direction1 && direction == direction1 && turn * direction2 >= 0) { direction = direction2; i --; continue; }
-      bad ++;
+  for (i = 0; i < parts.size(); i ++) {
+    if (parts[i].type == 0) {
+      int turn = 0;
+      for (int j = parts[i].start; j <= parts[i].end; j ++) {
+	turn += curve -> getTurnSmooth(j);
+      }
+      if (abs(turn) > params -> rt2_flat_max) {
+	parts[i].type = (turn > 0)?1:-1;
+      }
     }
   }
 
-  float score = 1.0 * bad / (i2 - i1 + 1);
-  for(int i = index1; i <= index2; i ++) {
-    scores[i].misc_score -= coef_score * score / (index2 - index1 + 1);
-    MISC_ACCT(getNameCharPtr(), (direction1 && direction2)?"rt_score_coef":"rt_score_coef_tip", coef_score, - score / (index2 - index1 + 1));
+  i = 0;
+  while (i < parts.size() - 1) {
+    if (parts[i].type == parts[i + 1].type) {
+      parts[i].end = parts[i + 1].end;
+      parts.takeAt(i + 1);
+    } else {
+      i ++;
+    }
   }
-  DBG(" [check_reverse_turn] [%d:%d]->[%d:%d] kind=[%d:%d] direction=%d:%d --> score=%.2f", index1, index2, i1, i2, kind1, kind2, direction1, direction2, score);
+
+  int n = parts.size();
+  char *reason = (char*) "";
+  if (n > 3) {
+    reason = (char*) "*part count > 3*";
+    score = 1;
+  } else if (n == 3 && parts[1].type != 0) {
+    reason = (char*) "*middle part is not flat*";
+    score = 1;
+  } else {
+    int count0 = 0;
+    for(i = 0; i < n; i ++) {
+      if (parts[i].type == 0) {
+	count0 ++;
+	if (index2 == index1 + 1) {
+	  int c = ((parts[i].start + parts[i].end) - (i2 + i1)) / 2;
+	  if (abs(c) >= params -> rt2_offcenter) {
+	    DBG("Offcenter flat part: %d", c);
+	    reason = (char*) "*flat part off-center*";
+	    score = 1;
+	  }
+	}
+      }
+    }
+    if (count0 >= 2) {
+      reason = (char*) "*more than one flat part*";
+      score = 1;
+    }
+  }
+
+  if (debug) {
+    QString log;
+    foreach(part p, parts) {
+      QTextStream(& log) << "[" << p.type << ": " << p.start << "->" << p.end << "] ";
+    }
+    DBG(" [check_reverse_turn] [%d:%d]->[%d:%d] (parts=%d): %s => score=%.2f %s",
+	index1, index2, i1, i2, n, QSTRING2PCHAR(log), score, reason);
+  }
+
+  if (score) {
+    for(int i = index1; i <= index2; i ++) {
+      scores[i].misc_score -= coef_score * score / (index2 - index1 + 1);
+      MISC_ACCT(getNameCharPtr(), "rt2_score_coef", params -> rt2_score_coef, - score / (index2 - index1 + 1));
+    }
+  }
+
 }
 
 #define ALIGN(a) (min(abs(a), abs(abs(a) - 180)))
@@ -2206,7 +2329,7 @@ bool Scenario::postProcess() {
   /* workaround: if the two error cancelling checks (one above and one in
      calc_turn_score_all) are triggered, we end up with a negative error
      count.
-     As it is very rare and only occured for bad candidates, just stuff 
+     As it is very rare and has only occured for bad candidates, just stuff
      them under the carpet */
   if (error_count < 0) { error_count = 0; }
 

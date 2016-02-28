@@ -75,6 +75,13 @@ class Params {
   float newdist_length_bias_pow;
   float newdist_pow;
   float newdist_speed;
+  int rt2_count_nz;
+  int rt2_count_z;
+  int rt2_flat_max;
+  int rt2_high;
+  int rt2_low;
+  int rt2_offcenter;
+  float rt2_score_coef;
   float rt_score_coef;
   float rt_score_coef_tip;
   int rt_tip_gaps;
@@ -218,6 +225,13 @@ static Params default_params = {
   0.5, // newdist_length_bias_pow
   2.0, // newdist_pow
   3.12, // newdist_speed
+  3, // rt2_count_nz
+  4, // rt2_count_z
+  25, // rt2_flat_max
+  8, // rt2_high
+  5, // rt2_low
+  4, // rt2_offcenter
+  0.2, // rt2_score_coef
   0.12, // rt_score_coef
   0.01, // rt_score_coef_tip
   3, // rt_tip_gaps
@@ -355,6 +369,13 @@ void Params::toJson(QJsonObject &json) const {
   json["newdist_length_bias_pow"] = newdist_length_bias_pow;
   json["newdist_pow"] = newdist_pow;
   json["newdist_speed"] = newdist_speed;
+  json["rt2_count_nz"] = rt2_count_nz;
+  json["rt2_count_z"] = rt2_count_z;
+  json["rt2_flat_max"] = rt2_flat_max;
+  json["rt2_high"] = rt2_high;
+  json["rt2_low"] = rt2_low;
+  json["rt2_offcenter"] = rt2_offcenter;
+  json["rt2_score_coef"] = rt2_score_coef;
   json["rt_score_coef"] = rt_score_coef;
   json["rt_score_coef_tip"] = rt_score_coef_tip;
   json["rt_tip_gaps"] = rt_tip_gaps;
@@ -494,6 +515,13 @@ Params Params::fromJson(const QJsonObject &json) {
   p.newdist_length_bias_pow = json["newdist_length_bias_pow"].toDouble();
   p.newdist_pow = json["newdist_pow"].toDouble();
   p.newdist_speed = json["newdist_speed"].toDouble();
+  p.rt2_count_nz = json["rt2_count_nz"].toDouble();
+  p.rt2_count_z = json["rt2_count_z"].toDouble();
+  p.rt2_flat_max = json["rt2_flat_max"].toDouble();
+  p.rt2_high = json["rt2_high"].toDouble();
+  p.rt2_low = json["rt2_low"].toDouble();
+  p.rt2_offcenter = json["rt2_offcenter"].toDouble();
+  p.rt2_score_coef = json["rt2_score_coef"].toDouble();
   p.rt_score_coef = json["rt_score_coef"].toDouble();
   p.rt_score_coef_tip = json["rt_score_coef_tip"].toDouble();
   p.rt_tip_gaps = json["rt_tip_gaps"].toDouble();
