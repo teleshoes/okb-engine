@@ -202,6 +202,23 @@ class LanguageModel:
 
         return wi_list
 
+    def _remove_bad_caps_candidates(self, candidates):
+        tmp = dict()
+
+        for c_id, c in candidates.items():
+            bad = 1 if len([ 1 for wi in c if wi.bad_caps]) else 0
+            key = ' '.join([ wi.word for wi in c ]).lower()
+            if key not in tmp: tmp[key] = dict()
+            if bad not in tmp[key]: tmp[key][bad] = set()
+            tmp[key][bad].add(c_id)
+
+        for key in tmp.keys():
+            if tmp[key].get(0, None) and tmp[key].get(1, None):
+                # good and bad candidates for these words --> remove the bad ones
+                for c_id in tmp[key][1]:
+                    del candidates[c_id]
+
+        return candidates
 
     def _get_words(self, candidates, context = None, get_count = False):
         """ convert candidates (single or lists of words) to a list of WordInfo instances
@@ -230,9 +247,7 @@ class LanguageModel:
 
             result[c_id] = wi_list_candidate
 
-        #@TODO eliminate candidates with bad caps if there are more appropriate candidates (WordInfo.bad_caps flag)
-
-        return result
+        return self._remove_bad_caps_candidates(result)
 
 
     ALL_SCORES = [ "s3", "c3", "s2", "c2", "s1" ]
@@ -273,7 +288,8 @@ class LanguageModel:
 
                 col2 = [ (" %5.3f " % x) for x in curve_scores ]
                 col3 = [ ]
-                for wi in wi_list:
+
+                for wi in wi_list or []:
                     li = " "
                     # stock counts
                     for score_id in LanguageModel.ALL_SCORES:
@@ -320,7 +336,7 @@ class LanguageModel:
 
         wi_lists = self._get_words(dict([ (x, x) for x in candidates.keys() ]), context, get_count = True)
 
-        scores = self._eval_score(dict([ (x, ([ candidates[x] ], wi_lists[x])) for x in candidates ]),
+        scores = self._eval_score(dict([ (x, ([ candidates[x] ], wi_lists.get(x, None))) for x in candidates ]),
                                   verbose = verbose, expected_test = expected_test)
 
         if details_out: details_out.update(scores)
