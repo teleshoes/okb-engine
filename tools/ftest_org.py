@@ -11,7 +11,7 @@ mydir = os.path.dirname(os.path.abspath(__file__))
 mydir = libdir = os.path.join(mydir, '..')
 sys.path.insert(0, libdir)
 
-import predict
+import language_model, backend
 
 def obj2dict(o):
     d = dict()
@@ -51,19 +51,20 @@ def ftest_load(index_org, work_dir, params = dict()):
             current = dict(id = id, ts = ts, word = word, device_id = device_id, date = date, content = "", js = None)
             continue
 
-        if not current:
-            mo = re.search(r'Learn:\s*(w+)\s*\[([^\[\]]*)\].*replaces\s+(\w+)', line)
-            if mo:
-                word, context, replaces = mo.group(1), mo.group(2), mo.group(3)
-                context = [ remove_quotes(x.strip()) for x in context.split(',') ]
-                for i in range(- min(20, len(history)), 0):
-                    l = min(len(history[i].context), len(context))
-                    if history[i].context[:l] == context[:l] and history[i].word == replaces:
-                        history[i].replaces = replaces
-                        history[i].word = word
-                        break
-
-            continue
+        # @TODO learning
+        # if not current:
+        #     mo = re.search(r'Learn:\s*(w+)\s*\[([^\[\]]*)\].*replaces\s+(\w+)', line)
+        #     if mo:
+        #         word, context, replaces = mo.group(1), mo.group(2), mo.group(3)
+        #         context = [ remove_quotes(x.strip()) for x in context.split(',') ]
+        #         for i in range(- min(20, len(history)), 0):
+        #             l = min(len(history[i].context), len(context))
+        #             if history[i].context[:l] == context[:l] and history[i].word == replaces:
+        #                 history[i].replaces = replaces
+        #                 history[i].word = word
+        #                 break
+        #
+        #     continue
 
         if line.startswith('OUT:'):
             js = line[4:].strip()
@@ -72,7 +73,7 @@ def ftest_load(index_org, work_dir, params = dict()):
 
         mo = re.search(r'^ID:.*Context:\s*\[([^\[\]]*)\]', line)
         if mo:
-            context = current["context"] = [ remove_quotes(x.strip()) for x in mo.group(1).split(',') ]
+            context = current["context"] = list(reversed([ remove_quotes(x.strip()) for x in mo.group(1).split(',') ]))
             continue
 
         mo = re.search(r'^Selected word:\s*(\w+)', line)
@@ -94,8 +95,8 @@ def ftest_load(index_org, work_dir, params = dict()):
                 check, id = mo.group(1), mo.group(2)
                 li = re.sub(r'\s*\-\>.*$', '', li)
                 li = re.sub(r'^.*\]\s*', '', li)
-                context = list(reversed(re.split(r'\s+', li)))
-                word = context.pop(0)
+                context = list(re.split(r'\s+', li))
+                word = context.pop(-1)
                 db[id] = (check == 'X'), word, context
 
     return history, db
@@ -126,10 +127,11 @@ if __name__ == '__main__':
     last_date = None
     count = ok_count = 0
     last_lang = None
-    p = None
+    lm = None
 
     tools = Tools(params)
-    all_predict = []
+
+    record = []
 
     for t in history:
         id = t["id"]
@@ -149,15 +151,23 @@ if __name__ == '__main__':
             comment = True
 
         if lang != last_lang:
-            p = predict.Predict(tools)
+            if lm: lm.close()
             db_file = os.path.join(mydir, "db/predict-%s.db" % lang)
-            p.set_dbfile(db_file)
-            p.load_db()
+            print("Language change: %s -> %s" % (last_lang or "None", lang))
+            if os.path.exists(db_file):
+                lang_db = backend.FslmCdbBackend(db_file)
+                lm = language_model.LanguageModel(lang_db, tools = tools)
+            else:
+                # oops maybe we have tried third parties language files and user a language
+                # not in the standard distribution
+                lm = None
             last_lang = lang
+
+        if not lm: continue
 
         prefix = "  - [%s] %s %s [[file:%s][json]] [[file:%s][log]] [[file:%s][html]] [[file:%s][png]] [[file:%s][predict log]] %s %s" % \
                  ("X" if check else " ", id, lang, pre + ".json", pre + ".log", pre + ".html", pre + ".png", pre + ".predict.log",
-                  " ".join(reversed(context)), word)
+                  " ".join(context), word)
 
         if comment: prefix = "  # use -a option to add: " + prefix.strip()
 
@@ -170,33 +180,30 @@ if __name__ == '__main__':
             f.write("%s\n" % prefix)
             continue
 
-        while context and context[-1] == '#START': context.pop(-1)  # prediction engine will figure #START by itself !
+        speed = result["stats"]["speed"]
 
-        tmp = " ".join(reversed(context))
-        p.update_surrounding(tmp, len(tmp))
-        p.update_preedit("")
-        p._update_last_words()
-        print("====", id, tmp, word)
+        print("==== %s [%s] %s (lang=%s)" % (id, " ".join(context), word, lang))
 
-        candidates = [ (c["name"], c["score"], c["class"], c["star"], c["words"]) for c in result["candidates"] ]
-        guess = p.guess(candidates, speed = result["stats"]["speed"], show_all = True)
+        candidates = language_model.split_old_candidate_list(result["candidates"])
+
+        details = dict()
+        ordered_guesses = lm.guess(context, candidates,
+                                   correlation_id = id, speed = speed,
+                                   verbose = True, expected_test = word, details_out = details)
+
+        guess = ordered_guesses[0] if ordered_guesses else None
 
         ok = (guess == word)
         count += 1
         if ok: ok_count += 1
 
-        ga = p.guess_history_last[0]
-        ga["words"] = [ obj2dict(x) for x in ga["words"].values() ]
-        all_predict.append(dict(ok = ok, expected = word, id = id, word = word, context = context, guess = ga))
+        record.append(dict(id = id, ts = ts, context = context,
+                           expected = word, lang = lang, speed = speed, old_guess = guess))
 
-        if not ok:
-            candidates.sort(key = lambda x: x[1], reverse = True)
-            rank = -1
-            for i in range(len(candidates)):
-                x = candidates[i]
-                if word == x[0] or re.match(r'\b' + word + r'\b', x[4]):
-                    rank = i
-                    break
+        if ok: rank = 0
+        else:
+            try: rank = ordered_guesses.index(word)
+            except: rank = -1
 
         # @todo add wiring to learning / backtracking
 
@@ -206,6 +213,8 @@ if __name__ == '__main__':
         tools.messages = []
 
         f.write("%s -> %s\n" % (prefix, "_OK_" if ok else ("*FAIL* (%s, rank=#%d)" % (guess, rank))))
+
+    if lm: lm.close()
 
     stats = "Total=%d OK=%d rate=%.2f%%" % (count, ok_count, 100.0 * ok_count / count)
     print(stats)
@@ -228,6 +237,6 @@ if __name__ == '__main__':
     f.close()
     os.rename(index_org + ".tmp", index_org)
 
-    pck_file = os.path.join(work_dir, "ftest.pck")
+    pck_file = os.path.join(work_dir, "ftest-all.pck")
     with open(pck_file, 'wb') as f:
-        pickle.dump(all_predict, f)
+        pickle.dump(record, f)
