@@ -293,8 +293,8 @@ class LanguageModel:
         if scores_used:
             pri_id = scores_used[0]
             sec_id = None
-            if pri_id[0] != 'C':
-                if len(scores_used) >= 2 and scores_used[1][0] == 'C':
+            if pri_id[0] != 'c':
+                if len(scores_used) >= 2 and scores_used[1][0] == 'c':
                     sec_id = pri_id
                     pri_id = scores_used[1]
             clist = [ c for c in candidates.keys()
