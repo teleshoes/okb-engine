@@ -258,20 +258,104 @@ class LanguageModel:
             input: candidates as a dict: candidate id => (curve score list, wordinfo list)
             ouput: score as a dict: candidate id => overall score """
 
-        scores = dict()
+        if not candidates: return dict()
 
-        #@TODO implement the real formula here :-) (sounds easy)
+        # --- data preparation ---
+        curve_scores = dict()
+        max_coef = dict()
+        all_coefs = dict()
         for c in candidates:
-            # prediction engine si just a no-op
-            scores[c] = sum(candidates[c][0]) / len(candidates[c][0])
+            wi_list = candidates[c][1]
+            curve_scores[c] = sum(candidates[c][0]) / len(candidates[c][0])  # average
 
+            if not wi_list: continue
+            all_coefs[c] = dict()
+            for score_id in LanguageModel.ALL_SCORES:
+                coef = 1.0
+                for wi in wi_list:
+                    if wi.count and score_id in wi.count and wi.count[score_id].count > 0:
+                        coef *= ((wi.count["coef_wc"] if score_id[0] == 'c' else 1.0) *
+                                 wi.count[score_id].count / wi.count[score_id].total_count)
+                    else: coef = 0
+                coef = coef ** (1 / len(wi_list))
+                if coef > 0:
+                    if score_id not in max_coef or max_coef[score_id][0] < coef:
+                        max_coef[score_id] = (coef, c)
+                all_coefs[c][score_id] = coef
 
+        # --- prediction score evaluation ---
+        predict_scores = dict()
+
+        max_curve_score = max(list(curve_scores.values()) + [ 0 ])
+        scores_used = [ x for x in LanguageModel.ALL_SCORES if x in max_coef ]
+
+        clist = None
+        if scores_used:
+            pri_id = scores_used[0]
+            sec_id = None
+            if pri_id[0] != 'C':
+                if len(scores_used) >= 2 and scores_used[1][0] == 'C':
+                    sec_id = pri_id
+                    pri_id = scores_used[1]
+            clist = [ c for c in candidates.keys()
+                      if curve_scores.get(c, 0) > max_curve_score - self.cf("p2_limit", 0.1, float)
+                      and c in all_coefs ]
+            clist.sort(key = lambda c: all_coefs[c].get(pri_id, 0), reverse = True)
+            self.log("eval_scode: (pri=%s sec=%s): %s" % (pri_id, sec_id, ", ".join(clist)))
+
+        if clist:
+            ratio = self.cf("p2_ratio", 100.0, float)
+            c0 = clist[0]
+            for c in clist:
+                sp = 0, "None"
+                s1 = all_coefs[c].get(pri_id, 0)
+                s0 = all_coefs[c0][pri_id]
+                if s1 * ratio < s0:
+                    sp = (- self.cf("p2_score_coarse", 0.1, float), "coarse")
+                elif s1 < s0:
+                    sp = (- self.cf("p2_score_fine", 0.002, float) * (s0 / s1 / ratio), "fine")
+
+                    splus = sminus = 0
+                    for s_id in scores_used:
+                        if s_id == pri_id: continue
+                        if all_coefs[c].get(s_id, 0) > ratio * all_coefs[c0].get(s_id, 0): splus += 1
+                        if all_coefs[c0].get(s_id, 0) > ratio * all_coefs[c].get(s_id, 0): sminus += 1
+                    if splus and not sminus:
+                        sp = (sp[0] + self.cf("p2_bonus", 0.01, float), "bonus")
+                    elif sminus and not splus:
+                        sp = (sp[0] - self.cf("p2_malus", 0.01, float), "malus")
+
+                predict_scores[c] = sp
+
+        for c in candidates:
+            if c not in predict_scores:
+                predict_scores[c] = (- self.cf("p2_score_unknown", 0.2, float), "unknown")
+
+        # debug logs @TODO remove
+        self.log("> max_coef:", max_coef)
+        for c in sorted(candidates, key = lambda x: curve_scores.get(x, 0), reverse = True):
+            if c not in all_coefs: continue
+            self.log("> %10s [%5.3f] :" % (c[:10], curve_scores.get(c, 0)),
+                     "*" if c == expected_test else " ",
+                     " ".join([ "%s: %6.4f" % (sid, all_coefs[c].get(sid, 0) / max_coef[sid][0])
+                                for sid in LanguageModel.ALL_SCORES
+                                if sid in max_coef]),
+                     # "cmp=[%.3f]" % save_cmp.get(c, -1),
+                     # "[w]" if c == winner else "",
+                     "%9.6f" % predict_scores[c][0],
+                     predict_scores[c][1])
+        # /debug logs
+
+        scores = dict()
         result = dict()
         for c in candidates:
-            result[c] = dict(score = scores.get(c, 0),
+            scores[c] = curve_scores.get(c, 0) + predict_scores[c][0]
+            result[c] = dict(score = scores[c],
                              curve = candidates[c][0],
                              stats = candidates[c][1])
 
+
+        # --- verbose output (no actual processing done here) ---
         if verbose:  # detailed display (for debug)
             # this is really fugly formatting code (i was too lazy to build tabulate or other on the phone)
             # @TODO put this in a separate function if we do not need information from above scoring
@@ -280,13 +364,13 @@ class LanguageModel:
                            reverse = True)
             txtout = []
             for c in clist:
-                (curve_scores, wi_list) = candidates[c]
-                head = "- %5.3f " % scores.get(c, 0)
+                (candidate_curve_score, wi_list) = candidates[c]
+                head = "- %5.3f [%6.3f] " % (scores[c], predict_scores[c][0])
                 if expected_test:
                     head += "*" if expected_test == c else " "
                 head += "%10s " % c[0:10]
 
-                col2 = [ (" %5.3f " % x) for x in curve_scores ]
+                col2 = [ (" %5.3f " % x) for x in candidate_curve_score ]
                 col3 = [ ]
 
                 for wi in wi_list or []:
@@ -339,7 +423,7 @@ class LanguageModel:
         scores = self._eval_score(dict([ (x, ([ candidates[x] ], wi_lists.get(x, None))) for x in candidates ]),
                                   verbose = verbose, expected_test = expected_test)
 
-        if details_out: details_out.update(scores)
+        if details_out is not None: details_out.update(scores)
 
         return sorted(candidates.keys(),
                       key = lambda x: scores[x]["score"] if x in scores else 0,

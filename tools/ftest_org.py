@@ -125,7 +125,7 @@ if __name__ == '__main__':
     f = open(index_org + ".tmp", 'w')
     f.write("# OKBoard replay\n\n[%s] Parameters: %s\n\n" % (time.ctime(), params))
     last_date = None
-    count = ok_count = 0
+    count = ok_count = found_count = badcurve_count = 0
     last_lang = None
     lm = None
 
@@ -197,13 +197,27 @@ if __name__ == '__main__':
         count += 1
         if ok: ok_count += 1
 
-        record.append(dict(id = id, ts = ts, context = context,
+        record.append(dict(id = id, ts = ts, context = context, candidates = candidates,
                            expected = word, lang = lang, speed = speed, old_guess = guess))
 
         if ok: rank = 0
         else:
             try: rank = ordered_guesses.index(word)
             except: rank = -1
+
+        if rank >= 0: found_count += 1
+
+        if ok: st = "=OK="
+        elif rank > 0: st = "*FAIL*"
+        else: st = "NOT FOUND"
+
+        if rank < 0 or candidates[word] < max(list(candidates.values())) - 0.05:
+            st += " #BADCURVE"
+            badcurve_count += 1
+
+        print("> Result [%s]: %s (%s)" % (id, st,
+                                          word if ok else ("%s/%s" % (guess, word))))
+
 
         # @todo add wiring to learning / backtracking
 
@@ -216,7 +230,8 @@ if __name__ == '__main__':
 
     if lm: lm.close()
 
-    stats = "Total=%d OK=%d rate=%.2f%%" % (count, ok_count, 100.0 * ok_count / count)
+    stats = "Total=%d OK=%d rate=%.2f%% found_rate=%.2f%% bad_curve=%.2f%%" % (count, ok_count, 100.0 * ok_count / count,
+                                                                               100.0 * found_count / count, 100.0 * badcurve_count / count)
     print(stats)
 
     log_file = os.path.join(os.path.dirname(index_org), "ftest.log")

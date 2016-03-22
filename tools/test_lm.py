@@ -49,6 +49,15 @@ def run(lm, words):
     result = lm.guess(words, dict([ (x, 0) for x in last_word_choices ]),
                       verbose = True, expected_test = last_word_choices[0], details_out = details)
 
+    clusters = dict()
+    for word in last_word_choices:
+        if word not in details: continue
+        stats = details[word]["stats"]
+        for wi in stats:
+            clusters[wi.word] = db.get_cluster_by_id(wi.cluster_id)
+    for w, c in clusters.items():
+        print("Clusters: %15s : %s" % (w[:15], c))
+
     if result:
         print("Result: [%s]" % result[0], ' '.join(result[1:]))
 
