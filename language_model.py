@@ -62,7 +62,7 @@ class LanguageModel:
         self._cfvalues = cfvalues
         self._mock_time = None
         self._cache = dict()
-        self._learn_history = []
+        self._learn_history = dict()
         self._last_purge = self._db.get_param("last_purge", 0, int)
 
     def mock_time(self, time):
@@ -94,15 +94,91 @@ class LanguageModel:
 
 
     def _commit_learn(self, commit_all = False):
-        pass # @TODO
+        if not self._learn_history: return
+
+        current_day = int(self._now() / 86400)
+
+        if commit_all:
+            learn = self._learn_history.keys()
+        else:
+            now = int(time.time())
+            delay = self.cf('commit_delay', 20, int)
+            learn = [ key for key, item in self._learn_history.items() if item[2] < now - delay ]
+
+        if not learn: return
+
+        for key in learn:
+            (action, wordl, ts, pos) = self._learn_history[key]
+
+            context = list(reversed(wordl))
+            wi_context = list()
+            if context:
+                for w in context[-3:]:
+                    self._add_wi_context(w, wi_context)
+            # @TODO add new words
+
+            for i in range(1, 4):
+                rev_wi_context = list(reversed(wi_context))[0:i]
+                ids = [ c.id for c in rev_wi_context ]
+                ids.extend( [ -1 ] * (3 - i) )  # pad key to 3 elements
+
+                id_num = ids
+                id_den = [ -2 ] + ids[1:]  # #TOTAL tag
+                for ids in [ id_num, id_den ]:
+                    (stock_count, user_count, user_replace, last_time) = self._db.get_gram(ids) or (0, 0, 0, 0)
+
+                    if not last_time:
+                        user_count = user_replace = last_time = 0
+
+                    elif current_day > last_time:
+                        # data ageing
+                        coef = math.exp(-0.7 * (current_day - last_time) / float(self.half_life))
+                        user_count *= coef
+                        user_replace *= coef
+                        last_time = current_day
+
+                    # action
+                    if action: user_count += 1
+                    else: user_replace += 1
+
+                    self._db.set_gram(ids, (stock_count, user_count, user_replace, last_time))
+
+
+            self._learn_history.pop(key, None)
+
+        self.log("Commit: Lines updated:", len(learn))
 
 
     def learn(self, add, word, context, replaces = None, silent = False):
-        pass # @TODO
+        if re.search(r'\d', word): return  # don't learn numbers (they are matched by \w regexp)
 
+        now = int(time.time())
 
-    def replace_word(self, old, new, context = None):
-        pass # @TODO
+        pos = -1
+        try:
+            pos = context.index('#START')
+            context = context[0:pos + 1]
+        except ValueError:
+            pass  # #START not found, this is not an error
+
+        context = context[:2]
+        wordl = [ word ] + context
+
+        if not silent:
+            self.log("Learn:", "add" if add else "remove", wordl, "{replaces %s}" % replaces if replaces else "")
+
+        wordl = wordl[0:3]
+        key = '_'.join(wordl)
+        if add:
+            self._learn_history[key] = (True, wordl, now, pos)  # add occurence
+            if replaces and replaces != word:  # ignore replacement by the same word
+                key2 = '_'.join(([ replaces ] + context)[0:3])
+                self._learn_history[key2] = (False, [ replaces ] + context, now, pos)  # add replacement occurence (failed prediction)
+        else:
+            if key in self._learn_history and not self._learn_history[key][0]:
+                pass  # don't remove word replacements
+            else:
+                self._learn_history.pop(key, None)
 
 
     def _word2wi(self, word, first_word = False):
@@ -162,7 +238,7 @@ class LanguageModel:
                 ids.extend( [ -1 ] * (3 - i) )  # pad key to 3 elements
 
                 num = self._db.get_gram(ids)
-                den = self._db.get_gram([ -4 if cluster else -2 ] + ids[1:])  # CSTART or #START
+                den = self._db.get_gram([ -4 if cluster else -2 ] + ids[1:])  # CTOTAL or #TOTAL
                 if not num or not den: continue
 
                 # get predict DB data

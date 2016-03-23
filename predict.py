@@ -109,6 +109,9 @@ class Predict:
 
     def update_surrounding(self, text, pos):
         """ update own copy of surrounding text and cursor position """
+
+        if text == self.surrounding_text and self.cursor_pos == pos: return  # duplicate event
+
         self.surrounding_text = text
         self.cursor_pos = pos
 
@@ -206,10 +209,6 @@ class Predict:
         if not context: context = self.last_words
         context = list(context)
         self._learn(True, new, context, replaces = old)
-
-        if not self.cf('predict_auto_tune', True, bool): return
-
-        if not old or context is None: return  # workaround
 
         if self.debug_surrounding: self.log("Surrounding text (replace_word %s->%s): %s" % (old, new, context))
 
