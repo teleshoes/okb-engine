@@ -67,9 +67,6 @@ class FslmCdbBackend:
         cfslm.clear()
         self.loaded = False
 
-    def refresh(self):
-        self._load()
-
     def set_param(self, key, value):
         if self.readonly: return
         cdb.set_string("param_%s" % key, str(value))

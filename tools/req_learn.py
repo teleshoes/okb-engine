@@ -15,7 +15,7 @@ mydir = os.path.dirname(os.path.abspath(__file__))
 libdir = os.path.join(mydir, '..')
 sys.path.insert(0, libdir)
 
-import predict
+import backend
 
 opts, args =  getopt.getopt(sys.argv[1:], 'r')
 raw = False
@@ -30,7 +30,7 @@ if len(args) < 1:
     print("usage:", os.path.basename(__file__), "[-r] <predict db file>")
     exit(1)
 
-db = predict.FslmCdbBackend(args[0])
+db = backend.FslmCdbBackend(args[0])
 lst = db.get_keys()
 
 current_day = int(time.time() / 86400)
@@ -47,16 +47,19 @@ def id2w(id):
 
 for key in lst:
     if not re.match(r'^[0-9\-]+:[0-9\-]+:[0-9\-]+$', key): continue
-    total_key = ':'.join([ '-2' ] + (key.split(':'))[1:])
+
+    key = [ int(x) for x in key.split(':') ]
+    total_key = [ -2 ] + key[1:]
     if key == total_key: continue
 
-    grams = db.get_grams([key, total_key])
-    if key not in grams or total_key not in grams: continue
+    gr1 = db.get_gram(key)
+    gr2 = db.get_gram(total_key)
+    if not gr1 and not gr2: continue
 
-    (stock_count, user_count, user_replace, last_time) = grams[key]
-    (total_stock_count, total_user_count, dummy1, dummy2) = grams[total_key]
+    (stock_count, user_count, user_replace, last_time) = gr1
+    (total_stock_count, total_user_count, dummy1, dummy2) = gr2
 
-    (w1, w2, w3) = [ id2w(int(id)) or "???" for id in key.split(':') ]
+    (w1, w2, w3) = [ id2w(int(id)) or "???" for id in key ]
 
     if raw:
         print("%s;%s;%s;%f;%f;%f;%f;%f;%d" % (w1, w1, w3,
