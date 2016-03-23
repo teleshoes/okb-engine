@@ -5,6 +5,13 @@
 
 import time
 import re
+import unicodedata
+
+def word2letters(word):
+    letters = ''.join(c for c in unicodedata.normalize('NFD', word.lower()) if unicodedata.category(c) != 'Mn')
+    letters = re.sub(r'[^a-z]', '', letters.lower())
+    letters = re.sub(r'(.)\1+', lambda m: m.group(1), letters)
+    return letters
 
 def smallify_number(number):
     if number <= 9999: return "%4d" % int(number)
@@ -58,7 +65,7 @@ class LanguageModel:
         self._learn_history = []
         self._last_purge = self._db.get_param("last_purge", 0, int)
 
-    def _mock_time(self, time):
+    def mock_time(self, time):
         self._mock_time = time
 
     def _now(self):
@@ -86,7 +93,7 @@ class LanguageModel:
             print(' '.join(map(str, args)))
 
 
-    def commit_learn(self, commit_all = False):
+    def _commit_learn(self, commit_all = False):
         pass # @TODO
 
 
@@ -443,7 +450,7 @@ class LanguageModel:
     def cleanup(self, force_flush = False):
         now = int(time.time())  # no need for time mocking
 
-        self.commit_learn(commit_all = force_flush)
+        self._commit_learn(commit_all = force_flush)
 
         # purge
         if now > self._last_purge + self.cf("purge_every", 432000, int):
