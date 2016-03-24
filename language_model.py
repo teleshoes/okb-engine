@@ -13,10 +13,18 @@ def word2letters(word):
     letters = re.sub(r'(.)\1+', lambda m: m.group(1), letters)
     return letters
 
-def smallify_number(number):
+def smallify_number(number):  # display number as 4 characters
+    number = int(number)
     if number <= 9999: return "%4d" % int(number)
     if number <= 999999: return "%3dk" % int(number / 1000)
     return "%3dm" % int(number / 1000000)
+
+def smallify_number_3(number):  # display number as 3 characters
+    number = int(number)
+    if number < 1000: return "%3d" % int(number)
+    if number < 100000: return "%2dk" % int(number / 1000)
+    if number < 1000000: return ".%1dM" % int(number / 100000)
+    return "%2dM" % int(number / 1000000)
 
 def split_old_candidate_list(candidates):
     """ utility function, split candidate list in old format (JSON output)
@@ -471,15 +479,15 @@ class LanguageModel:
                 col3 = [ ]
 
                 for wi in wi_list or []:
-                    li = " "
+                    li = "  "
                     # stock counts
                     for score_id in LanguageModel.ALL_SCORES:
                         if score_id in wi.count and wi.count[score_id].count > 0:
                             c = wi.count[score_id]
                             txt = score_id + ": " + smallify_number(c.count) \
-                                + '/' + smallify_number(c.total_count) + " "
+                                + '/' + smallify_number(c.total_count) + "  "
                         else:
-                            txt = " " * 14
+                            txt = " " * 15
                         li += txt
 
                     if "coef_wc" in wi.count:
@@ -490,13 +498,26 @@ class LanguageModel:
                     col3.append(li)
 
                     # user counts
-                    # @TODO
+                    found = False
+                    li = "U>"
+                    for score_id in LanguageModel.ALL_SCORES:
+                        if score_id in wi.count and wi.count[score_id].user_count > 0:
+                            c = wi.count[score_id]
+                            txt = score_id + ":" + smallify_number_3(c.user_count) \
+                                + ":" + smallify_number_3(c.user_replace) \
+                                + '/' + smallify_number_3(c.total_user_count) + " "
+                            found = True
+                        else:
+                            txt = " " * 15
+                        li += txt
+
+                    if found: col3.append(li)
 
                 while col2 or col3:
                     txtout.append(head
                                   + "|" + (col2.pop(0) if col2 else "       ")
                                   + "|" + (col3.pop(0) if col3 else ""))
-                    head = " " * len(head)
+                    if head[0] != ' ': head = " " * len(head)
 
             for l in txtout: self.log(l)
 
@@ -559,6 +580,9 @@ class LanguageModel:
 
 
         call_me_back = (len(self._learn_history) > 0)  # ask to be called again later
+
+        if not call_me_back:  # purge cache
+            self._cache = dict()
 
         return call_me_back
 
