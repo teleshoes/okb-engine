@@ -59,6 +59,8 @@ rm -rf %{buildroot}
 mkdir -p %{buildroot}/%{qml_maliit_dir} %{buildroot}/%{share_dir}
 cp -p curve/build/libcurveplugin.so %{buildroot}/%{qml_maliit_dir}
 cp predict.py %{buildroot}/%{qml_maliit_dir}
+cp language_model.py %{buildroot}/%{qml_maliit_dir}
+cp backend.py %{buildroot}/%{qml_maliit_dir}
 cp engine.version %{buildroot}/%{qml_maliit_dir}
 cp okboard.cf %{buildroot}/%{share_dir}
 cp -p ngrams/cfslm.so %{buildroot}/%{qml_maliit_dir}
@@ -71,6 +73,7 @@ for lang in fr en ; do
     cat $lang.tre | gzip -c > %{buildroot}/%{share_dir}/$lang.tre.gz
     cat predict-$lang.db | gzip -c > %{buildroot}/%{share_dir}/predict-$lang.db.gz
     cat predict-$lang.ng | gzip -c > %{buildroot}/%{share_dir}/predict-$lang.ng.gz
+    cp -f predict-$lang.id > %{buildroot}/%{share_dir}/predict-$lang.id
 done
 
 %files
@@ -78,6 +81,8 @@ done
 %defattr(-,root,root,-)
 %{qml_maliit_dir}/libcurveplugin.so
 %{qml_maliit_dir}/predict.py*
+%{qml_maliit_dir}/language_model.py*
+%{qml_maliit_dir}/backend.py*
 %{qml_maliit_dir}/cfslm.so
 %{qml_maliit_dir}/cdb.so
 %{qml_maliit_dir}/engine.version
@@ -87,8 +92,10 @@ done
 %{share_dir}/fr.tre.gz
 %{share_dir}/predict-fr.db.gz
 %{share_dir}/predict-fr.ng.gz
+%{share_dir}/predict-fr.id
 
 %files -n okb-lang-en
 %{share_dir}/en.tre.gz
 %{share_dir}/predict-en.db.gz
 %{share_dir}/predict-en.ng.gz
+%{share_dir}/predict-en.id

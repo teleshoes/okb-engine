@@ -16,4 +16,11 @@ gmon.out
 *-user.txt
 ftest.org
 *.rpt.bz2
-
+test_todo
+.projectile
+GPATH
+GRTAGS
+GTAGS
+ID
+clusters-*.txt
+*.id

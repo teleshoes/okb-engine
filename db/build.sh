@@ -2,7 +2,11 @@
 # build language files out of tree
 #  (just a noob-friendly wrapper for the makefile)
 
+[ -z "$BASH" -o ! -x "$BASH" ] && echo "This script only support bash shell" && exit 1
+export SHELL="$BASH"  # this may help dash users
+
 set -o pipefail
+set -e
 
 cf="$HOME/.okboard-build"
 
@@ -72,11 +76,9 @@ popd
 
 cp -vauf $mydir/lang-*.cf $mydir/add-words-*.txt $mydir/db.version $WORK_DIR/
 
-[ -x "/bin/bash" ] && export SHELL=/bin/bash  # this may help dash users
-
 cd $WORK_DIR
 for target in $tgt_list ; do
     make -j -f $mydir/makefile CORPUS_DIR=${CORPUS_DIR} TOOLS_DIR=$mydir/../tools $target
 done
 
-rsync -av *.tre *.db *.ng *.rpt.bz2 $mydir/
+rsync -av *.tre *.db *.ng *.rpt.bz2 clusters-*.txt *.id $mydir/
