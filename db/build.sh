@@ -81,4 +81,4 @@ for target in $tgt_list ; do
     make -j -f $mydir/makefile CORPUS_DIR=${CORPUS_DIR} TOOLS_DIR=$mydir/../tools $target
 done
 
-rsync -av *.tre *.db *.ng *.rpt.bz2 clusters-*.txt $mydir/
+rsync -av *.tre *.db *.ng *.rpt.bz2 clusters-*.txt *.id $mydir/
