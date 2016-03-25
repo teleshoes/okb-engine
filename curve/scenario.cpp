@@ -2295,6 +2295,44 @@ bool Scenario::postProcess() {
     scores[i].misc_score = calc_score_misc(i);
   }
 
+  // (test) display time spent near special points
+  int sgap = 4; // @todo param
+  for (int j = sgap; j < curve->size() - sgap; j ++) {
+    int sp = curve->getSpecialPoint(j);
+    if (sp != 1 && sp != 2 && sp != 3) { continue; }
+
+    int dist = -1, i0 = -1;
+    for(int i = 0; i < count; i++) {
+      int index = index_history[i];
+      if (index == j) {
+	i0 = i;
+	Point key = keys->get(letter_history[i]);
+	Point pt = curve->point(index);
+	dist = (int) distancep(key, pt);
+	break;
+      }
+    }
+
+    if (i0 >= 0) {
+      int delay = curve->getTimestamp(j + sgap) - curve->getTimestamp(j - sgap);
+      DBG("SP-delay: %s #%d(%d) %d %d", getNameCharPtr(), i0, sp, dist, delay);
+
+      /* @todo try again :-)
+      int strict_min_delay = params->strict_min_delay;
+      int strict_max_dist = params->strict_max_dist;
+      float strict_score = params->strict_score;
+      if (delay > strict_min_delay) {
+	int min_dist = strict_max_dist * (1.0 - (float) (delay - strict_min_delay) / strict_min_delay);
+	if (dist > min_dist) {
+	  float coef = (float) (dist - min_dist) / min_dist;
+	  scores[i0 + 1].misc_score -= strict_score * coef;
+	  MISC_ACCT(getNameCharPtr(), "strict_score", strict_score, - coef);
+	}
+      }
+      */
+    }
+  }
+
   turn_t turn_detail[count];
   int turn_count;
   calc_turn_score_all(turn_detail, &turn_count);
