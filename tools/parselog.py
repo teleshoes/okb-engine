@@ -46,6 +46,7 @@ for line in sys.stdin.readlines():
     else:
         # new prediction (current format)
         mo = re.search(r'^\[\*\]\s+([^\-]+\S)\s+\-', line)
+        if not mo: mo = re.search(r'^\[\*\]\s+([^\-]+\S)\s*$', line)  # slightly changed log format
         if mo:
             if pts: predicts.append((pts, pid, ptxt, pword))
             pts = parsedate(mo.group(1))
