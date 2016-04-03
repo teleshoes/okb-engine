@@ -45,6 +45,11 @@ def ftest_load(index_org, work_dir, params = dict()):
         line = line.strip()
 
         if line.startswith("==WORD=="):
+            if current:
+                # handle incomplete predict logs (due to temporary regression)
+                current["word"] = current["guessed"] = "XXX"
+                if "js" in current: history.append(current)
+
             (dummy, id, word, device_id, date) = line.split(' ', 4)
             ts = int(id.split('-')[0])
             word = remove_quotes(word)
