@@ -316,7 +316,7 @@ void CurveMatch::curvePreprocess1(int curve_id) {
     if ((! ok) || (min1 > accel[i] * ratio) || (min2 > accel[i] * ratio)) { continue; }
 
     oneCurve[i].sharp_turn = (ACC(i) > threshold2)?1:5;
-    DBG("Special point[%d]=%d (acceleration)", i, oneCurve[i].sharp_turn);
+    DBG("Special point[%d]=%d (acceleration: %d - %d,%d)", i, oneCurve[i].sharp_turn, ACC(i), threshold1, threshold2);
   }
 
   if (l >= 8) { // do not process small curves, probably a simple 2-letter words

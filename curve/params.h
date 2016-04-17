@@ -159,7 +159,7 @@ static Params default_params = {
   5, // accel_gap
   0.9, // accel_ratio
   120, // accel_threshold1
-  400, // accel_threshold2
+  500, // accel_threshold2
   0.0, // aggressive_mode
   1.5, // anisotropy_ratio
   7, // atp_excl_gap
