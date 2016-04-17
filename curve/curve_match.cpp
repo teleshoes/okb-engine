@@ -209,7 +209,9 @@ void CurveMatch::curvePreprocess1(int curve_id) {
   int time_interval = params.speed_time_interval;
   for(int i = 0; i < l; i ++) {
     int i1 = i, i2 = i;
-    while (i1 > 0 && oneCurve[i1].t > oneCurve[i].t - time_interval) { i1 --; }
+    if (! i1) { i1 = 1; } // avoid first point in case of device lag (which is very common)
+
+    while (i1 > 1 && oneCurve[i1].t > oneCurve[i].t - time_interval) { i1 --; }
     while (i2 < l - 1 && oneCurve[i2].t < oneCurve[i].t + time_interval) { i2 ++; }
     float speed = 0;
     if (i2 > i1 && oneCurve[i2].t > oneCurve[i1].t) {
