@@ -100,7 +100,8 @@ void CurveMatch::curvePreprocess1(int curve_id) {
     int last_total_turn = -1;
     int last_turn_index = -100;
     int range = 1;
-    for(int i = 2 ; i < l - 2; i ++) {
+    int tips_margin = 2;
+    for(int i = tips_margin ; i < l - tips_margin; i ++) {
       float total = 0;
       float t_index = 0;
       for(int j = i - range; j <= i + range; j ++) {
@@ -108,7 +109,7 @@ void CurveMatch::curvePreprocess1(int curve_id) {
 	t_index += oneCurve[j].turn_angle * j;
       }
 
-      if (abs(total) < last_total_turn && last_total_turn > params.turn_threshold) {
+      if ((abs(total) < last_total_turn || i == l - tips_margin - 1) && last_total_turn > params.turn_threshold) {
 	if (sharp_turn_index >= 2 && sharp_turn_index < l - 2) {
 
 	  for(int j = i - range; j <= i + range; j ++) {
