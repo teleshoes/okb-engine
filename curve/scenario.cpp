@@ -514,14 +514,18 @@ float Scenario::calc_curve_score(unsigned char prev_letter, unsigned char letter
     if (curve->getSharpTurn(i)) { sharp_turn ++; }
   }
 
-  float scale = params->curve_dist_threshold * min(1, 0.5 + distancep(pbegin, pend) / params->curve_dist_threshold / 4.0);
+  float length = distancep(pbegin, pend);
+  float coef = min(1, 0.5 + length / params->curve_dist_threshold / 4.0);
+
+  float scale = params->curve_dist_threshold * coef;
   float s1 = pow(max(max_dist, 2 * c?total_dist / c:0) / scale, 2);
   float s2 = params->curve_surface_coef * surface / 1E6;
   float s3 = params->sharp_turn_penalty * sharp_turn;
 
   float score = 1 - s1 - s2 - s3;
-  DBG("  [curve score] %s:%c[%d->%d] sc=[%.3f:%.3f:%.3f] max_dist=%d surface=%d score=%.3f",
-      getNameCharPtr(), letter, index, new_index, s1, s2, s3, (int) max_dist, (int) surface, score);
+  DBG("  [curve score] %s:%c[%d->%d] sc=[%.3f:%.3f:%.3f] max_dist=%d surface=%d score=%.3f [length=%d coef=%.2f]",
+      getNameCharPtr(), letter, index, new_index, s1, s2, s3, (int) max_dist, (int) surface, score,
+      (int) length, coef);
 
   return score;
 }
