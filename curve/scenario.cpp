@@ -450,8 +450,9 @@ float Scenario::calc_cos_score(unsigned char prev_letter, unsigned char letter, 
     score = 1 - max(gap / max_gap, coef_sin * a_sin / max_sin);
   }
 
-  DBG("  [cos score] %s:%c i=%d:%d angle=%.2f/%.2f(%.2f) gap=%d/%d -> score=%.2f",
-      getNameCharPtr(), letter, index, new_index, a_sin, max_sin, coef_sin, (int) gap, (int) max_gap, score);
+  DBG("  [cos score] %s:%c i=%d:%d angle=%.2f/%.2f(%.2f) gap=%d/%d coef_sin=%.2f -> score=%.2f",
+      getNameCharPtr(), letter, index, new_index, a_sin, max_sin, coef_sin,
+      (int) gap, (int) max_gap, coef_sin, score);
 
   return score;
 }

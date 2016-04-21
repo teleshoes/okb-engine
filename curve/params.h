@@ -174,8 +174,8 @@ static Params default_params = {
   1, // cls_enable
   0.1, // coef_distance
   0.1, // coef_error
-  100, // cos_max_gap
-  85, // curve_dist_threshold
+  112, // cos_max_gap
+  95, // curve_dist_threshold
   50, // curve_score_min_dist
   20.0, // curve_surface_coef
   100, // dist_max_next
@@ -209,7 +209,7 @@ static Params default_params = {
   0.2, // loop_penalty
   7, // match_wait
   180, // max_active_scenarios
-  45, // max_angle
+  55, // max_angle
   50, // max_candidates
   25, // max_segment_length
   8, // max_star_index
