@@ -31,6 +31,8 @@ typedef MultiScenario ScenarioType;
 typedef Scenario ScenarioType;
 #endif /* MULTI */
 
+double getCPUTime();
+
 /* user dictionary entry */
 class UserDictEntry {
  public:

@@ -11,6 +11,9 @@
 #include <string.h>
 #include <stdio.h> // for rename()
 
+#include <sys/time.h>
+#include <sys/resource.h>
+
 #include "functions.h"
 
 #define PARAMS_IMPL
@@ -23,6 +26,12 @@
 #define MISC_ACCT(word, coef_name, coef_value, value) { if (abs(value) > 1E-5) { DBG("     [*] MISC %s %s %f %f", (word), (coef_name), (float) (coef_value), (float) (value)) } }
 
 using namespace std;
+
+double getCPUTime() {
+  struct rusage usage;
+  if (getrusage(RUSAGE_SELF, &usage)) { return 0; } // ignored
+  return (double) usage.ru_utime.tv_sec + ((double) usage.ru_utime.tv_usec) / 1000000.0;
+}
 
 /* --- main class for curve matching ---*/
 CurveMatch::CurveMatch() {
@@ -782,6 +791,7 @@ bool CurveMatch::match() {
 
   QElapsedTimer timer;
   timer.start();
+  double start_cpu_time = getCPUTime();
 
   int count = 0;
 
@@ -824,6 +834,7 @@ bool CurveMatch::match() {
     }
   }
 
+  st.st_cputime = (int) (1000 * (getCPUTime() - start_cpu_time));
   st.st_time = (int) timer.elapsed();
   st.st_count = count;
 
@@ -972,6 +983,7 @@ void CurveMatch::resultToJson(QJsonObject &json) {
 
   QJsonObject json_stats;
   json_stats["time"] = st.st_time;
+  json_stats["cputime"] = st.st_cputime;
   json_stats["count"] = st.st_count;
   json_stats["fork"] = st.st_fork;
   json_stats["skim"] = st.st_skim;

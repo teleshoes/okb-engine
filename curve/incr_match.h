@@ -94,6 +94,7 @@ class IncrementalMatch : public CurveMatch {
   int last_curve_count;
 
   QElapsedTimer timer;
+  double start_cpu_time;
 
   QuickKeys quickKeys;
 

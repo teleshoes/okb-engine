@@ -56,17 +56,21 @@ if __name__ == "__main__":
 
     dump_dir = None
     try:
-        opts, args =  getopt.getopt(sys.argv[1:], 'd:n')
+        opts, args =  getopt.getopt(sys.argv[1:], 'd:nt:')
     except:
         usage()
 
     listpara = None
     save = True
+    typs = ["max", "max2", "good", "good2", "guess" ]
+
     for o, a in opts:
         if o == "-d":
             dump_dir = a
         elif o == "-n":
             save = False
+        elif o == "-t":
+            typs = a.split(',')
         else:
             print("Bad option: %s" % o)
             usage()
@@ -84,13 +88,14 @@ if __name__ == "__main__":
 
     c = Color(fname = args[0] if len(args) >= 1 else None, color_ok = color)
 
-    for typ in ["max", "max2", "good", "good2", "guess" ]:
+    for typ in typs:
         detail = dict()
-        score = optim.run_all(tests, params, typ, fail_on_bad_score = False, return_dict = detail, silent = True, dump = dump_dir)
+        score, cputime = optim.run_all(tests, params, typ, fail_on_bad_score = False, return_dict = detail, silent = True, dump = dump_dir)
 
         print("### score", c.var(typ, score, "score.%s" % typ, noreg = True),
               ' '.join([ c.var(w, s, "word.%s.%s" % (typ, w))
                          for (w, s) in sorted(detail.items()) ]))
+        print("cputime", cputime)
 
     if save: c.save()
 

@@ -184,6 +184,7 @@ typedef struct {
   int st_time, st_count, st_fork, st_skim;
   int st_speed, st_special, st_retry;
   int st_cache_hit, st_cache_miss;
+  int st_cputime;
 } stats_t;
 
 typedef struct {

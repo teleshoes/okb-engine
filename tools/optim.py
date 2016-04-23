@@ -174,15 +174,21 @@ def score1(json_str, expected, typ):
     elif typ == "guess":
         score = 1 if score_ref >= max_score else 0
 
+    elif typ == "perf":
+        score = - js["stats"]["cputime"]
+
     else: raise Exception("unknown score type: %d", typ)
 
-    return score
+    cputime = js["stats"]["cputime"]
+
+    return score, cputime
 
 def save(fname, content):
     with open(fname, 'w') as f: f.write(content)
 
 def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, silent = False, dump = None):
     total, n = 0.0, 0
+    total_cpu = 0
     runall = []
     inj = dict()
     wordk = dict()
@@ -218,7 +224,7 @@ def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, s
 
         i = json_out.find('Result: {')
         if i > -1: json_out = json_out[i + 8:]
-        score = score1(json_out, word, typ)
+        score, cputime = score1(json_out, word, typ)
 
         if not silent:
             print("%s (%s): " % (word, lang), "%.3f - " % score, end = "")
@@ -228,16 +234,17 @@ def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, s
             dump_txt(json_in2, "in")
             raise Exception("negative score in reference test data: %s (type=%s, score=%d)" % (word, typ, score))
         total += score
+        total_cpu += cputime
         n += 1
         if return_dict is not None:
             return_dict[key] = score
     if not silent: print("OK")
-    return total / n
+    return total / n, total_cpu / n
 
 def optim(pname, params, tests, typ):
     value = value0 = params[pname]["value"]
     min, max, type = params[pname]["min"], params[pname]["max"], params[pname]["type"]
-    score0 = run_all(tests, params, typ)
+    score0, _ignored_ = run_all(tests, params, typ)
     print("Optim: %s (value=%s, score=%s)" % (pname, value0, score0))
 
     scores = [ (value, score0) ]
@@ -253,7 +260,7 @@ def optim(pname, params, tests, typ):
             if new_value < min or new_value > max: break
 
             params[pname]["value"] = new_value
-            score = run_all(tests, params, typ)
+            score, _ignored_ = run_all(tests, params, typ)
             if score > last_score: bad_count = 0
             else: bad_count += 1
 
@@ -320,7 +327,8 @@ def run_optim(params, typ, listpara, p_include, p_exclude, param_file):
 
     print("===== Reference run =====")
     detail0 = dict()
-    max_score = score = score0 = run_all(tests, params, typ, fail_on_bad_score = True, return_dict = detail0)
+    score, _ignored_ = run_all(tests, params, typ, fail_on_bad_score = True, return_dict = detail0)
+    max_score = score0 = score
     max_params = copy.deepcopy(params)
     print()
 

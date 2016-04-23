@@ -548,6 +548,7 @@ void IncrementalMatch::addPoint(Point point, int curve_id, int timestamp) {
     delayed_scenarios.clear();
     next_iteration_index = 0;
     timer.start();
+    start_cpu_time = getCPUTime();
     first_point = true;
     last_curve_count = 0;
   }
@@ -560,6 +561,7 @@ void IncrementalMatch::addPoint(Point point, int curve_id, int timestamp) {
   } else if (curve.size() >= next_iteration_index) {
     incrementalMatchUpdate(false, params.aggressive_mode);
   }
+  st.st_cputime = (int) (1000 * (getCPUTime() - start_cpu_time));
   st.st_time = (int) timer.elapsed();
 }
 
