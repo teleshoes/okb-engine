@@ -130,13 +130,14 @@ if __name__ == '__main__':
     f = open(index_org + ".tmp", 'w')
     f.write("# OKBoard replay\n\n[%s] Parameters: %s\n\n" % (time.ctime(), params))
     last_date = None
-    count = ok_count = found_count = badcurve_count = 0
+    count = ok_count = found_count = badcurve_count = missing_count = 0
     last_lang = None
     lm = None
 
     tools = Tools(params)
 
     record = []
+    manifest = []
 
     for t in history:
         id = t["id"]
@@ -216,13 +217,22 @@ if __name__ == '__main__':
         elif rank > 0: st = "*FAIL*"
         else: st = "NOT FOUND"
 
-        if rank < 0 or candidates[word] < max(list(candidates.values())) - 0.05:
+        if not candidates:
+            gap = 0
+        elif word not in candidates:
+            gap = 1
+        else:
+            gap = max(list(candidates.values())) - candidates[word]
+
+        if rank < 0 or gap > 0.05:
             st += " #BADCURVE"
             badcurve_count += 1
 
-        print("> Result [%s]: %s (%s)" % (id, st,
-                                          word if ok else ("%s/%s" % (guess, word))))
+        print("> Result [%s]: %s (%s) gap=%.2f rank=%d" % (id, st,
+                                                           word if ok else ("%s/%s" % (guess, word)),
+                                                           gap, rank))
 
+        manifest.append(';'.join([ str(x) for x in [ id, word, guess, gap, rank, st ] ]))
 
         # @todo add wiring to learning / backtracking
 
@@ -231,12 +241,13 @@ if __name__ == '__main__':
             pf.write("\n".join(tools.messages))
         tools.messages = []
 
-        f.write("%s -> %s\n" % (prefix, "_OK_" if ok else ("*FAIL* (%s, rank=#%d)" % (guess, rank))))
+        f.write("%s -> %s\n" % (prefix, st))
 
     if lm: lm.close()
 
-    stats = "Total=%d OK=%d rate=%.2f%% found_rate=%.2f%% bad_curve=%.2f%%" % (count, ok_count, 100.0 * ok_count / count,
-                                                                               100.0 * found_count / count, 100.0 * badcurve_count / count)
+    stats = "Total=%d OK=%d rate=%.2f%% found_rate=%.2f%% bad_curve=%.2f%% missing=%d" % (count, ok_count, 100.0 * ok_count / count,
+                                                                                          100.0 * found_count / count, 100.0 * badcurve_count / count,
+                                                                                          missing_count)
     print(stats)
 
     log_file = os.path.join(os.path.dirname(index_org), "ftest.log")
@@ -260,3 +271,7 @@ if __name__ == '__main__':
     pck_file = os.path.join(work_dir, "ftest-all.pck")
     with open(pck_file, 'wb') as f:
         pickle.dump(record, f)
+
+    mf_file = os.path.join(work_dir, "manifest.txt")
+    with open(mf_file, 'w') as f:
+        f.write('\n'.join(manifest) + '\n')

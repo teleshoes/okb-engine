@@ -71,6 +71,8 @@ if __name__ == "__main__":
             print("Bad option: %s" % o)
             usage()
 
+    if dump_dir and not os.path.isdir(dump_dir): os.mkdir(dump_dir)
+
     params = optim.params
     tests = optim.load_tests()
 

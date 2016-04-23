@@ -20,6 +20,7 @@ max_age=
 reset=
 params=
 opts=
+force_check=
 
 while [ -n "$1" ] ; do
     case "$1" in
@@ -27,11 +28,11 @@ while [ -n "$1" ] ; do
 	-z) reset=1 ;;
 	-p) params="$2" ; shift ;;
 	-a) opts="${opts}-a " ;;
+	-f) force_check=1 ;;
 	*) echo "Unknown parameter: $1" ; exit 1 ;;
     esac
     shift
 done
-TEST="$1"
 
 getlogs() {
     local filt=
@@ -39,7 +40,6 @@ getlogs() {
     find "$log_dir/" -name '2*.log.bz2' $filt | grep -v '/\.' | xargs -r lbzip2 -dc
 }
 
-force_check=
 ts2="$work_dir/.ts2"
 last=`ls -rt "$log_dir"/*/2*.log.bz2 | tail -n 1`
 [ -n "$last" ] && [ -f "$ts2" ] && [ "$ts2" -ot "$last" ] && force_check=1 && echo "force_check=1"
@@ -51,8 +51,6 @@ else
 
     getlogs | egrep '^(==WORD==|OUT:)' | (
 	n=0
-	manifest="$work_dir/manifest.txt"
-	> $manifest
 
 	tmpjson=`mktemp /tmp/log2ftest.XXXXXX`
 	while read prefix id word suffix ; do
@@ -63,8 +61,6 @@ else
 	    word=`echo "$word" | sed -r "s/^'(.*)'$/\1/"`
 
 	    pre="$work_dir/$id"
-
-	    echo "$id $word" >> $manifest
 
 	    if [ ! -f "$pre.png" -o -n "$reset" ] ; then
 		js=$(echo "$js" | tools/json-recover-keys.py "$tmpjson")
