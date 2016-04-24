@@ -1692,8 +1692,16 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
 
       if (a_same[i] || a_same[i - 1]) { continue; } // case is rare enough to ignore it
 
+      if (! st) {
+	for(int j = max(0, curve_index - params->min_turn_index_gap);
+	    j <= min(curve->size() - 1, curve_index + params->min_turn_index_gap);
+	    j++) {
+	  if (curve->getSpecialPoint(j) == 5) { st = 5; break; }
+	}
+      }
+
       if (abs(expected) > params->st2_max && st != 2 && st != 5) {
-	if (st == 1 && abs(getLocalTurn(curve_index)) > 135) {
+	if (st == 1) {
 	  DBG("  [score turn] --- U-turn with no ST=2 (curve_index=%d expected=%.2f) --> ST=1 OK", curve_index, expected);
 	} else {
 	  DBG("  [score turn] *** U-turn with no ST=2 (curve_index=%d expected=%.2f)", curve_index, expected);
