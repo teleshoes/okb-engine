@@ -132,8 +132,10 @@ def score1(json_str, expected, typ):
 
     # print "Detail:" + ",".join("%s: %.3f" % (c, c["score"]) for x in js["candidates"])
 
-    if score_ref is None: return -9999999  # targeted word is not even found
-    if not len(others): return 1  # sometime happens :-)
+    cputime = js["stats"]["cputime"]
+
+    if score_ref is None: return -9999999, cputime  # targeted word is not even found
+    if not len(others): return 1, cputime  # sometime happens :-)
 
     average = sum(others) / len(others)
     stddev = math.sqrt(sum([(x - average) ** 2 for x in others]) / len(others))
@@ -178,8 +180,6 @@ def score1(json_str, expected, typ):
         score = - js["stats"]["cputime"]
 
     else: raise Exception("unknown score type: %d", typ)
-
-    cputime = js["stats"]["cputime"]
 
     return score, cputime
 
