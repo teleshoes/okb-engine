@@ -522,9 +522,11 @@ void IncrementalMatch::delayedScenariosFilter() {
 	float s0 = delayed_scenarios[i0].getScore();
 	if (sc > s0) {
 	  delayed_scenarios[i0].die();
+	  DBG("filtering(fork1): %s (%.3f)", QSTRING2PCHAR(delayed_scenarios[i0].getId()), delayed_scenarios[i0].getScore());
 	  dejavu.insert(name,i);
 	} else {
 	  delayed_scenarios[i].die();
+	  DBG("filtering(fork2): %s (%.3f)", QSTRING2PCHAR(delayed_scenarios[i].getId()), delayed_scenarios[i].getScore());
 	}
 	continue; // retry iteration
       } else {

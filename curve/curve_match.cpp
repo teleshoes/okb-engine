@@ -737,6 +737,7 @@ void CurveMatch::scenarioFilter(QList<ScenarioType> &scenarios, float score_rati
       if (dejavu.contains(name)) {
 	int i0 = dejavu[name];
 	scenarios.takeAt(i0);
+	DBG("filtering(fork): \"%s\" %s (%.3f/%.3f)", QSTRING2PCHAR(scenarios[i0].getName()), QSTRING2PCHAR(scenarios[i0].getId()), sc, max_score);
 	foreach(QString n, dejavu.keys()) {
 	  if (dejavu[n] > i0) {
 	    dejavu[n] --;
