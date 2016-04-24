@@ -94,7 +94,7 @@ def log1(txt):
         f.write("\n")
 
 def run1(json_str, lang, full = True):
-    opts = re.split('\s+', os.getenv('CLI_OPTS', ""))
+    opts = re.split('\s+', os.getenv('CLI_OPTS', "-a 1"))  # by default test with incremental mode (more representative)
     opts = [ x for x in opts if x ]
     cmd = [ CLI ] + opts + [ os.path.join(TRE_DIR, "%s%s.tre" % (lang, "-full" if full else "")) ]
 
