@@ -224,7 +224,10 @@ if __name__ == '__main__':
         else:
             gap = max(list(candidates.values())) - candidates[word]
 
-        if rank < 0 or gap > 0.05:
+        if gap == 1:
+            st += " #NOTFOUND"
+            badcurve_count += 1
+        elif rank < 0 or gap > 0.05:
             st += " #BADCURVE"
             badcurve_count += 1
 

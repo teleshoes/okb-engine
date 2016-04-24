@@ -110,6 +110,13 @@ class Params {
   float straight_threshold_low;
   int thumb_correction;
   float tip_small_segment;
+  int turn2_ignore_maxgap;
+  int turn2_ignore_maxlen;
+  int turn2_ignore_minlen;
+  float turn2_ignore_score;
+  int turn2_ignore_zz_maxangle;
+  int turn2_ignore_zz_maxlen;
+  int turn2_ignore_zz_minangle;
   int turn2_large_threshold;
   int turn2_large_y0;
   int turn2_min_y2;
@@ -260,6 +267,13 @@ static Params default_params = {
   0.6, // straight_threshold_low
   1, // thumb_correction
   0.02, // tip_small_segment
+  20, // turn2_ignore_maxgap
+  50, // turn2_ignore_maxlen
+  100, // turn2_ignore_minlen
+  0.97, // turn2_ignore_score
+  40, // turn2_ignore_zz_maxangle
+  70, // turn2_ignore_zz_maxlen
+  120, // turn2_ignore_zz_minangle
   228, // turn2_large_threshold
   96, // turn2_large_y0
   5, // turn2_min_y2
@@ -404,6 +418,13 @@ void Params::toJson(QJsonObject &json) const {
   json["straight_threshold_low"] = straight_threshold_low;
   json["thumb_correction"] = thumb_correction;
   json["tip_small_segment"] = tip_small_segment;
+  json["turn2_ignore_maxgap"] = turn2_ignore_maxgap;
+  json["turn2_ignore_maxlen"] = turn2_ignore_maxlen;
+  json["turn2_ignore_minlen"] = turn2_ignore_minlen;
+  json["turn2_ignore_score"] = turn2_ignore_score;
+  json["turn2_ignore_zz_maxangle"] = turn2_ignore_zz_maxangle;
+  json["turn2_ignore_zz_maxlen"] = turn2_ignore_zz_maxlen;
+  json["turn2_ignore_zz_minangle"] = turn2_ignore_zz_minangle;
   json["turn2_large_threshold"] = turn2_large_threshold;
   json["turn2_large_y0"] = turn2_large_y0;
   json["turn2_min_y2"] = turn2_min_y2;
@@ -550,6 +571,13 @@ Params Params::fromJson(const QJsonObject &json) {
   p.straight_threshold_low = json["straight_threshold_low"].toDouble();
   p.thumb_correction = json["thumb_correction"].toDouble();
   p.tip_small_segment = json["tip_small_segment"].toDouble();
+  p.turn2_ignore_maxgap = json["turn2_ignore_maxgap"].toDouble();
+  p.turn2_ignore_maxlen = json["turn2_ignore_maxlen"].toDouble();
+  p.turn2_ignore_minlen = json["turn2_ignore_minlen"].toDouble();
+  p.turn2_ignore_score = json["turn2_ignore_score"].toDouble();
+  p.turn2_ignore_zz_maxangle = json["turn2_ignore_zz_maxangle"].toDouble();
+  p.turn2_ignore_zz_maxlen = json["turn2_ignore_zz_maxlen"].toDouble();
+  p.turn2_ignore_zz_minangle = json["turn2_ignore_zz_minangle"].toDouble();
   p.turn2_large_threshold = json["turn2_large_threshold"].toDouble();
   p.turn2_large_y0 = json["turn2_large_y0"].toDouble();
   p.turn2_min_y2 = json["turn2_min_y2"].toDouble();

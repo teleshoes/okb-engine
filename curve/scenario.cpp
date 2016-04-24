@@ -1669,6 +1669,32 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
 
       if (score < 0) { score = 0.01; } // we can keep this scenario in case other are even worse
 
+
+      // ignore bad score in some (rare) cases (covers ~0.5% of all test cases)
+      bool ignore = false;
+      if (d->unmatched) {
+	if (i == turn_count - 1 && l2 < params->turn2_ignore_maxlen && l1 > params->turn2_ignore_minlen) {
+	  float gap = sin(abs(expected - actual) * M_PI / 180) * l2;
+	  if (gap < params->turn2_ignore_maxgap) { ignore = true; }
+	}
+	// ^^ I could do the same for curve beginning for the sake of symmetry, but if never occured in any test
+
+	if (i > 0 && i < turn_count - 1) {
+	  float exp_before = turn_detail[i - 1].expected;
+	  float exp_after = turn_detail[i + 1].expected;
+	  if (abs(exp_before) > params->turn2_ignore_zz_minangle && abs(exp_after) > params->turn2_ignore_zz_minangle &&
+	      exp_before * exp_after > 0 && exp_after * expected < 0 &&
+	      abs(expected) < params->turn2_ignore_zz_maxangle &&
+	      (l1 < params->turn2_ignore_zz_maxlen || l2 < params->turn2_ignore_zz_maxlen)) {
+	    ignore = true;
+	  }
+	}
+
+	float min_score = params->turn2_ignore_score;
+	if (ignore && score < min_score) { score = min_score; }
+      }
+
+      // logs
       int index = d -> index;
       float trn = (d->corrected - d->actual) * ((d->expected > 0)?1:-1);
       DBG("  [score turn] \"%s\" turn #%d/%d: %.2f[%.2f] / %.2f trn=%.2f length[%d:%d:%d] index=[%d:%d]->[%c:%c]->[%d:%d] {%s: %d, [%d]%d<(%d:%d)} ---> score=%.2f %s",
@@ -1677,7 +1703,7 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
 	  letter_history[d->start_index], letter_history[index],
 	  index_history[d->start_index], index_history[index],
 	  tip_case?"tip":"std", (int) x, (int) y0, (int) y, (int) y1, (int) y2,
-	  score, d->unmatched?"*unmatched*":"");
+	  score, d->unmatched?(ignore?"unmatched(ignored)":"*unmatched*"):"");
 
       if (scores[index + 1].turn_score >= 0) { scores[index + 1].turn_score = score; }
     }
