@@ -1017,20 +1017,6 @@ bool Scenario::childScenarioInternal(LetterNode &childNode, QList<Scenario> &res
 
       // temporary score is used only for simple filtering
       new_scenario.temp_score = 1.0 / (1.0 + new_scenario.dist / 30);
-      /* @todo remove (old temp score)
-      if (count == 0) {
-	new_scenario.temp_score = temp_score + score.distance_score;
-      } else {
-	new_scenario.temp_score = temp_score + ((score.distance_score * params->weight_distance
-						 + score.curve_score * params->weight_curve
-						 + score.cos_score * params->weight_cos
-						 + score.turn_score * params->weight_turn
-						 + score.length_score * params->weight_length)
-						/
-						(params->weight_distance + params->weight_curve + params->weight_cos
-						 + params->weight_turn + params->weight_length));
-      }
-      */
 
       result.append(new_scenario);
     }
@@ -1091,7 +1077,7 @@ int Scenario::getCurveIndex() {
 
 
 bool Scenario::forkLast() {
-  return (last_fork == count) || (last_fork && count <= 3); // don't resolve forks before the fourth letter
+  return (last_fork < count) || (last_fork && count <= 3); // don't resolve forks before the fourth letter
 }
 
 void Scenario::turn_transfer(int turn_count, turn_t *turn_detail) {

@@ -835,7 +835,7 @@ bool CurveMatch::match() {
     if (n >= 3) {
       // scenario filtering works differently in non-incremental mode
       // as we do not care about performance in this case, just arbitrary increase max_active_scenarios value
-      scenarioFilter(scenarios, 0, 15, params.max_active_scenarios * 1.5, false); // @todo add to parameter list
+      scenarioFilter(scenarios, 0, 15, params.max_active_scenarios * 2, false); // @todo add to parameter list
       DBG("Depth: %d - Scenarios: %d - Candidates: %d", n, scenarios.size(), candidates.size());
     }
   }
