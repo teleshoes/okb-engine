@@ -432,6 +432,11 @@ void CurveMatch::curvePreprocess1(int curve_id) {
 	    float dmax = 0;
 	    for(int j = i0 + 1; j < i; j ++) {
 	      float d = dist_line_point(oneCurve[i0], oneCurve[i], oneCurve[j]);
+
+	      // do not add a ST=5 point if there is there is already some
+	      // special point between two ST=1 / ST=2 points
+	      if (oneCurve[j].sharp_turn > 2) { dmax = 0; break; }
+
 	      if (d > dmax) {
 		dmax = d;
 		index = j;

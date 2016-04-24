@@ -733,7 +733,7 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<NextIn
 	int maxd = params->min_turn_index_gap;
 	if ((max_score_index < last_turn_point - maxd) ||
 	    (max_score_index > last_turn_point + maxd && start_st == 0 && start_index >= last_turn_point - max_turn_distance) ||
-	    ! MANDATORY_TURN(last_st)) {
+	    (new_index_list.size() == 0 && ! MANDATORY_TURN(last_st))) {
 	  new_index_list << NextIndex(max_score_index, max_score);
 	}
       }

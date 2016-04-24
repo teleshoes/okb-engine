@@ -112,6 +112,9 @@ defparams = [
     [ "turn2_ignore_maxlen", int, 10, 80 ],
     [ "turn2_ignore_minlen", int, 50, 300 ],
     [ "turn2_ignore_score", float, 0, 1],
+    [ "turn2_ignore_zz_maxangle", int, 10, 90 ],
+    [ "turn2_ignore_zz_maxlen", int, 10, 120 ],
+    [ "turn2_ignore_zz_minangle", int, 90, 180 ],
     [ "turn2_large_threshold", int, 181, 270 ],
     [ "turn2_large_y0", int, 10, 100 ],
     [ "turn2_min_y2", int, 1, 30 ],
@@ -146,7 +149,4 @@ defparams = [
     [ "weight_length", float, 0.1, 10 ],
     [ "weight_misc", float, 0.1, 10 ],
     [ "weight_turn", float, 0.1, 10 ],
-    [ "turn2_ignore_zz_maxangle", int, 10, 90 ],
-    [ "turn2_ignore_zz_maxlen", int, 10, 120 ],
-    [ "turn2_ignore_zz_minangle", int, 90, 180 ],
 ]
