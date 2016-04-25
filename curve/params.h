@@ -258,7 +258,7 @@ static Params default_params = {
   30, // speed_time_interval
   120, // st2_ignore
   170, // st2_max
-  115, // st2_min
+  70, // st2_min
   0.02, // st5_score
   15, // straight_max_total
   8, // straight_max_turn
