@@ -57,6 +57,7 @@ defparams = [
     [ "loop_penalty", float, 0, 1 ],
     [ "match_wait", int, 4, 12 ],
     [ "max_active_scenarios", int ],  # no optimization, larger is always better
+    [ "max_active_scenarios2", int ],  # no optimization, larger is always better
     [ "max_angle", int, 10, 90 ],
     [ "max_candidates", int ],  # idem
     [ "max_segment_length", int ],

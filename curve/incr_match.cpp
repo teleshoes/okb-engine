@@ -489,7 +489,7 @@ void IncrementalMatch::delayedScenariosFilter() {
   DBG("Scenarios filter ...");
 
   int nb = delayed_scenarios.size();
-  float min_score = 0;
+  float min_score = 0, min_score2 = 0;
   if (nb > params.max_active_scenarios) {
     float* scores = new float[nb];
 
@@ -498,6 +498,9 @@ void IncrementalMatch::delayedScenariosFilter() {
     }
     std::qsort(scores, nb, sizeof(float), compareFloat); // wtf ???
     min_score = scores[nb - 1 - params.max_active_scenarios];
+    if (nb > params.max_active_scenarios2) {
+      min_score2 = scores[nb - 1 - params.max_active_scenarios2];
+    }
 
     delete[] scores;
   }
@@ -507,7 +510,9 @@ void IncrementalMatch::delayedScenariosFilter() {
   for(int i = 0; i < delayed_scenarios.size(); i ++) {
     float sc = delayed_scenarios[i].getScore();
 
-    if (sc < min_score && delayed_scenarios[i].getCount() > 2) {
+    float compare = delayed_scenarios[i].forkLast()?min_score2:min_score;
+
+    if (sc < compare && delayed_scenarios[i].getCount() > 2) {
 
       st.st_skim ++;
       delayed_scenarios[i].die();

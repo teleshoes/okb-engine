@@ -59,6 +59,7 @@ class Params {
   float loop_penalty;
   int match_wait;
   int max_active_scenarios;
+  int max_active_scenarios2;
   int max_angle;
   int max_candidates;
   int max_segment_length;
@@ -215,7 +216,8 @@ static Params default_params = {
   0.001, // length_penalty
   0.2, // loop_penalty
   7, // match_wait
-  180, // max_active_scenarios
+  130, // max_active_scenarios
+  240, // max_active_scenarios2
   64, // max_angle
   50, // max_candidates
   25, // max_segment_length
@@ -367,6 +369,7 @@ void Params::toJson(QJsonObject &json) const {
   json["loop_penalty"] = loop_penalty;
   json["match_wait"] = match_wait;
   json["max_active_scenarios"] = max_active_scenarios;
+  json["max_active_scenarios2"] = max_active_scenarios2;
   json["max_angle"] = max_angle;
   json["max_candidates"] = max_candidates;
   json["max_segment_length"] = max_segment_length;
@@ -520,6 +523,7 @@ Params Params::fromJson(const QJsonObject &json) {
   p.loop_penalty = json["loop_penalty"].toDouble();
   p.match_wait = json["match_wait"].toDouble();
   p.max_active_scenarios = json["max_active_scenarios"].toDouble();
+  p.max_active_scenarios2 = json["max_active_scenarios2"].toDouble();
   p.max_angle = json["max_angle"].toDouble();
   p.max_candidates = json["max_candidates"].toDouble();
   p.max_segment_length = json["max_segment_length"].toDouble();
