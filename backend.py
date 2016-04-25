@@ -85,7 +85,9 @@ class FslmCdbBackend:
 
     def get_gram(self, ids):
         ng = list(reversed(ids))
-        while ng[0] == -1: ng.pop(0)
+        while ng and ng[0] == -1: ng.pop(0)
+        if not ng: return None
+
         stock_count = max(0, cfslm.search(ng))
 
         user_count = user_replace = last_time = 0
