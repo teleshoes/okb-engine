@@ -1,7 +1,7 @@
 #! /usr/bin/python3
 # -*- coding: utf-8 -*-
 
-""" Language model for prediction engine """
+""" Language model storage for prediction engine """
 
 import os
 import cfslm, cdb

@@ -45,10 +45,10 @@ last=`ls -rt "$log_dir"/*/2*.log.bz2 | tail -n 1`
 [ -n "$last" ] && [ -f "$ts2" ] && [ "$ts2" -ot "$last" ] && force_check=1 && echo "force_check=1"
 
 ts="$work_dir/.ts"
-if [ -z "$force_check" -a -z "$reset" -a -f "$ts" ] ; then
-    : # no change
-else
+rescan=
+[ -z "$force_check" -a -z "$reset" -a -f "$ts" ] || rescan=1
 
+if [ -n "$rescan" ] ; then
     getlogs | egrep '^(==WORD==|OUT:)' | (
 	n=0
 
@@ -91,5 +91,16 @@ else
 fi
 
 getlogs | tools/ftest_org.py $opts "tools/ftest.org" "$work_dir" $params
+
+if [ -n "$rescan" ] ; then
+    cat "$work_dir/manifest.txt" | cut -d';' -f 1-2 | tr ';' ' ' | (
+	while read id exp ; do
+	    if [ ! -f "$work_dir/$id.wt.log" ] ; then
+		cmd="tools/word_test.sh $work_dir/$id.json \"$exp\" > $work_dir/$id.wt.tmp && mv -f $work_dir/$id.wt.tmp $work_dir/$id.wt.log"
+		echo "$cmd"
+	    fi
+	done
+    ) | parallel
+fi
 
 touch "$ts2"

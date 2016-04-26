@@ -2341,7 +2341,7 @@ bool Scenario::postProcess() {
 
     if (i0 >= 0) {
       int delay = curve->getTimestamp(j + sgap) - curve->getTimestamp(j - sgap);
-      DBG("SP-delay: %s #%d(%d) %d %d", getNameCharPtr(), i0, sp, dist, delay);
+      DBG("SP-info: %s #%d(%d) %d %d %d", getNameCharPtr(), i0, sp, dist, delay, curve->getSpeed(j));
 
       /* @todo try again :-)
       int strict_min_delay = params->strict_min_delay;
@@ -2357,6 +2357,13 @@ bool Scenario::postProcess() {
       }
       */
     }
+  }
+  for (int i = 0; i < count ; i += count - 1) {
+    int index = index_history[i];
+    Point key = keys->get(letter_history[i]);
+    Point pt = curve->point(index);
+    int dist = (int) distancep(key, pt);
+    DBG("SP-info: %s #%d(%d) %d 0 %d", getNameCharPtr(), i?-2:-1, i?-2:-1, dist, curve->getSpeed(index));
   }
 
   turn_t turn_detail[count];
