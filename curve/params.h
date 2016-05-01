@@ -252,7 +252,7 @@ static Params default_params = {
   2.2, // slow_down_ratio
   0.2, // small_segment_min_score
   0.2, // sp_bad
-  2, // speed_max_index_gap
+  4, // speed_max_index_gap
   15, // speed_min_angle
   0.1, // speed_penalty
   30, // speed_time_interval

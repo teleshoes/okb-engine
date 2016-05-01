@@ -293,41 +293,6 @@ void CurveMatch::curvePreprocess1(int curve_id) {
 	accel[i], oneCurve[i].lac);
   }
 
-  // add turning points based on acceleration
-#define ACC(x) (accel[x]) /* abs(oneCurve[x].lac) */
-  for(int i = 1; i < l - 1; i ++) {
-    int threshold1 = params.accel_threshold1;
-    int threshold2 = params.accel_threshold2;
-    int gap = params.accel_gap;
-    float ratio = params.accel_ratio;
-
-    if (ACC(i) < threshold1) { continue; }
-    if (oneCurve[i].sharp_turn) { continue; }
-
-    if (ACC(i - 1) < ACC(i) / 3 || ACC(i + 1) < ACC(i) / 3) { continue; } // filter local "shaking"
-    if (abs(oneCurve[i].lac) < ACC(i) / 3) { continue; } // filter acceleration with no radial component
-
-    int min1 = 0, min2 = 0;
-    bool ok = true;
-    for (int j = 1; j <= gap; j ++) {
-      if (i - j > 0) {
-	if (oneCurve[i - j].sharp_turn) { ok = false; break; }
-	if (ACC(i - j) > ACC(i)) { ok = false; break; }
-	if (ACC(i - j) < min1 || ! min1) { min1 = ACC(i - j); }
-      }
-      if (i + j < l) {
-	if (oneCurve[i + j].sharp_turn) { ok = false; break; }
-	if (ACC(i + j) > ACC(i)) { ok = false; break; }
-	if (ACC(i + j) < min2 || ! min2) { min2 = ACC(i + j); }
-      }
-    }
-
-    if ((! ok) || (min1 > accel[i] * ratio) || (min2 > accel[i] * ratio)) { continue; }
-
-    oneCurve[i].sharp_turn = (ACC(i) > threshold2)?1:5;
-    DBG("Special point[%d]=%d (acceleration: %d - %d,%d)", i, oneCurve[i].sharp_turn, ACC(i), threshold1, threshold2);
-  }
-
   if (l >= 8) { // do not process small curves, probably a simple 2-letter words
 
     // alternate way of finding turning points
@@ -382,6 +347,42 @@ void CurveMatch::curvePreprocess1(int curve_id) {
 	max_turn = turn;
 	st_found = (oneCurve[i].sharp_turn != 0);
       }
+    }
+
+
+    // add turning points based on acceleration
+#define ACC(x) (accel[x]) /* abs(oneCurve[x].lac) */
+    for(int i = 1; i < l - 1; i ++) {
+      int threshold1 = params.accel_threshold1;
+      int threshold2 = params.accel_threshold2;
+      int gap = params.accel_gap;
+      float ratio = params.accel_ratio;
+
+      if (ACC(i) < threshold1) { continue; }
+      if (oneCurve[i].sharp_turn) { continue; }
+
+      if (ACC(i - 1) < ACC(i) / 3 || ACC(i + 1) < ACC(i) / 3) { continue; } // filter local "shaking"
+      if (abs(oneCurve[i].lac) < ACC(i) / 3) { continue; } // filter acceleration with no radial component
+
+      int min1 = 0, min2 = 0;
+      bool ok = true;
+      for (int j = 1; j <= gap; j ++) {
+	if (i - j > 0) {
+	  if (oneCurve[i - j].sharp_turn) { ok = false; break; }
+	  if (ACC(i - j) > ACC(i)) { ok = false; break; }
+	  if (ACC(i - j) < min1 || ! min1) { min1 = ACC(i - j); }
+	}
+	if (i + j < l) {
+	  if (oneCurve[i + j].sharp_turn) { ok = false; break; }
+	  if (ACC(i + j) > ACC(i)) { ok = false; break; }
+	  if (ACC(i + j) < min2 || ! min2) { min2 = ACC(i + j); }
+	}
+      }
+
+      if ((! ok) || (min1 > accel[i] * ratio) || (min2 > accel[i] * ratio)) { continue; }
+
+      oneCurve[i].sharp_turn = (ACC(i) > threshold2)?1:5;
+      DBG("Special point[%d]=%d (acceleration: %d - %d,%d)", i, oneCurve[i].sharp_turn, ACC(i), threshold1, threshold2);
     }
 
     // ugly workaround : adjust special points (1 & 3) that near missed an sharp angle turn

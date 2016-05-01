@@ -2074,7 +2074,7 @@ float Scenario::calc_score_misc(int i) {
     int i0 = i - 1;
     int i1 = i;
     int maxgap = params->speed_max_index_gap;
-    for (int j = index_history[i - 1] + maxgap + 1;
+    for (int j = index_history[i - 1] + maxgap;
 	 j < index_history[i] - maxgap;
 	 j ++) {
       int st = curve->getSpecialPoint(j);
