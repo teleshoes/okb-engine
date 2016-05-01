@@ -6,7 +6,7 @@ import os, sys
 import pickle
 import getopt
 
-ERR = 0.05
+ERR = 0.005
 
 def err(x):
     return max(ERR, abs(x) * ERR)
