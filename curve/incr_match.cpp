@@ -435,7 +435,7 @@ void IncrementalMatch::incrementalMatchUpdate(bool finished, float aggressive) {
     curvePreprocess2();
     QList<ScenarioType> new_candidates;
     foreach(ScenarioType s, candidates) {
-      if (s.postProcess()) {
+      if (s.postProcess(st)) {
 	new_candidates.append(s);
       }
     }

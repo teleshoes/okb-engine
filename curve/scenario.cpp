@@ -2292,7 +2292,7 @@ void Scenario::newDistance() {
   this->new_dist = new_dist;
 }
 
-bool Scenario::postProcess() {
+bool Scenario::postProcess(stats_t &st) {
   DBG("==== Postprocess: %s (error count: %d)", getNameCharPtr(), error_count);
 
   newDistance(); // evaluate improved distance
@@ -2342,7 +2342,9 @@ bool Scenario::postProcess() {
 
     if (i0 >= 0) {
       int delay = curve->getTimestamp(j + sgap) - curve->getTimestamp(j - sgap);
-      DBG("SP-info: %s #%d(%d) %d %d %d", getNameCharPtr(), i0, sp, dist, delay, curve->getSpeed(j));
+      DBG("SP-info: %s #%d(%d) %d %d %d %d",
+	  getNameCharPtr(), i0, sp, dist, delay, curve->getSpeed(j),
+	  st.st_speed);
 
       /* @todo try again :-)
       int strict_min_delay = params->strict_min_delay;
@@ -2364,7 +2366,9 @@ bool Scenario::postProcess() {
     Point key = keys->get(letter_history[i]);
     Point pt = curve->point(index);
     int dist = (int) distancep(key, pt);
-    DBG("SP-info: %s #%d(%d) %d 0 %d", getNameCharPtr(), i?-2:-1, i?-2:-1, dist, curve->getSpeed(index));
+    DBG("SP-info: %s #%d(%d) %d 0 %d %d",
+	getNameCharPtr(), i?-2:-1, i?-2:-1, dist, curve->getSpeed(index),
+	st.st_speed);
   }
 
   turn_t turn_detail[count];

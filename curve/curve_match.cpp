@@ -810,7 +810,7 @@ bool CurveMatch::match() {
       scenario.nextKey(childs, st);
       foreach(ScenarioType child, childs) {
 	if (child.isFinished()) {
-	  if (child.postProcess()) {
+	  if (child.postProcess(st)) {
 	    DBG("New candidate: %s (score=%.3f)", QSTRING2PCHAR(child.getId()), child.getScore());
 	    candidates.append(child);
 	  } else {

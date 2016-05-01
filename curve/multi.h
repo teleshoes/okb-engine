@@ -87,7 +87,7 @@ class MultiScenario {
   unsigned char* getNameCharPtr() const;
   QString getWordList();
   float getScore() const;
-  bool postProcess();
+  bool postProcess(stats_t &st);
   float getCount() const;
   bool forkLast();
   float getTempScore() const;

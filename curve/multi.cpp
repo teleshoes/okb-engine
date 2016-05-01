@@ -345,10 +345,10 @@ bool MultiScenario::forkLast() {
   return false;
 }
 
-bool MultiScenario::postProcess() {
+bool MultiScenario::postProcess(stats_t &st) {
   bool result = true;
   FOREACH_ALL_SCENARIOS(s, {
-      result &= s->postProcess();
+      result &= s->postProcess(st);
     });
 
   this->final_score = getScore();
