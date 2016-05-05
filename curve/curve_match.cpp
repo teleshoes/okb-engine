@@ -130,6 +130,11 @@ void CurveMatch::curvePreprocess1(int curve_id) {
 	  int st_value = 1 + (last_total_turn > params.turn_threshold2 ||
 			      abs(oneCurve[sharp_turn_index].turn_angle) > params.turn_threshold3);
 
+	  if (st_value == 1 && abs(oneCurve[sharp_turn_index].turn_smooth) < params.turn_threshold_st6) {
+	    st_value = 6;
+	  }
+
+
 	  int diff = sharp_turn_index - last_turn_index;
 	  if (diff <= 1) {
 	    sharp_turn_index = -1;
@@ -159,7 +164,9 @@ void CurveMatch::curvePreprocess1(int curve_id) {
 
 	    last_turn_index = sharp_turn_index;
 
-	    DBG("Special point[%d]=%d", sharp_turn_index, oneCurve[sharp_turn_index].sharp_turn);
+	    DBG("Special point[%d]=%d (last_total_turn=%d, turn_angle=%d:%d)",
+		sharp_turn_index, oneCurve[sharp_turn_index].sharp_turn,
+		last_total_turn, oneCurve[sharp_turn_index].turn_angle, oneCurve[sharp_turn_index].turn_smooth);
 
 	    sharp_turn_index = -1;
 	  }
@@ -425,10 +432,10 @@ void CurveMatch::curvePreprocess1(int curve_id) {
     int i0 = 0;
     for(int i = 0; i < l; i ++) {
       int st1 = oneCurve[i].sharp_turn;
-      if (st1 == 1 || st1 == 2) {
+      if (st1 == 1 || st1 == 2 || st1 == 6) {
 	if (i0 && (i - i0) > params.max_turn_index_gap) {
 	  int st0 = oneCurve[i0].sharp_turn;
-	  if (st0 == 1 || st0 == 2) {
+	  if (st0 == 1 || st0 == 2 || st1 == 6) {
 	    int index = 0;
 	    float dmax = 0;
 	    for(int j = i0 + 1; j < i; j ++) {
@@ -455,24 +462,6 @@ void CurveMatch::curvePreprocess1(int curve_id) {
       }
     }
 
-    // compute "normal" vector for turns (really lame algorithm)
-    for(int i = 2; i < l - 2; i ++) {
-      if (oneCurve[i].sharp_turn) {
-	int sharp_turn_index = i;
-
-	int i1 = sharp_turn_index - 1;
-	int i2 = sharp_turn_index + 1;
-	float x1 = oneCurve[i1].x - oneCurve[i1 - 1].x;
-	float y1 = oneCurve[i1].y - oneCurve[i1 - 1].y;
-	float x2 = oneCurve[i2 + 1].x - oneCurve[i2].x;
-	float y2 = oneCurve[i2 + 1].y - oneCurve[i2].y;
-	float l1 = sqrt(x1 * x1 + y1 * y1);
-	float l2 = sqrt(x2 * x2 + y2 * y2);
-	oneCurve[sharp_turn_index].normalx = 100 * (x1 / l1 - x2 / l2); // integer vs. float snafu -> don't loose too much precision
-	oneCurve[sharp_turn_index].normaly = 100 * (y1 / l1 - y2 / l2);
-      }
-    }
-
     // slow down point search
     int maxd = params.max_turn_index_gap;
     for(int i = maxd / 2; i < l - maxd / 2; i ++) {
@@ -492,6 +481,60 @@ void CurveMatch::curvePreprocess1(int curve_id) {
 	DBG("Special point[%d]=3", i);
       }
     }
+
+    // special points adjustment based on speed (ST=1 only)
+    /* @todo try again after smoothing :-)
+    for(int i = 3; i < l - 3; i ++) {
+      int st = oneCurve[i].sharp_turn;
+      if (st == 1) {
+	int speed = oneCurve[i].speed;
+	int found = -1;
+	for(int j = i - 3; j <= i + 3; j ++) {
+	  if (oneCurve[j].speed < speed) {
+	    found = j;
+	    speed = oneCurve[j].speed;
+	  }
+	}
+	if (found == i - 3 || found == i + 3) { continue; } // not a local minima
+
+	// avoid moving a special point near another one
+	if (found > 0) {
+	  for (int j = max(found - 3, 0); j <= min(found + 3, l - 1); j ++) {
+	    if (j != i && oneCurve[j].sharp_turn) { found = -1; break; }
+	  }
+	}
+
+	// do not move from obvious turns
+	if (found > 0 && abs(oneCurve[found].turn_angle) < abs(oneCurve[i].turn_angle) / 2) { found = -1; }
+
+	if (found > 0) {
+	  DBG("Special point adjustment [%d]: %d -> %d", st, i, found);
+	  oneCurve[i].sharp_turn = 0;
+	  oneCurve[found].sharp_turn = st;
+	  if (found > i) { i = found + 1; }
+	}
+      }
+    }
+    */
+
+    // compute "normal" vector for turns (really lame algorithm)
+    for(int i = 2; i < l - 2; i ++) {
+      if (oneCurve[i].sharp_turn) {
+	int sharp_turn_index = i;
+
+	int i1 = sharp_turn_index - 1;
+	int i2 = sharp_turn_index + 1;
+	float x1 = oneCurve[i1].x - oneCurve[i1 - 1].x;
+	float y1 = oneCurve[i1].y - oneCurve[i1 - 1].y;
+	float x2 = oneCurve[i2 + 1].x - oneCurve[i2].x;
+	float y2 = oneCurve[i2 + 1].y - oneCurve[i2].y;
+	float l1 = sqrt(x1 * x1 + y1 * y1);
+	float l2 = sqrt(x2 * x2 + y2 * y2);
+	oneCurve[sharp_turn_index].normalx = 100 * (x1 / l1 - x2 / l2); // integer vs. float snafu -> don't loose too much precision
+	oneCurve[sharp_turn_index].normaly = 100 * (y1 / l1 - y2 / l2);
+      }
+    }
+
   }
 
   if (end_flag) {

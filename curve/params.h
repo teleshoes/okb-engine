@@ -72,6 +72,7 @@ class Params {
   float newdist_c2;
   float newdist_c3;
   float newdist_c5;
+  float newdist_c6;
   float newdist_ctip;
   float newdist_length_bias_pow;
   float newdist_pow;
@@ -140,6 +141,7 @@ class Params {
   int turn_threshold;
   int turn_threshold2;
   int turn_threshold3;
+  int turn_threshold_st6;
   int user_dict_learn;
   int user_dict_size;
   float ut_coef;
@@ -230,6 +232,7 @@ static Params default_params = {
   0.42, // newdist_c2
   2.63, // newdist_c3
   0.67, // newdist_c5
+  1.62, // newdist_c6
   0.71, // newdist_ctip
   0.5, // newdist_length_bias_pow
   2.0, // newdist_pow
@@ -298,6 +301,7 @@ static Params default_params = {
   75, // turn_threshold
   140, // turn_threshold2
   115, // turn_threshold3
+  31, // turn_threshold_st6
   1, // user_dict_learn
   2000, // user_dict_size
   0.45, // ut_coef
@@ -382,6 +386,7 @@ void Params::toJson(QJsonObject &json) const {
   json["newdist_c2"] = newdist_c2;
   json["newdist_c3"] = newdist_c3;
   json["newdist_c5"] = newdist_c5;
+  json["newdist_c6"] = newdist_c6;
   json["newdist_ctip"] = newdist_ctip;
   json["newdist_length_bias_pow"] = newdist_length_bias_pow;
   json["newdist_pow"] = newdist_pow;
@@ -450,6 +455,7 @@ void Params::toJson(QJsonObject &json) const {
   json["turn_threshold"] = turn_threshold;
   json["turn_threshold2"] = turn_threshold2;
   json["turn_threshold3"] = turn_threshold3;
+  json["turn_threshold_st6"] = turn_threshold_st6;
   json["user_dict_learn"] = user_dict_learn;
   json["user_dict_size"] = user_dict_size;
   json["ut_coef"] = ut_coef;
@@ -536,6 +542,7 @@ Params Params::fromJson(const QJsonObject &json) {
   p.newdist_c2 = json["newdist_c2"].toDouble();
   p.newdist_c3 = json["newdist_c3"].toDouble();
   p.newdist_c5 = json["newdist_c5"].toDouble();
+  p.newdist_c6 = json["newdist_c6"].toDouble();
   p.newdist_ctip = json["newdist_ctip"].toDouble();
   p.newdist_length_bias_pow = json["newdist_length_bias_pow"].toDouble();
   p.newdist_pow = json["newdist_pow"].toDouble();
@@ -604,6 +611,7 @@ Params Params::fromJson(const QJsonObject &json) {
   p.turn_threshold = json["turn_threshold"].toDouble();
   p.turn_threshold2 = json["turn_threshold2"].toDouble();
   p.turn_threshold3 = json["turn_threshold3"].toDouble();
+  p.turn_threshold_st6 = json["turn_threshold_st6"].toDouble();
   p.user_dict_learn = json["user_dict_learn"].toDouble();
   p.user_dict_size = json["user_dict_size"].toDouble();
   p.ut_coef = json["ut_coef"].toDouble();

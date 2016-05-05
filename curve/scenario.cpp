@@ -677,26 +677,36 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<NextIn
     // look for sharp turns
     int st = curve->getSpecialPoint(index);
 
-    if (! MANDATORY_TURN(st) && last_turn_point) { st = 0; } // handle slow-down point and other types with less priority (type = 3)
+    if (st && ! MANDATORY_TURN(st) && last_turn_point) { st = 0; } // handle slow-down point and other types with less priority (type = 3)
 
     if (st > 0 && index > start_index) {
 
-      if (last_turn_point && MANDATORY_TURN(curve->getSharpTurn(last_turn_point))) {
+      if (last_turn_point && MANDATORY_TURN(curve->getSpecialPoint(last_turn_point))) {
 	// we have already encountered a sharp turn linked with next letter so we can safely ignore this one
 	break;
       }
 
-      last_turn_point = index;
-      last_turn_score = score;
+      if (st == 6 && index <= start_index + max_turn_distance) {
+	// ST=6 point may be associated with previous matching point so we need to ignore it
+	//  (this is the only case of a moveable & mandatory point)
+      } else {
 
-      if (st == 2) {
-	new_index_list.clear();
-	if (score > 0) { new_index_list << NextIndex(index, score); }
-	if (max_score_index < index && max_score > 0) { new_index_list << NextIndex(max_score_index, max_score); }
-	if (new_index_list.size() == 0) { failed = 1; }
-	finished = true;
-	break;
+	last_turn_point = index;
+	last_turn_score = score;
+
+	if (st == 2) {
+	  new_index_list.clear();
+	  if (score > 0) { new_index_list << NextIndex(index, score); }
+	  if (max_score_index < index && max_score > 0) { new_index_list << NextIndex(max_score_index, max_score); }
+	  if (new_index_list.size() == 0) { failed = 1; }
+	  finished = true;
+	  break;
+	}
       }
+    }
+
+    if (last_turn_point && MANDATORY_TURN(curve->getSharpTurn(last_turn_point)) && index > last_turn_point + max_turn_distance) {
+      break; // do not go past an unmatched mandatory point
     }
 
     step = 1;
@@ -897,7 +907,8 @@ bool Scenario::childScenarioInternal(LetterNode &childNode, QList<Scenario> &res
       bool st_found = false;
       int new_index = curve->size() - 1;
       for(int i = index + 1; i <= new_index; i ++) {
-	st_found |= (curve->getSharpTurn(i) > 0);
+	int st = curve->getSpecialPoint(i);
+	st_found |= MANDATORY_TURN(st) && (st != 6 || i > index + params->max_turn_index_gap);
       }
       if (st_found) {
 	DBG("debug [%s:%c] * =FAIL= sharp turn found before end", getNameCharPtr(), letter);
@@ -2251,7 +2262,7 @@ void Scenario::newDistance() {
   QTextStream qs(& str);
 
   float coef[10] = { 1., params->newdist_c1, params->newdist_c2, params->newdist_c3, 0., params->newdist_c5,
-		     0., 0., 0., params->newdist_ctip };
+		     params->newdist_c6, 0., 0., params->newdist_ctip };
   float exposant = params->newdist_pow;
 
   // display match-point/key distance
@@ -2267,7 +2278,7 @@ void Scenario::newDistance() {
 
     int st = curve->getSpecialPoint(index_history[i]);
 
-    if (st == 5 && i > 0 && i < count - 1) {
+    if ((st == 5 || st == 6) && i > 0 && i < count - 1) {
       Point v1 = curve->point(index_history[i + 1]) - curve->point(index_history[i - 1]);
       Point v2 = key - pt;
       dist = abs(v1.x * v2.y - v1.y * v2.x) / distancep(Point(0, 0), v1);
