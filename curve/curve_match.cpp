@@ -453,7 +453,7 @@ void CurveMatch::curvePreprocess1(int curve_id) {
       if (st1 == 1 || st1 == 2 || st1 == 6) {
 	if (i0 && (i - i0) > params.max_turn_index_gap) {
 	  int st0 = oneCurve[i0].sharp_turn;
-	  if (st0 == 1 || st0 == 2 || st1 == 6) {
+	  if (st0 == 1 || st0 == 2 || st0 == 6) {
 	    int index = 0;
 	    float dmax = 0;
 	    for(int j = i0 + 1; j < i; j ++) {
