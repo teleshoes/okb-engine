@@ -33,6 +33,20 @@ double getCPUTime() {
   return (double) usage.ru_utime.tv_sec + ((double) usage.ru_utime.tv_usec) / 1000000.0;
 }
 
+void curve_smooth(QList<CurvePoint> &curve) {
+  int l = curve.size();
+  for(int i = 2 ; i < l - 2; i ++) {
+    curve[i].smoothx = (-3 * curve[i - 2].x + 12 * curve[i - 1].x + 17 * curve[i].x + 12 * curve[i + 1].x - 3 * curve[i + 2].x)/35;
+    curve[i].smoothy = (-3 * curve[i - 2].y + 12 * curve[i - 1].y + 17 * curve[i].y + 12 * curve[i + 1].y - 3 * curve[i + 2].y)/35;
+  }
+  for(int i = 0 ; i < 2; i ++) {
+    curve[i].smoothx = curve[i].x;
+    curve[i].smoothy = curve[i].y;
+    curve[l - 1 - i].smoothx = curve[l - 1 - i].x;
+    curve[l - 1 - i].smoothy = curve[l - 1 - i].y;
+  }
+}
+
 /* --- main class for curve matching ---*/
 CurveMatch::CurveMatch() {
   loaded = false;
@@ -66,11 +80,14 @@ void CurveMatch::curvePreprocess1(int curve_id) {
 
   if (l < 2) { return; }
 
+  // apply smoothing to this curve ("smoothed" values will be in .smoothx & .smoothy attributes)
+  curve_smooth(oneCurve);
+
   for (int i = 1; i < l - 1; i ++) {
-    oneCurve[i].turn_angle = (int) int(angle(oneCurve[i].x - oneCurve[i-1].x,
-					     oneCurve[i].y - oneCurve[i-1].y,
-					     oneCurve[i+1].x - oneCurve[i].x,
-					     oneCurve[i+1].y - oneCurve[i].y) * 180 / M_PI + 0.5); // degrees
+    oneCurve[i].turn_angle = (int) int(angle(oneCurve[i].smoothx - oneCurve[i-1].smoothx,
+					     oneCurve[i].smoothy - oneCurve[i-1].smoothy,
+					     oneCurve[i+1].smoothx - oneCurve[i].smoothx,
+					     oneCurve[i+1].smoothy - oneCurve[i].smoothy) * 180 / M_PI + 0.5); // degrees
 
 
   }
@@ -195,7 +212,7 @@ void CurveMatch::curvePreprocess1(int curve_id) {
   int ts[l], len[l];
   len[0] = 0;
   for(int i = 1; i < l; i ++) {
-    len[i] = len[i - 1] + distance(oneCurve[i - 1].x, oneCurve[i - 1].y, oneCurve[i].x, oneCurve[i].y);
+    len[i] = len[i - 1] + distance(oneCurve[i - 1].smoothx, oneCurve[i - 1].smoothy, oneCurve[i].smoothx, oneCurve[i].smoothy);
   }
   for(int i = 0; i < l; i ++) {
     int i1 = max(0, i - 5);
@@ -210,8 +227,8 @@ void CurveMatch::curvePreprocess1(int curve_id) {
   for(int i = 0; i < l - 1; i ++) {
     float dt = ts[i + 1] - ts[i];
     if (dt > 0) {
-      xspeed[i] = (oneCurve[i + 1].x - oneCurve[i].x) / dt;
-      yspeed[i] = (oneCurve[i + 1].y - oneCurve[i].y) / dt;
+      xspeed[i] = (oneCurve[i + 1].smoothx - oneCurve[i].smoothx) / dt;
+      yspeed[i] = (oneCurve[i + 1].smoothy - oneCurve[i].smoothy) / dt;
     } else if (i == 0) {
       xspeed[i] = yspeed[i] = 0;
     } else {
@@ -232,7 +249,8 @@ void CurveMatch::curvePreprocess1(int curve_id) {
     while (i2 < l - 1 && oneCurve[i2].t < oneCurve[i].t + time_interval) { i2 ++; }
     float speed = 0;
     if (i2 > i1 && oneCurve[i2].t > oneCurve[i1].t) {
-      speed = distance(oneCurve[i1].x, oneCurve[i1].y, oneCurve[i2].x, oneCurve[i2].y) / (oneCurve[i2].t - oneCurve[i1].t);
+      speed = distance(oneCurve[i1].smoothx, oneCurve[i1].smoothy,
+		       oneCurve[i2].smoothx, oneCurve[i2].smoothy) / (oneCurve[i2].t - oneCurve[i1].t);
     } else if (i > 0) {
       speed = (float) oneCurve[i - 1].speed / 1000;
     }
@@ -524,10 +542,10 @@ void CurveMatch::curvePreprocess1(int curve_id) {
 
 	int i1 = sharp_turn_index - 1;
 	int i2 = sharp_turn_index + 1;
-	float x1 = oneCurve[i1].x - oneCurve[i1 - 1].x;
-	float y1 = oneCurve[i1].y - oneCurve[i1 - 1].y;
-	float x2 = oneCurve[i2 + 1].x - oneCurve[i2].x;
-	float y2 = oneCurve[i2 + 1].y - oneCurve[i2].y;
+	float x1 = oneCurve[i1].smoothx - oneCurve[i1 - 1].smoothx;
+	float y1 = oneCurve[i1].smoothy - oneCurve[i1 - 1].smoothy;
+	float x2 = oneCurve[i2 + 1].smoothx - oneCurve[i2].smoothx;
+	float y2 = oneCurve[i2 + 1].smoothy - oneCurve[i2].smoothy;
 	float l1 = sqrt(x1 * x1 + y1 * y1);
 	float l2 = sqrt(x2 * x2 + y2 * y2);
 	oneCurve[sharp_turn_index].normalx = 100 * (x1 / l1 - x2 / l2); // integer vs. float snafu -> don't loose too much precision

@@ -105,8 +105,8 @@ void QuickCurve::setCurve(QList<CurvePoint> &curve, int curve_id, int min_length
     if (p.curve_id != curve_id) { continue; }
     if (p.end_marker) { finished = true; break; }
 
-    x[j] = p.x;
-    y[j] = p.y;
+    x[j] = p.smoothx?p.smoothx:p.x;
+    y[j] = p.smoothy?p.smoothy:p.y;
     turn[j] = p.turn_angle;
     turnsmooth[j] = p.turn_smooth;
     sharpturn[j] = p.sharp_turn;
@@ -238,6 +238,7 @@ CurvePoint::CurvePoint(Point p, int curve_id, int t, int l, bool dummy) : Point(
   this -> d2x = 0;
   this -> d2y = 0;
   this -> lac = 0;
+  this -> smoothx = this -> smoothy = 0;
 }
 
 bool CurvePoint::operator<(const CurvePoint &other) const {
@@ -264,6 +265,10 @@ void CurvePoint::toJson(QJsonObject &json) const {
       json["normaly" ] = normaly;
     }
     if (dummy) { json["dummy"] = 1; }
+    if (smoothx) {
+      json["smoothx"] = smoothx;
+      json["smoothy"] = smoothy;
+    }
   }
 }
 

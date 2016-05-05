@@ -156,8 +156,8 @@ def mkimg(scale = 1, xsize = None, scenario = None, base64 = True):
                 draw.ellipse((x - r, y - r, x + r, y + r), fill="#E08000" if i else "#FFC000")
 
         for pt in curve:
-            x = int(pt['x'] * scale) - xmin
-            y = int(pt['y'] * scale) - ymin
+            x = int(pt.get('smoothx', pt['x']) * scale) - xmin
+            y = int(pt.get('smoothy', pt['y']) * scale) - ymin
             if lastx is not None:
                 if pt['sharp_turn'] and not scenario:
                     s = int(50 * scale)

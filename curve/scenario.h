@@ -53,6 +53,7 @@ class CurvePoint : public Point {
   bool dummy;
   bool end_marker;
   int d2x, d2y, lac;
+  int smoothx, smoothy;
 };
 
 class EndMarker : public CurvePoint {
