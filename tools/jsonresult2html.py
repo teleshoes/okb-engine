@@ -27,6 +27,7 @@ def fail():
     html.head.title(title)
     body = html.body
     body.h3(title)
+    print(html)
     exit(0)
 
 js = json.loads(txt)
@@ -53,7 +54,7 @@ for i in range(0, curve_count):
 
 # curve info
 max_speed = max([ pt['speed'] for pt in curves_mux if 'speed' in pt ]) * 1.1
-if not max_speed: fail()
+if not max_speed: max_speed = 1
 duration = max([ pt['t'] for pt in curves_mux if 't' in pt ] + [ 1 ])
 for i in range(0, curve_count):
     curve = curves[i]

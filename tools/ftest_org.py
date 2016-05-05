@@ -203,8 +203,12 @@ if __name__ == '__main__':
         count += 1
         if ok: ok_count += 1
 
+        curve = result["input"]["curve"]
         record.append(dict(id = id, ts = ts, context = context, candidates = candidates,
-                           expected = word, lang = lang, speed = speed, old_guess = guess))
+                           expected = word, lang = lang, speed = speed, old_guess = guess,
+                           speed_max = max([ c.get("speed", 0) for c in curve ]),
+                           st1 = len([ 1 for c in curve if c.get("sharp_turn", 0) == 1 ]),
+                           st2 = len([ 1 for c in curve if c.get("sharp_turn", 0) == 2 ]) ))
 
         if ok: rank = 0
         else:
@@ -214,7 +218,7 @@ if __name__ == '__main__':
         if rank >= 0: found_count += 1
 
         if ok: st = "=OK="
-        elif rank > 0: st = "*FAIL*"
+        elif rank > 0: st = "*FAIL* (%s)" % ordered_guesses[0]
         else: st = "NOT FOUND"
 
         if not candidates:

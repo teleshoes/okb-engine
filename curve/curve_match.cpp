@@ -64,7 +64,7 @@ void CurveMatch::curvePreprocess1(int curve_id) {
   }
   int l = oneCurve.size();
 
-  if (l < 2) { st.st_speed = 0; return; }
+  if (l < 2) { return; }
 
   for (int i = 1; i < l - 1; i ++) {
     oneCurve[i].turn_angle = (int) int(angle(oneCurve[i].x - oneCurve[i-1].x,
@@ -503,8 +503,6 @@ void CurveMatch::curvePreprocess1(int curve_id) {
     curve[idxmap[i]] = oneCurve[i];
   }
 
-  // average speed (the simplest and rightest way to get it)
-  st.st_speed = 1000.0 * len[l - 1] / ts[l - 1];
 }
 
 void CurveMatch::curvePreprocess2() {
@@ -520,7 +518,8 @@ void CurveMatch::curvePreprocess2() {
     st.st_special += (curve[i].sharp_turn > 0);
   }
 
-  /* check for straight line */
+  /* check for straight line & compute speed */
+  st.st_speed = 0;
   float sc1 = 0, sc2 = 0;
   int total = 0;
   for (int i = 0; i < curve_count; i ++) {
@@ -529,6 +528,13 @@ void CurveMatch::curvePreprocess2() {
       if (curve[j].curve_id != i) { continue; }
       indexes.append(j);
     }
+
+    int i0 = indexes.first();
+    int i1 = indexes.last();
+    if (curve[i1].t > curve[i0].t) {
+      st.st_speed += 1000.0 * curve[i1].length / (curve[i1].t - curve[i0].t);
+    }
+
     for(int k = 0; k < indexes.size(); k ++) {
       int j = indexes[k];
       int turn = curve[j].turn_smooth;
