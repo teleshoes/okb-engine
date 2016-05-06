@@ -93,9 +93,10 @@ def log1(txt):
         f.write(txt)
         f.write("\n")
 
-def run1(json_str, lang, full = True):
+def run1(json_str, lang, nodebug = False, full = True):
     opts = re.split('\s+', os.getenv('CLI_OPTS', "-a 1"))  # by default test with incremental mode (more representative)
     opts = [ x for x in opts if x ]
+    if nodebug: opts = [ "-g" ] + opts
     cmd = [ CLI ] + opts + [ os.path.join(TRE_DIR, "%s%s.tre" % (lang, "-full" if full else "")) ]
 
     sp = subprocess.Popen(cmd, stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
@@ -186,7 +187,7 @@ def score1(json_str, expected, typ):
 def save(fname, content):
     with open(fname, 'w') as f: f.write(content)
 
-def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, silent = False, dump = None):
+def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, silent = False, dump = None, nodebug = False):
     total, n = 0.0, 0
     total_cpu = 0
     runall = []
@@ -200,7 +201,7 @@ def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, s
         sys.stdout.flush()
         json_in2 = update_json(json_in, params)
         log1(">>>> " + json_in2)
-        runall.append((key, run1, [json_in2, lang ]))
+        runall.append((key, run1, [json_in2, lang, nodebug ]))
         if dump:
             save(os.path.join(dump, "%s.in" % key), json_in2)
 
@@ -244,7 +245,7 @@ def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, s
 def optim(pname, params, tests, typ):
     value = value0 = params[pname]["value"]
     min, max, type = params[pname]["min"], params[pname]["max"], params[pname]["type"]
-    score0, _ignored_ = run_all(tests, params, typ)
+    score0, _ignored_ = run_all(tests, params, typ, nodebug = True)
     print("Optim: %s (value=%s, score=%s)" % (pname, value0, score0))
 
     scores = [ (value, score0) ]
@@ -260,7 +261,7 @@ def optim(pname, params, tests, typ):
             if new_value < min or new_value > max: break
 
             params[pname]["value"] = new_value
-            score, _ignored_ = run_all(tests, params, typ)
+            score, _ignored_ = run_all(tests, params, typ, nodebug = True)
             if score > last_score: bad_count = 0
             else: bad_count += 1
 
@@ -327,13 +328,14 @@ def run_optim(params, typ, listpara, p_include, p_exclude, param_file):
 
     print("===== Reference run =====")
     detail0 = dict()
-    score, _ignored_ = run_all(tests, params, typ, fail_on_bad_score = True, return_dict = detail0)
+    score, _ignored_ = run_all(tests, params, typ, fail_on_bad_score = True, return_dict = detail0, nodebug = True)
     max_score = score0 = score
     max_params = copy.deepcopy(params)
     print()
 
     changed = True
     it = 0
+    all_params = set()
     while changed:
         it += 1
         changed = False
@@ -344,6 +346,8 @@ def run_optim(params, typ, listpara, p_include, p_exclude, param_file):
             if p_include and not re.match(p_include, p): continue
             if p_exclude and re.match(p_exclude, p): continue
             # why ? if not params[p]["auto"] and not p_include: continue
+
+            all_params.add(p)
 
             print("===== Optimizing parameter '%s' =====" % p)
             score = optim(p, params, tests, typ)
@@ -369,9 +373,15 @@ def run_optim(params, typ, listpara, p_include, p_exclude, param_file):
                                    for p, v in sorted(max_params.items())
                                    if params0[p] != v ] + [ "Score: %.3f -> %.3f" % (score0, max_score) ])
 
+    if len(all_params) == 1:
+        p = all_params.pop()
+        print("=update %s:%s %.3f -> %.3f [%4f] %s" %
+              (typ, p, params0[p]["value"], max_params[p]["value"],
+               max_score - score0, "OK" if params0[p] != max_params[p] else "-"))
+
     with open(OUT, "a") as f:
         detail_max = dict()
-        run_all(tests, params, typ, return_dict = detail_max)
+        run_all(tests, params, typ, return_dict = detail_max, nodebug=True)
         fcntl.flock(f, fcntl.LOCK_EX)
         f.write('=' * 70 + '\n')
         f.write("Score type: %s - Time: [%s] - Duration: %d - Iterations: %d\n\n" % (typ, time.ctime(), int(time.time() - start), it))

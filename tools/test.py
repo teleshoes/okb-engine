@@ -48,7 +48,7 @@ class Color:
         if self.fname: pickle.dump(self.db, open(self.fname, 'wb'))
 
 def usage():
-    print("Usage: ", os.path.basename(__file__), " [-d <dump dir>] [-n] [<compare file>]")
+    print("Usage: ", os.path.basename(__file__), " [-d <dump dir>] [-n] [-g] [-t <types>]  [<compare file>]")
     exit(1)
 
 if __name__ == "__main__":
@@ -56,12 +56,13 @@ if __name__ == "__main__":
 
     dump_dir = None
     try:
-        opts, args =  getopt.getopt(sys.argv[1:], 'd:nt:')
+        opts, args =  getopt.getopt(sys.argv[1:], 'd:nt:g')
     except:
         usage()
 
     listpara = None
     save = True
+    nodebug = False
     typs = ["max", "max2", "good", "good2", "guess" ]
 
     for o, a in opts:
@@ -71,6 +72,8 @@ if __name__ == "__main__":
             save = False
         elif o == "-t":
             typs = a.split(',')
+        elif o == "-g":
+            nodebug = True
         else:
             print("Bad option: %s" % o)
             usage()
@@ -90,7 +93,8 @@ if __name__ == "__main__":
 
     for typ in typs:
         detail = dict()
-        score, cputime = optim.run_all(tests, params, typ, fail_on_bad_score = False, return_dict = detail, silent = True, dump = dump_dir)
+        score, cputime = optim.run_all(tests, params, typ, fail_on_bad_score = False, return_dict = detail,
+                                       silent = True, dump = dump_dir, nodebug = nodebug)
 
         print("### score", c.var(typ, score, "score.%s" % typ, noreg = True),
               ' '.join([ c.var(w, s, "word.%s.%s" % (typ, w))
