@@ -92,6 +92,7 @@ defparams = [
     [ "sharp_turn_penalty", float, 0, 1 ],
     [ "slow_down_ratio", float, 1, 2 ],
     [ "small_segment_min_score", float, 0.01, 0.9 ],
+    [ "smooth", int ],
     [ "sp_bad", float, 0, 1 ],
     [ "speed_max_index_gap", int, 1, 6 ],
     [ "speed_min_angle", int, 1, 45 ],
@@ -139,7 +140,7 @@ defparams = [
     [ "turn_threshold", int, 10, 85 ],
     [ "turn_threshold2", int, 120, 179 ],
     [ "turn_threshold3", int, 90, 145 ],
-    [ "turn_threshold_st6", int, 0, 60 ],
+    [ "turn_threshold_st6", int ],  # not tunable atm: [ 0, 60 ]
     [ "user_dict_learn", int ],
     [ "user_dict_size", int ],
     [ "ut_coef", float, 0.1, 0.9 ],

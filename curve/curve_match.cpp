@@ -81,7 +81,14 @@ void CurveMatch::curvePreprocess1(int curve_id) {
   if (l < 2) { return; }
 
   // apply smoothing to this curve ("smoothed" values will be in .smoothx & .smoothy attributes)
-  curve_smooth(oneCurve);
+  if (params.smooth) {
+    curve_smooth(oneCurve);
+  } else {
+    for(int i = 0; i < l; i ++) {
+      oneCurve[i].smoothx = oneCurve[i].x;
+      oneCurve[i].smoothy = oneCurve[i].y;
+    }
+  }
 
   for (int i = 1; i < l - 1; i ++) {
     oneCurve[i].turn_angle = (int) int(angle(oneCurve[i].smoothx - oneCurve[i-1].smoothx,
@@ -151,7 +158,8 @@ void CurveMatch::curvePreprocess1(int curve_id) {
 	    st_value = 6;
 	  }
 
-
+	  // the code below does not handle ST=6 points properly
+	  // cf. (unfinished) example in commit b1d9c03d72af34ff946c097f57abc8e54f254356
 	  int diff = sharp_turn_index - last_turn_index;
 	  if (diff <= 1) {
 	    sharp_turn_index = -1;
