@@ -595,6 +595,7 @@ void CurveMatch::curvePreprocess2() {
     QList<int> indexes;
     for (int j = 0; j < curve.size(); j ++) {
       if (curve[j].curve_id != i) { continue; }
+      if (curve[j].end_marker) { continue; }
       indexes.append(j);
     }
 
