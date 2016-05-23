@@ -5,7 +5,7 @@
 
 import os
 import cfslm, cdb
-
+import re
 
 # python plugins detailed logging
 if os.getenv("NGRAM_DEBUG", None):
@@ -54,26 +54,31 @@ class FslmCdbBackend:
         self.dirty = False
 
     def get_keys(self):
+        """ get all keys in the database (n-grams, words, clusters, parameters all mixed-up) """
         self._load()
         return cdb.get_keys()
 
     def save(self):
+        """ save database to disk storage """
         if self.dirty and self.loaded: cdb.save()
         self.dirty = False
 
     def clear(self):
+        """ remove database from memory (do not clear disk storage) """
         if self.dirty: self.save()
         cdb.clear()
         cfslm.clear()
         self.loaded = False
 
     def set_param(self, key, value):
+        """ sets a parameter """
         if self.readonly: return
         cdb.set_string("param_%s" % key, str(value))
         self.params[key] = value
         self.dirty = True
 
     def get_param(self, key, default_value = None, cast = None):
+        """ get a parameter value """
         self._load()
         if key in self.params: return self.params[key]
         value = cdb.get_string("param_%s" % key)
@@ -84,6 +89,7 @@ class FslmCdbBackend:
 
 
     def get_gram(self, ids):
+        """ get a n-gram metadata (returns a tuple with stock count, user count, user replace cout, and last modification time """
         ng = list(reversed(ids))
         while ng and ng[0] == -1: ng.pop(0)
         if not ng: return None
@@ -100,6 +106,7 @@ class FslmCdbBackend:
 
 
     def set_gram(self, ids, gram):
+        """ sets a n-gram metadata (same format as returned by get_ngram function) """
         if self.readonly: return
         self.dirty = True
 
@@ -108,6 +115,7 @@ class FslmCdbBackend:
 
 
     def add_word(self, word):
+        """ add a new user learned word """
         if self.readonly: return
         self._load()
         self.dirty = True
@@ -147,18 +155,47 @@ class FslmCdbBackend:
 
 
     def get_cluster_by_id(self, id):
-        # used only for testing. no caching
+        """ get cluster information for a given cluster id """
         return cdb.get_string("cluster-%d" % id)
 
     def get_word_by_id(self, id):
-        # used only for testing. no caching
+        """ get word """
         return cdb.get_word_by_id(int(id))
 
     def purge(self, min_count, min_day):
+        """ purge old entries """
         if self.readonly: return
         self._load()
         self.dirty = True
         cdb.purge_grams(float(min_count), int(min_day))
 
     def close(self):
+        """ close database """
         self.clear()
+
+    def factory_reset(self):
+        """ remove all user learned information (n-grams and new words) """
+        self._load()
+
+        update = False
+        lst = cdb.get_keys()
+        for key in lst:
+            if key.startswith("param_"):
+                continue  # keep parameters
+            elif key.startswith("cluster-"):
+                continue  # keep clusters
+            elif re.match(r'^[0-9\-]+:[0-9\-]+:[0-9\-]+$', key):
+                cdb.rm(key)  # remove all learned n-grams
+                update = True
+            elif re.match(r'^[\w\-\']+$', key):
+                words = cdb.get_words(key)
+                for word, info in list(words.items()):
+                    if info[0] >= 1000000:  # stock words have a lower ID
+                        update = True
+                        del words[word]  # remove user learned words
+                if words:
+                    cdb.set_words(key, words)
+                else:
+                    cdb.rm(key)
+
+        if update: cdb.save()
