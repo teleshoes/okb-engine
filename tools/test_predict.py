@@ -8,7 +8,7 @@ mydir = os.path.dirname(os.path.abspath(__file__))
 libdir = os.path.join(mydir, '..')
 sys.path.insert(0, libdir)
 
-import predict
+import language_model, backend
 
 learn = replace = False
 lang = "en"
@@ -31,11 +31,9 @@ for o, a in opts:
         print("Bad option: %s" % o)
         exit(1)
 
-p = predict.Predict()
 if not db_file: db_file = os.path.join(mydir, "../db/predict-%s.db" % lang)
-
-p.set_dbfile(db_file)
-p.load_db()
+db = backend.FslmCdbBackend(db_file)
+lm = language_model.LanguageModel(db, debug = True, dummy = False)
 
 def run(words):
     global p
@@ -46,28 +44,20 @@ def run(words):
 
     last_word_choices = words.pop(-1).split('+')  # allow wordA+wordB for last word
 
-    tmp = ' '.join(words)
-    p.update_surrounding(tmp, len(tmp))
-    p.update_preedit("")
-    p._update_last_words()
-    print("Context:", p.last_words, p.sentence_pos)
+    all_details = dict()
+    result = lm.guess(words, dict([ (w, 1) for w in last_word_choices ]), verbose = True, expected_test = last_word_choices[0],
+                      details_out = all_details)
 
-    result = p._get_all_predict_scores(last_word_choices, p.last_words)
+    print("Result: %s/%s" % (result[0], last_word_choices[0]))
 
     for word in last_word_choices:
-        (score, details) = result[word] if word in result else (0, dict())
-
+        details = all_details[word]
+        score = details["score"]
         print("%15s :" % word, score, re.sub(r'(\d\.0*\d\d)\d+', lambda m: m.group(1), str(details)))
 
-        if "clusters" in details:
-            for word1, cluster in reversed(list(zip(reversed(words + [word]), details["clusters"]))):
-                print(word1, p.db.get_cluster_by_id(cluster))
-
-    if replace:
-        if len(last_word_choices) < 2: raise Exception("You need at leart 2 words choices (use '+' separator)")
-        p.replace_word(last_word_choices[1], last_word_choices[0], p.last_words)
-    elif learn:
-        p._learn(True, last_word_choices[0], p.last_words)  # learn first word if multiple choices
+    if learn:
+        lm.learn(True, last_word_choices[0], list(reversed(words)))  # learn first word if multiple choices
+        # @todo handle replace
 
     print()
 
@@ -109,6 +99,6 @@ else:
             run(words)
 
 if learn or replace:
-    print("Learn history:", p.learn_history)
-    p._commit_learn(commit_all = True)
-    p.save_db()
+    print("Learn history:", lm._learn_history)
+    lm.close()
+    db.close()

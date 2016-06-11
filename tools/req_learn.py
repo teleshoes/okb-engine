@@ -45,7 +45,7 @@ def id2w(id):
     return word
 
 
-for key in lst:
+for key in sorted(lst):
     if not re.match(r'^[0-9\-]+:[0-9\-]+:[0-9\-]+$', key): continue
 
     key = [ int(x) for x in key.split(':') ]
@@ -54,7 +54,7 @@ for key in lst:
 
     gr1 = db.get_gram(key)
     gr2 = db.get_gram(total_key)
-    if not gr1 and not gr2: continue
+    if not gr1 or not gr2: continue
 
     (stock_count, user_count, user_replace, last_time) = gr1
     (total_stock_count, total_user_count, dummy1, dummy2) = gr2

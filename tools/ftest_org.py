@@ -218,8 +218,8 @@ if __name__ == '__main__':
         if rank >= 0: found_count += 1
 
         if ok: st = "=OK="
-        elif rank > 0: st = "*FAIL* (%s)" % ordered_guesses[0]
-        else: st = "NOT FOUND"
+        elif rank > 0: st = "*FAIL* (%s:%d)" % (ordered_guesses[0], rank)
+        else: st = "*FAIL* NOT-FOUND"
 
         if not candidates:
             gap = 0
