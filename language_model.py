@@ -150,7 +150,7 @@ class LanguageModel:
             for i in range(1, 4):
                 rev_wi_context = list(reversed(wi_context))[0:i]
                 ids = [ c.id for c in rev_wi_context ]
-                ids.extend( [ -1 ] * (3 - i) )  # pad key to 3 elements
+                ids.extend( [ -1 ] * (3 - len(ids)) )  # pad key to 3 elements
 
                 id_num = ids
                 id_den = [ -2 ] + ids[1:]  # #TOTAL tag

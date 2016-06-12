@@ -122,8 +122,10 @@ def play_all(records, tools, backtrack = False, verbose = True, mock_time = Fals
                       (t["context"], guesses[0] if guesses else "?", t["expected"], ("=OK=" if ok else "*FAIL*")))
 
             if learn:
+                replaces = guesses[0] if not ok and guesses and learn_replace else None
+                tools.log("Learn:", t["context"], exp, ("{%s}" % replaces) if replaces else "")
                 lm.learn(True, exp, list(reversed(t["context"])),
-                         replaces = guesses[0] if not ok and guesses and learn_replace else None)
+                         replaces = replaces)
                 if count % 50 == 0: lm.cleanup(force_flush = True)
 
             if backtrack:
@@ -194,7 +196,7 @@ if __name__ == "__main__":
         elif o == "-r": db_reset = True
         elif o == "-m": mock_time = True
         elif o == "-c": repeat = int(a)
-        elif o == "-R": learn = learn_value = True
+        elif o == "-R": learn = learn_replace = True
         elif o == "-h": usage(); exit(0)
         else: print("Bad option: %s", o); usage(); exit(1)
 
