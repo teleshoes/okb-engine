@@ -592,8 +592,9 @@ class LanguageModel:
                 predict_scores[c] = (- self.cf("p2_score_coarse", 0.015, float), "coarse")
 
         # --- prediction score evaluation (user) ---
+        user_stats = dict()
+        max_score = ""
         for c in candidates:
-            first = True
             for s_id in [ "s3", "s2", "s1" ]:
                 wi_list = candidates[c][1]
                 if not wi_list: continue
@@ -606,26 +607,43 @@ class LanguageModel:
                 user_count *= coef_age
                 user_replace *= coef_age
 
-                if first and user_replace > user_count and user_replace > 0.5:
+                if user_replace > user_count and user_replace > 0.5:
                     # negative learning
-                    predict_scores[c] = (- self.cf("p2_learn_negative", 0.1, float), "learn-")
+                    predict_scores[c] = (- self.cf("p2_learn_negative", 0.01, float), "learn-:%s" % s_id)
                     break
 
                 if current_day - last_time > self.cf("p2_forget", 90, int): continue
                 if user_count < 0.5: continue
 
-                # positive learning
-                learn_value = -1
+                if s_id < max_score:
+                    break
+                elif s_id > max_score:
+                    max_score = s_id
+                    user_stats = dict()
+
+                user_stats[c] = (user_count, user_replace)
+
+        # positive learning
+        def user_score(x):
+            return user_stats[x][0] - user_stats[x][1]
+
+        lst = sorted(user_stats.keys(), key = user_score, reverse = True)
+        if lst:
+            s_id = max_score
+            max_user_score = user_score(lst[0])
+            for c in user_stats:
+                (user_count, user_replace) = user_stats[c]
                 if s_id == "s1":
                     if user_count > self.cf("p2_learn_s1_threshold", 5, int): learn_value = 0
                     else: learn_value = - self.cf("p2_learn_s1", 0.002, float)
                 else:
                     if user_count > self.cf("p2_learn_s23_threshold", 5, int) \
-                       and user_replace * self.cf("p2_learn_s23_ratio", 5, int) < user_count:
+                       and user_replace * self.cf("p2_learn_s23_ratio", 5, int) < user_count \
+                       and user_score(c) > max_user_score / self.cf("p2_learn_score_ratio", 4, int):
                         learn_value = self.cf("p2_learn_s23", 0.01, float)
                     else: learn_value = 0
 
-                predict_scores[c] = (max(predict_scores[c][0], learn_value), "L-%s:%.4f" % (s_id, learn_value))
+                predict_scores[c] = (max(predict_scores[c][0], learn_value), "L+%s:%.4f" % (s_id, learn_value))
 
                 break  # simple backoff
 
