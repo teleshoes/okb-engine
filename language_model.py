@@ -8,6 +8,7 @@ import re
 import unicodedata
 import math
 
+
 def word2letters(word):
     letters = ''.join(c for c in unicodedata.normalize('NFD', word.lower()) if unicodedata.category(c) != 'Mn')
     letters = re.sub(r'[^a-z]', '', letters.lower())
@@ -53,8 +54,12 @@ class WordInfo:
         self.bad_caps = bad_caps
 
     def __str__(self):
+        cstr = "{%s}" % (' '.join([ "%s:%s" % (x, str(y)) for x, y in self.count.items() ])) if self.count else ""
         return "[WordInfo: %s (%d:%d) %s %s %s]" % (self.word, self.id, self.cluster_id,
-                                                    self.displayed_word or "-", self.count or "", "[BC]" if self.bad_caps else "")
+                                                    self.displayed_word or "-", cstr, "[BC]" if self.bad_caps else "")
+
+    def clone(self):
+        return WordInfo(self.word, self.id, self.cluster_id, self.displayed_word, self.ts, self.bad_caps)
 
 class Count:
     def __init__(self, *params):
@@ -344,6 +349,10 @@ class LanguageModel:
 
         count.pop("c1", None)  # c1 counts are useless
 
+        # self.debug("_compute_count", ":".join([ w.word for w in wi_context[-3:] ]),
+        #            " + ".join([ str(x) for x in wi_context ]),
+        #            "->", ' '.join([ "%s:%s" % (x, str(y)) for x,y in count.items() ]))
+
         return count
 
 
@@ -355,6 +364,7 @@ class LanguageModel:
 
         if key in self._cache:
             wi_list = self._cache[key]
+            wi_list = [ x.clone() for x in wi_list ] if wi_list else None
         else:
             wi_list = self._word2wi(word, first_word = first, create = create, uncapitalized = uncapitalized)
             self._cache[key] = wi_list
@@ -370,7 +380,8 @@ class LanguageModel:
                 if key2 in self._cache:
                     wi.count = self._cache[key2]
                 else:
-                    wi.count = self._cache[key2] = self._compute_count(wi_context)
+                    wi.count = self._compute_count(wi_context)
+                    self._cache[key2] = wi.count
 
         return wi_list
 
@@ -527,13 +538,17 @@ class LanguageModel:
             all_coefs[c] = dict()
             for score_id in LanguageModel.ALL_SCORES:
                 coef = 1.0
+                found = False
                 for wi in wi_list:
                     if wi.count and score_id in wi.count and wi.count[score_id].count > 0:
-                        coef *= ((wi.count["coef_wc"] if score_id[0] == 'c' else 1.0) *
-                                 wi.count[score_id].count / wi.count[score_id].total_count)
-                    else: coef = 0
-                coef = coef ** (1 / len(wi_list))
+                        coef1 = ((wi.count["coef_wc"] if score_id[0] == 'c' else 1.0) *
+                                  wi.count[score_id].count / wi.count[score_id].total_count)
+                        found = True
+                    else: coef1 = 1E-6  # arbitrary (small) value
+                    coef *= coef1
+                if not found: coef = 0
                 if coef > 0:
+                    coef = coef ** (1 / len(wi_list))
                     if score_id not in max_coef or max_coef[score_id][0] < coef:
                         max_coef[score_id] = (coef, c)
                 all_coefs[c][score_id] = coef
@@ -569,7 +584,7 @@ class LanguageModel:
             for _ in range(2):
                 green_list.sort(key = lambda x:  (score_f(x), x), reverse = True)  # the tuple ensures repeatable results
                 p2_score_fine = self.cf("p2_score_fine", 0.005, float)
-                self.debug("green list", *green_list)
+                self.debug("green list", str(green_list))
                 c0 = green_list[0]
                 if c0 == last_c0: break
                 last_c0 = c0
@@ -790,12 +805,11 @@ class LanguageModel:
 
         ctx0 = h0["context"][-3:]
         ctx1 = (h1["context"] + [ h1["guess"] ])[-3:]
-        self.debug("backtrack: diff", ' '.join(ctx0), ' ' .join(ctx1))
-        if ' '.join(ctx0) != ' ' .join(ctx1): return
+        self.debug("backtrack: context match check", ctx0, ctx1)
+        if ' '.join(ctx0).lower() != ' ' .join(ctx1).lower(): return
 
         max_count = self.cf("backtrack_max", 4, int)
-        candidates = dict()
-        context = h1["context"]  # @todo should be ctx1 ?
+        context = h1["context"]
 
         expected_test = None
         lc0 = set(sorted(h0["candidates"], key = lambda x: h0["candidates"][x], reverse = True)[:max_count] + [ h0["guess"] ])
@@ -804,19 +818,24 @@ class LanguageModel:
 
         self.log("Backtrack: ID=[%s] %s %s + %s" % (correlation_id, context, lc1, lc0))
 
+        candidates = dict()
         curve_scores = dict()
         for c0 in lc0:
             for c1 in lc1:
                 id = "%s %s" % (c1, c0)
-                candidates[id] = [c1, c0]
-
-                curve_scores[id] = [ h1["candidates"].get(c1, 0), h0["candidates"].get(c0, 0) ]
-
-                if c0 == h0["guess"] and c1 == h1["guess"]: reference_id = id
 
                 if h1["expected_test"] and h0["expected_test"] \
                    and c1 == h1["expected_test"] and c0 == h0["expected_test"]:
                     expected_test = id
+
+                curve_scores[id] = [ h1["candidates"].get(c1, 0), h0["candidates"].get(c0, 0) ]
+
+                if c0 == h0["guess"] and c1 == h1["guess"]: reference_id = id
+                elif c1 == h1["guess"]: continue  # keeping the same N-1 word would be redundant
+
+                candidates[id] = [c1, c0]
+
+        lc1.remove(h1["guess"])
 
         wi_lists = self._get_words(candidates, context, get_count = True)
         if not len(wi_lists): return
@@ -830,13 +849,26 @@ class LanguageModel:
 
         guess = result[0]
 
+        w1_new = candidates[guess][0]
+        w0_new = candidates[guess][1]
+        w1_old = h1["guess"]
+        w0_old = h0["guess"]
+
+        if guess == reference_id:
+            self.log("No backtracking candidate")
+        else:
+            et_message = ""
+            if expected_test: et_message = "<%s>" % ("GOOD" if guess == expected_test else "BAD")
+            self.log("Backtracking candidate: %s {%s %s:%.3f}=>{%s %s:%.3f} %s"
+                     % (context,
+                        w1_old, w0_old, scores[reference_id]["score"],
+                        w1_new, w0_new, scores[guess]["score"],
+                        et_message))
+
+
         if scores[guess]["score"] > scores[reference_id]["score"] + self.cf("backtrack_threshold", 0.05, float):
             # @todo update learning
             # @todo store undo information
-            w1_new = candidates[guess][0]
-            w0_new = candidates[guess][1]
-            w1_old = h1["guess"]
-            w0_old = h0["guess"]
 
             self._history = []
             self.log("==> Backtracking activated: %s {%s %s}=>{%s %s}" % (context, w1_old, w0_old, w1_new, w0_new))

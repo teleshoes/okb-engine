@@ -61,15 +61,25 @@ def play_all(records, tools, backtrack = False, verbose = True, mock_time = Fals
         if db_reset: db.factory_reset()
         lm = language_model.LanguageModel(db, tools = tools, debug = verbose, dummy = False)
 
-        last_expected = False
+        last_expected = last_guess = None
+
         for t in records:
             if t["lang"] != lang: continue
 
             if mock_time:
                 lm.mock_time(int(t["ts"]))
 
+            tools.log("")
             details = dict()
-            guesses = lm.guess(t["context"], t["candidates"],
+            context = list(t["context"])
+            if backtrack and context and last_guess and context[-1] == last_expected:
+                context_bak = context
+                # in order to test backtracking, we need the previous wrong guesses in the context
+                # otherwise, the backtracking function consistency check will abort
+                context[-1] = last_guess
+                print("Updating context for backtracking", context_bak[-4:], "->", context[-4:])
+
+            guesses = lm.guess(context, t["candidates"],
                                correlation_id = t["id"], speed = t["speed"],
                                verbose = verbose, expected_test = t["expected"], details_out = details)
 
@@ -129,16 +139,26 @@ def play_all(records, tools, backtrack = False, verbose = True, mock_time = Fals
                 if count % 50 == 0: lm.cleanup(force_flush = True)
 
             if backtrack:
+                tools.log("")
                 rst = lm.backtrack(verbose = True)
                 if rst:
                     (w1, w0, w1_old, w0_old, dum1, dum2) = rst
                     bt_count += 1
-                    ok = (w1 == last_expected and w0 == t["expected"])
-                    if ok: bt_ok += 1
-                    tools.log("[*] Backtracking %s" % ("=OK=" if ok else "*FAIL*"))
+                    ok1 = (w1 == last_expected and w0 == t["expected"])
+                    if ok1: bt_ok += 1
+                    tools.log("[*] Backtracking %s" % ("=BT-OK=" if ok else "*BT-FAIL*"))
                     tools.log()
 
+                    # update counts
+                    if last_guess == last_expected: count_ok -= 1
+                    if ok: count_ok -= 1
+                    if w1 == last_expected: count_ok += 1
+                    if w0 == exp: count_ok += 1
+
+
             last_expected = t["expected"]
+            last_guess = guesses[0] if guesses else None
+
         if learn: lm.cleanup(force_flush = True)
         lm.close()
         db.close()

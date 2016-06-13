@@ -56,20 +56,7 @@ def ftest_load(index_org, work_dir, params = dict()):
             current = dict(id = id, ts = ts, word = word, device_id = device_id, date = date, content = "", js = None)
             continue
 
-        # @TODO learning
-        # if not current:
-        #     mo = re.search(r'Learn:\s*(w+)\s*\[([^\[\]]*)\].*replaces\s+(\w+)', line)
-        #     if mo:
-        #         word, context, replaces = mo.group(1), mo.group(2), mo.group(3)
-        #         context = [ remove_quotes(x.strip()) for x in context.split(',') ]
-        #         for i in range(- min(20, len(history)), 0):
-        #             l = min(len(history[i].context), len(context))
-        #             if history[i].context[:l] == context[:l] and history[i].word == replaces:
-        #                 history[i].replaces = replaces
-        #                 history[i].word = word
-        #                 break
-        #
-        #     continue
+        if not current: continue
 
         if line.startswith('OUT:'):
             js = line[4:].strip()
