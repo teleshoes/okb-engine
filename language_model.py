@@ -143,6 +143,7 @@ class LanguageModel:
 
         for key in list(learn):
             (action, wordl, ts, pos) = self._learn_history[key]
+            self._learn_history.pop(key, None)
 
             context = list(reversed(wordl))
             wi_context = list()
@@ -181,17 +182,15 @@ class LanguageModel:
                     self._db.set_gram(ids, (stock_count, user_count, user_replace, last_time))
 
                 # update cache
-                key = ':'.join([ x.word for x in wi_context[-i:] ])
-                if key in self._cache:
+                cachekey = ':'.join([ x.word for x in wi_context[-i:] ])
+                if cachekey in self._cache:
                     type = "s"  # not learing cluster n-grams for now (for type in [ "c", "s" ]:)
                     score_id = type + str(i)
-                    if score_id in self._cache[key]:
-                        count_cached = self._cache[key][score_id]
+                    if score_id in self._cache[cachekey]:
+                        count_cached = self._cache[cachekey][score_id]
                         count_cached.user_count += 1
                         if action: count_cached.total_user_count += 1
                         # and do not bother with age (cache will be eventually flushed)
-
-            self._learn_history.pop(key, None)
 
         self.log("Commit: Lines updated:", len(learn))
 
@@ -212,7 +211,7 @@ class LanguageModel:
         wordl = [ word ] + context
 
         if not silent:
-            self.log("Learn:", "add" if add else "remove", wordl, "{replaces %s}" % replaces if replaces else "")
+            self.log("Learn:", "add" if add else "remove", wordl, "{replaces '%s'}" % replaces if replaces else "")
 
         wordl = wordl[0:3]
         key = '_'.join(wordl)
@@ -457,6 +456,7 @@ class LanguageModel:
 
 
     ALL_SCORES = [ "s3", "c3", "s2", "c2", "s1" ]
+    ALL_SCORES_NC = [ s for s in ALL_SCORES if s[0] == "s" ]
 
     def _compare_coefs(self, coefs1, curve_score1, coefs2, curve_score2):
         """ Compare coefficients for two words or parts of text
@@ -610,7 +610,7 @@ class LanguageModel:
         user_stats = dict()
         max_score = ""
         for c in candidates:
-            for s_id in [ "s3", "s2", "s1" ]:
+            for s_id in LanguageModel.ALL_SCORES_NC:
                 wi_list = candidates[c][1]
                 if not wi_list: continue
 
@@ -854,28 +854,33 @@ class LanguageModel:
         w1_old = h1["guess"]
         w0_old = h0["guess"]
 
+        predict_score_new = scores[guess]["predict"]
+        predict_score_old = scores[reference_id]["predict"]
+
         if guess == reference_id:
             self.log("No backtracking candidate")
         else:
             et_message = ""
             if expected_test: et_message = "<%s>" % ("GOOD" if guess == expected_test else "BAD")
-            self.log("Backtracking candidate: %s {%s %s:%.3f}=>{%s %s:%.3f} %s"
+            self.log("Backtracking candidate: %s {%s %s:%.3f:%.3f}=>{%s %s:%.3f:%.3f} %s"
                      % (context,
-                        w1_old, w0_old, scores[reference_id]["score"],
-                        w1_new, w0_new, scores[guess]["score"],
+                        w1_old, w0_old, scores[reference_id]["score"], predict_score_old,
+                        w1_new, w0_new, scores[guess]["score"], predict_score_new,
                         et_message))
 
+        if scores[guess]["score"] <= scores[reference_id]["score"] + self.cf("backtrack_threshold", 0.001, float) \
+           or predict_score_new <= predict_score_old + self.cf("backtrack_threshold_predict", 0.0001, float): return
 
-        if scores[guess]["score"] > scores[reference_id]["score"] + self.cf("backtrack_threshold", 0.05, float):
-            # @todo update learning
-            # @todo store undo information
+        coefs_after = scores[guess]["coefs"]
+        if not coefs_after.get("s2", 0): return
 
-            self._history = []
-            self.log("==> Backtracking activated: %s {%s %s}=>{%s %s}" % (context, w1_old, w0_old, w1_new, w0_new))
+        # @todo update learning
+        # @todo store undo information
 
-            return (w1_new, w0_new, w0_old, w1_old, correlation_id, None)
+        self._history = []
+        self.log("==> Backtracking activated: %s {%s %s}=>{%s %s}" % (context, w1_old, w0_old, w1_new, w0_new))
 
-        return
+        return (w1_new, w0_new, w0_old, w1_old, correlation_id, None)
 
 
     def cleanup(self, force_flush = False):

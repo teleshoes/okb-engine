@@ -285,7 +285,7 @@ class Predict:
         return word
 
 
-    def backtrack(self, correlation_id = -1, verbose = False, expected = None, top = 3):
+    def backtrack(self, correlation_id = -1, verbose = False):
         """ After a word guess, try to correct previous words
             This is intended to be called asynchronously after a simple guess
             (see above)
@@ -294,8 +294,8 @@ class Predict:
             may have invalidated the new guess) """
 
         if not self.db: return
-        if not self.cf("backtrack_enable", 0, int): return  # broken for now --> disabled by default
-        # @TODO
+        if not self.cf("backtrack", 1, int): return
+        self.lm.backtrack(correlation_id, verbose)
 
 
     def cleanup(self, force_flush = False):

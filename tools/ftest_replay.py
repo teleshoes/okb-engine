@@ -146,7 +146,8 @@ def play_all(records, tools, backtrack = False, verbose = True, mock_time = Fals
                     bt_count += 1
                     ok1 = (w1 == last_expected and w0 == t["expected"])
                     if ok1: bt_ok += 1
-                    tools.log("[*] Backtracking %s" % ("=BT-OK=" if ok else "*BT-FAIL*"))
+                    tools.log("[*] Backtracking %s" % ("=BT-OK=" if ok1 else "*BT-FAIL*"),
+                              "Expected:", [ last_expected, t["expected"] ], "Actual:", [w1, w0])
                     tools.log()
 
                     # update counts
@@ -197,7 +198,7 @@ if __name__ == "__main__":
     repeat = 1
 
     def usage():
-        print("Usage: %s [<options>] <ftest pickle log file>" % os.path.basename(__file__))
+        print("Usage: %s [<options>] <ftest pickle log file> [<test id>]" % os.path.basename(__file__))
         print("Options:")
         print(" -l       : learn")
         print(" -b       : backtrack")
