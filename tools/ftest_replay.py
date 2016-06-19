@@ -72,12 +72,13 @@ def play_all(records, tools, backtrack = False, verbose = True, mock_time = Fals
             tools.log("")
             details = dict()
             context = list(t["context"])
+            learn_context = list(context)
             if backtrack and context and last_guess and context[-1] == last_expected:
                 context_bak = context
                 # in order to test backtracking, we need the previous wrong guesses in the context
                 # otherwise, the backtracking function consistency check will abort
                 context[-1] = last_guess
-                print("Updating context for backtracking", context_bak[-4:], "->", context[-4:])
+                tools.log("Updating context for backtracking", context_bak[-4:], "->", context[-4:])
 
             guesses = lm.guess(context, t["candidates"],
                                correlation_id = t["id"], speed = t["speed"],
@@ -132,9 +133,10 @@ def play_all(records, tools, backtrack = False, verbose = True, mock_time = Fals
                       (t["context"], guesses[0] if guesses else "?", t["expected"], ("=OK=" if ok else "*FAIL*")))
 
             if learn:
+                # @todo use right "replace" value when backtracking is active
                 replaces = guesses[0] if not ok and guesses and learn_replace else None
-                tools.log("Learn:", t["context"], exp, ("{%s}" % replaces) if replaces else "")
-                lm.learn(True, exp, list(reversed(t["context"])),
+                tools.log("[*] Learn:", learn_context, exp, ("{%s}" % replaces) if replaces else "")
+                lm.learn(True, exp, list(reversed(learn_context)),
                          replaces = replaces)
                 if count % 50 == 0: lm.cleanup(force_flush = True)
 
@@ -193,7 +195,7 @@ def cli_params(args, tools):
     return records
 
 if __name__ == "__main__":
-    learn = backtrack = db_reset = mock_time = learn_replace = False
+    learn = backtrack = db_reset = mock_time = learn_replace = last_verbose = all_verbose = False
     db_path = None
     repeat = 1
 
@@ -207,8 +209,10 @@ if __name__ == "__main__":
         print(" -c       : repeat count")
         print(" -p <dir> : use alternate database files")
         print(" -R       : learn correction of bad guess by user (negative learning)")
+        print(" -V       : make last iteration verbose")
+        print(" -v       : verbose mode for all iteration (beware of volume)")
 
-    opts, args =  getopt.getopt(sys.argv[1:], 'lbrmp:c:hR')
+    opts, args =  getopt.getopt(sys.argv[1:], 'lbrmp:c:hRVv')
     listpara = None
     for o, a in opts:
         if o == "-l": learn = True
@@ -218,6 +222,8 @@ if __name__ == "__main__":
         elif o == "-m": mock_time = True
         elif o == "-c": repeat = int(a)
         elif o == "-R": learn = learn_replace = True
+        elif o == "-V": last_verbose = True
+        elif o == "-v": all_verbose = True
         elif o == "-h": usage(); exit(0)
         else: print("Bad option: %s", o); usage(); exit(1)
 
@@ -226,9 +232,12 @@ if __name__ == "__main__":
     if not args: usage(); exit(1)
     records = cli_params(args, tools)
 
-    tools.verbose = verbose = (repeat == 1)
+    tools.verbose = verbose = (repeat == 1) or all_verbose
 
     for i in range(repeat):
+        if last_verbose and i == repeat - 1: tools.verbose = verbose = True
+        if repeat > 1: print("Iteration #%d" % (i + 1))
+
         play_all(records, tools, learn = learn, backtrack = backtrack, db_reset = db_reset,
                  verbose = verbose, db_path = db_path, mock_time = mock_time,
                  learn_replace = learn_replace)

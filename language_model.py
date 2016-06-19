@@ -608,9 +608,11 @@ class LanguageModel:
 
         # --- prediction score evaluation (user) ---
         user_stats = dict()
-        max_score = ""
+        max_score_id = ""
         for c in candidates:
             for s_id in LanguageModel.ALL_SCORES_NC:
+                if s_id < max_score_id: break
+
                 wi_list = candidates[c][1]
                 if not wi_list: continue
 
@@ -624,16 +626,14 @@ class LanguageModel:
 
                 if user_replace > user_count and user_replace > 0.5:
                     # negative learning
-                    predict_scores[c] = (- self.cf("p2_learn_negative", 0.01, float), "learn-:%s" % s_id)
+                    predict_scores[c] = (predict_scores[c][0] - self.cf("p2_learn_negative", 0.01, float), "learn-:%s" % s_id)
                     break
 
                 if current_day - last_time > self.cf("p2_forget", 90, int): continue
                 if user_count < 0.5: continue
 
-                if s_id < max_score:
-                    break
-                elif s_id > max_score:
-                    max_score = s_id
+                if s_id > max_score_id:
+                    max_score_id = s_id
                     user_stats = dict()
 
                 user_stats[c] = (user_count, user_replace)
@@ -644,11 +644,10 @@ class LanguageModel:
 
         lst = sorted(user_stats.keys(), key = user_score, reverse = True)
         if lst:
-            s_id = max_score
             max_user_score = user_score(lst[0])
             for c in user_stats:
                 (user_count, user_replace) = user_stats[c]
-                if s_id == "s1":
+                if max_score_id == "s1":
                     if user_count > self.cf("p2_learn_s1_threshold", 5, int): learn_value = 0
                     else: learn_value = - self.cf("p2_learn_s1", 0.002, float)
                 else:
@@ -659,8 +658,6 @@ class LanguageModel:
                     else: learn_value = 0
 
                 predict_scores[c] = (max(predict_scores[c][0], learn_value), "L+%s:%.4f" % (s_id, learn_value))
-
-                break  # simple backoff
 
         scores = dict()
         result = dict()
@@ -808,7 +805,7 @@ class LanguageModel:
         self.debug("backtrack: context match check", ctx0, ctx1)
         if ' '.join(ctx0).lower() != ' ' .join(ctx1).lower(): return
 
-        max_count = self.cf("backtrack_max", 4, int)
+        max_count = self.cf("backtrack_max", 5, int)
         context = h1["context"]
 
         expected_test = None
