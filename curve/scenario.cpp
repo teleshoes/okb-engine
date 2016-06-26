@@ -1033,7 +1033,8 @@ bool Scenario::childScenarioInternal(LetterNode &childNode, QList<Scenario> &res
       }
 
       // temporary score is used only for simple filtering
-      new_scenario.temp_score = 1.0 / (1.0 + new_scenario.dist / 30);
+      new_scenario.temp_score = 1.0 / (1.0 + new_scenario.dist / 30) -
+	params->coef_error * error_count * (1 + params->final_coef_turn);
 
       result.append(new_scenario);
     }

@@ -24,13 +24,12 @@ export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$dir/curve/build"
 tmp=`mktemp /tmp/$name.XXXXXX.json`
 html=`mktemp /tmp/curvekb.$name.XXXXXX.html`
 if $dir/cli/build/cli ${CLI_OPTS} -d "$dir/db/${lang}-full.tre" "$test" 2>&1 | tee $tmp | grep -i "^Result:" | tail -n 1 | sed 's/^Result:\ *//' | $dir/tools/jsonresult2html.py "$name" > $html; then
+    if [ -n "$edit" ] ; then
+	edit=`which "$edit" 2>/dev/null`
+	[ -n "$edit" ] && $edit $tmp
+    fi
     xdg-open "$html"
 else
     echo "FAILED!"
 fi
 echo "Log file: file://$tmp"
-if [ -n "$edit" ] ; then
-    edit=`which "$edit" 2>/dev/null`
-    [ -n "$edit" ] && $edit $tmp
-fi
-
