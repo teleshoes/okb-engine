@@ -358,6 +358,8 @@ Scenario::Scenario(LetterTree *tree, QuickKeys *keys, QuickCurve *curve, Params 
   cache = false;
 
   new_dist = -1;
+
+  fallback_count = 0;
 }
 
 Scenario::Scenario(const Scenario &from) {
@@ -420,6 +422,8 @@ void Scenario::copy_from(const Scenario &from) {
   }
 
   new_dist = from.new_dist;
+
+  fallback_count = from.fallback_count;
 }
 
 
@@ -2274,6 +2278,8 @@ void Scenario::newDistance() {
   // display match-point/key distance
   float ctotal = 0;
   for (int i = 0; i < count; i ++) {
+    if (fallback_count && i >= fallback_count && i < count - 1) { continue; }
+
     Point key = keys->get(letter_history[i]);
     Point pt = curve->point(index_history[i]);
     int speed = curve->getSpeed(index_history[i]);
@@ -2331,6 +2337,15 @@ bool Scenario::postProcess(stats_t &st) {
 
   if (count == 1) {
     // special case: curve is just a click (so it always has a perfect score)
+    evalScore();
+    return true;
+  }
+
+  if (fallback_count) {
+    // @todo evaluate partial turn & misc scores
+    for(int i = 0; i < count; i ++) {
+      scores[i].turn_score = 1;
+    }
     evalScore();
     return true;
   }
@@ -2696,5 +2711,100 @@ void Scenario::setCache(bool value) {
   if (cache) {
     cacheChilds = QSharedPointer<child_cache_t>(new child_cache_t);
   }
+}
+
+void Scenario::descent(LetterNode currentNode, QList<QPair<LetterNode, QString> > &result, unsigned char *pname) {
+  if (currentNode.hasPayload()) {
+    QString name;
+    name.append((char*) pname);
+    result.append(QPair<LetterNode, QString>(currentNode, name));
+  }
+  if (! currentNode.isLeaf()) {
+    foreach (LetterNode child, currentNode.getChilds()) {
+      int len = strlen((char *)pname);
+      unsigned char* childName = new unsigned char[len + 2];
+      memcpy(childName, pname, len);
+      childName[len] = child.getChar();
+      childName[len + 1] = '\0';
+      descent(child, result, childName);
+      delete childName;
+    }
+  }
+}
+
+
+void Scenario::deepDive(QList<Scenario> &result, float min_score) {
+  /*
+    Generate all possible child scenarios as fast as possible
+    this is used for bad strokes that would lead to no result.
+    It may also be helpful for typing very long words.
+
+    This function is supposed to be called after curve drawing
+    is finished (as we evaluate the distance score for the
+    last point)
+  */
+  QList<QPair<LetterNode, QString> > nodes;
+
+  descent(this->node, nodes, letter_history);
+
+  score_t default_score = {NO_SCORE, NO_SCORE, NO_SCORE, NO_SCORE, NO_SCORE, NO_SCORE};
+
+  int new_index = curve->size() - 1;
+
+  for(int i = 0; i < nodes.count(); i ++ ) {
+    // generate child scenario
+    QPair<LetterNode, QString> node = nodes[i];
+    unsigned char* letters = QSTRING2PUCHAR(node.second);
+    int new_count = strlen((char *)letters);
+    unsigned char last_letter = letters[new_count - 1];
+
+    if (new_count < count + 2) { continue; }
+
+    float distance_score = calc_distance_score(last_letter, new_index, -1);
+    DBG("fallback: %s -> %s [temp_score=%.5f, distance_score=%.5f, last='%c']",
+	getNameCharPtr(), letters, temp_score, distance_score, letters[new_count - 1]);
+    if (distance_score < 0) { continue; } // eliminate scenario with impossible ending
+
+    Point key = keys->get(last_letter);
+    Point pt = curve->point(new_index);
+    int dx = key.x - pt.x;
+    int dy = key.y - pt.y;
+    float new_dist_sqr = this->dist_sqr + (new_count - count) * (dx * dx + dy * dy);
+    float new_dist = sqrt(new_dist_sqr / new_count);
+    float new_temp_score = 1.0 / (1.0 + new_dist / 30) -
+      params->coef_error * error_count * (1 + params->final_coef_turn);
+    if (new_temp_score < min_score) { continue; }
+
+    Scenario new_scenario(*this);
+    new_scenario.node = node.first;
+    new_scenario.index = new_index;
+
+    delete[] new_scenario.scores;
+    new_scenario.scores = new score_t[new_count + 1];
+    memcpy(new_scenario.scores, this->scores, sizeof(score_t) * count);
+    for(int c = count; c < new_count; c++) { new_scenario.scores[c] = default_score; }
+    new_scenario.scores[new_count - 1].distance_score = distance_score;
+
+    delete[] new_scenario.letter_history;
+    new_scenario.letter_history = new unsigned char[new_count + 1];
+    strcpy((char*) new_scenario.letter_history, (char*) letters);
+
+    delete[] new_scenario.index_history;
+    new_scenario.index_history = new unsigned char[new_count + 1];
+    memcpy(new_scenario.index_history, this->index_history, count);
+    for(int c = count; c < new_count; c++) { new_scenario.index_history[c] = new_index; }
+
+    new_scenario.count = new_count;
+    new_scenario.finished = true;
+
+    new_scenario.fallback_count = count;
+
+    new_scenario.dist_sqr = new_dist_sqr;
+    new_scenario.dist = new_dist;
+    new_scenario.temp_score = new_temp_score;
+
+    result.append(new_scenario);
+  }
+
 }
 

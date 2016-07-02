@@ -264,6 +264,8 @@ class Scenario {
 
   float new_dist;
 
+  unsigned char fallback_count;
+  
   // cache
   bool cache;
   QSharedPointer<child_cache_t> cacheChilds;
@@ -289,6 +291,7 @@ class Scenario {
   void turn_transfer(int turn_count, turn_t *turn_detail);
   void calc_straight_score_all(turn_t *turn_detail, int turn_count, float straight_score);
   void calc_loop_score_all(turn_t *turn_detail, int turn_count);
+  void descent(LetterNode currentNode, QList<QPair<LetterNode, QString> > &result, unsigned char *pname);
 
  public:
   Scenario(LetterTree *tree, QuickKeys *keys, QuickCurve *curve, Params *params);
@@ -339,6 +342,8 @@ class Scenario {
   static void sortCandidates(QList<Scenario *> candidates, Params &params, int debug);
 
   void setCurveCount(int) {}; // for compatibility only
+
+  void deepDive(QList<Scenario> &result, float min_score = 0.);
 };
 
 

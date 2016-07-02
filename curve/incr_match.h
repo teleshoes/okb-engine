@@ -76,6 +76,8 @@ class DelayedScenario {
   void setDebug(bool value);
 
   void display(char *prefix = NULL);
+
+  void deepDive(QList<Scenario> &result);
 };
 
 class IncrementalMatch : public CurveMatch {
@@ -88,6 +90,8 @@ class IncrementalMatch : public CurveMatch {
 
   void delayedScenariosFilter();
 
+  void purge_snapshots();
+
   int next_iteration_index;
   int next_iteration_length[MAX_CURVES];
   int current_length[MAX_CURVES];
@@ -99,6 +103,10 @@ class IncrementalMatch : public CurveMatch {
   QuickKeys quickKeys;
 
   QList<DelayedScenario> *delayed_scenarios_p;
+
+  int last_snapshot_count;
+  QList< QList<DelayedScenario> *> ds_snapshots;
+  void fallback(QList<ScenarioType> &result);
 
  public:
   IncrementalMatch();

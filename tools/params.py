@@ -35,6 +35,10 @@ defparams = [
     [ "end_scenario_wait", int ],
     [ "error_correct", int ],
     [ "error_ignore_count", int, 3, 10 ],
+    [ "fallback_max_candidates", int ],  # no optimization on fallback (best effort, not enough clean test cases)
+    [ "fallback_min_count", int ],
+    [ "fallback_snapshot_queue", int ],
+    [ "fallback_timeout", int ],
     [ "final_coef_misc", float, 0.1, 5 ],
     [ "final_coef_turn", float, 0.1, 20 ],
     [ "final_coef_turn_exp", float, 0.01, 2 ],

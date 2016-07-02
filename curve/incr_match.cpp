@@ -311,6 +311,13 @@ void DelayedScenario::display(char *prefix) {
   DBG("%s%s", prefix?prefix:"", QSTRING2PCHAR(txt));
 }
 
+void DelayedScenario::deepDive(QList<Scenario> &result) {
+  if (multi) { return; } // not supported at the moment
+
+  single_p.data()->deepDive(result);
+}
+
+
 NextLetter::NextLetter(LetterNode node) {
   letter_node = node;
 }
@@ -325,12 +332,21 @@ IncrementalMatch::~IncrementalMatch() {
   delete delayed_scenarios_p;
 }
 
+void IncrementalMatch::purge_snapshots() {
+  DBG("[purge snapshots: %d]", ds_snapshots.size());
+  for(int i = 0;i < ds_snapshots.size(); i++) {
+    delete ds_snapshots[i];
+  }
+  ds_snapshots.clear();
+}
+
 #define delayed_scenarios (*delayed_scenarios_p)
 
 void IncrementalMatch::incrementalMatchBegin() {
   /* incremental algorithm: first iteration */
   delayed_scenarios.clear();
   candidates.clear();
+  purge_snapshots();
 
   if (! loaded || ! keys.size()) { return; }
 
@@ -344,6 +360,8 @@ void IncrementalMatch::incrementalMatchBegin() {
   memset(next_iteration_length, 0, sizeof(next_iteration_length));
 
   delayed_scenarios.append(root);
+
+  last_snapshot_count = 0;
 
   DBG("incrementalMatchBegin: scenarios=%d", delayed_scenarios.size());
 
@@ -367,7 +385,7 @@ void IncrementalMatch::incrementalMatchUpdate(bool finished, float aggressive) {
   /* incremental algorithm: subsequent iterations */
   if (! loaded || ! keys.size()) { return; }
 
-  if (delayed_scenarios.size() == 0) { return; }
+  if (delayed_scenarios.size() == 0 && ! finished) { return; }
   if (curve.size() < 5 && ! finished ) { return; }
 
   setCurves(); // curve may have new points since last iteration
@@ -424,6 +442,7 @@ void IncrementalMatch::incrementalMatchUpdate(bool finished, float aggressive) {
   }
 
   // find candidates
+  int c_total = 0, c_count = 0;
   for(int i = 0 ; i < new_delayed_scenarios_p->size(); i ++) {
     if ((*new_delayed_scenarios_p)[i].isFinished()) {
       if ((*new_delayed_scenarios_p)[i].getWordList().size()) {
@@ -431,14 +450,26 @@ void IncrementalMatch::incrementalMatchUpdate(bool finished, float aggressive) {
 	candidates.append((*new_delayed_scenarios_p)[i].getMultiScenario()); // add to candidate list
       }
       (*new_delayed_scenarios_p)[i].die();
+    } else {
+      c_total += (*new_delayed_scenarios_p)[i].getCount();
+      c_count ++;
     }
   }
 
   // flip pointer from old to new list (and avoid a double copy)
   QList<DelayedScenario> *old_dsp = delayed_scenarios_p;
   delayed_scenarios_p = new_delayed_scenarios_p;
-  delete old_dsp;
 
+  // keep snapshot for later backtracking with the fallback algorithm
+  int avg_count = c_total / (c_count?c_count:1);
+  if (avg_count >= params.fallback_min_count && avg_count > last_snapshot_count && delayed_scenarios.size() > 0) {
+    DBG("[Taking snapshot: %d, size: %d]", avg_count, old_dsp->size());
+    last_snapshot_count = avg_count;
+    ds_snapshots.append(old_dsp);
+    if (ds_snapshots.size() > params.fallback_snapshot_queue) { delete ds_snapshots.takeFirst(); }
+  } else {
+    delete old_dsp;
+  }
 
   delayedScenariosFilter();
 
@@ -446,6 +477,16 @@ void IncrementalMatch::incrementalMatchUpdate(bool finished, float aggressive) {
 
   if (finished) {
     /* this is the last iteration: compute final scores for candidates */
+
+    bool fallback_done = false;
+    if (candidates.size() == 0) {
+      // oops, we did not find any good match, try with fallback
+      fallback(candidates);
+      fallback_done = true;
+    }
+
+    purge_snapshots();
+
     curvePreprocess2();
     QList<ScenarioType> new_candidates;
     foreach(ScenarioType s, candidates) {
@@ -455,9 +496,11 @@ void IncrementalMatch::incrementalMatchUpdate(bool finished, float aggressive) {
     }
     candidates = new_candidates;
 
-    scenarioFilter(candidates, 0.5, 10, 3 * params.max_candidates, true); // @todo add to parameter list
+    int max_candidates = fallback_done?params.fallback_max_candidates:params.max_candidates;
+
+    scenarioFilter(candidates, 0.5, 10, 3 * max_candidates, true); // @todo add to parameter list
     sortCandidates();
-    scenarioFilter(candidates, 0.7, 10, params.max_candidates, true); // @todo add to parameter list
+    scenarioFilter(candidates, 0.7, 10, max_candidates, true); // @todo add to parameter list
 
     // cache stats
     int n = st.st_cache_hit;
@@ -470,6 +513,50 @@ void IncrementalMatch::incrementalMatchUpdate(bool finished, float aggressive) {
   logdebug("==] incrementalMatchUpdate: curveIndex=%d, finished=%d, scenarios=%d, skim=%d, fork=%d, nodes=%d, retry=%d [time=%.3f]",
 	   curve.size(), finished, delayed_scenarios.size(),
 	   st.st_skim, st.st_fork, st.st_count, st.st_retry, (float)(t_start.msecsTo(QTime::currentTime())) / 1000);
+}
+
+void IncrementalMatch::fallback(QList<ScenarioType> &result) {
+  if (ds_snapshots.size() == 0) { return; }
+  QList<DelayedScenario> *ds_list = ds_snapshots[0];
+  logdebug("[fallback, size: %d]", ds_list->size());
+
+  if (ds_list->size() == 0) { return; }
+
+  QSet<QString> dedupe;
+  for(int i = ds_list->size() - 1; i >= 0; i --) {
+    dedupe.insert((*ds_list)[i].getName());
+  }
+
+  qSort(ds_list->begin(), ds_list->end());
+
+  QTime startTime = QTime::currentTime();
+
+  QList<Scenario> list;
+  for(int i = ds_list->size() - 1; i >= 0; i --) {
+    QString name = (*ds_list)[i].getName();
+    QString parent = name.left(name.length() - 1);
+    if (dedupe.contains(parent)) { continue; }
+    (*ds_list)[i].deepDive(list);
+    if (list.size() > params.fallback_max_candidates * 4) {
+      qSort(list.begin(), list.end());
+      DBG("[fallback: trimming list (%d) ]", list.size());
+      list = list.mid(list.size() - params.fallback_max_candidates * 3);
+    }
+
+    QTime now = QTime::currentTime();
+
+    if (startTime.msecsTo(now) > params.fallback_timeout) {
+      // timebox fallback time
+      // during tests it was always acceptable, but there is no upper bound on
+      // time required to process all possible scenarios, so let's stay on the safe side
+      logdebug("[fallbak: TIMEOUT!]");
+      break;
+    }
+
+  }
+  foreach(Scenario s, list) {
+    result.append(MultiScenario(s));
+  }
 }
 
 void IncrementalMatch::update_next_iteration_length(float aggressive) {
