@@ -317,6 +317,15 @@ NextLetter::NextLetter(LetterNode node) {
 NextLetter::NextLetter() {} // it makes QHash happy
 
 
+IncrementalMatch::IncrementalMatch() {
+  delayed_scenarios_p = new QList<DelayedScenario>();
+}
+
+IncrementalMatch::~IncrementalMatch() {
+  delete delayed_scenarios_p;
+}
+
+#define delayed_scenarios (*delayed_scenarios_p)
 
 void IncrementalMatch::incrementalMatchBegin() {
   /* incremental algorithm: first iteration */
@@ -396,7 +405,7 @@ void IncrementalMatch::incrementalMatchUpdate(bool finished, float aggressive) {
 
   memset(next_iteration_length, 0, sizeof(next_iteration_length));
 
-  QList<DelayedScenario> new_delayed_scenarios;
+  QList<DelayedScenario> *new_delayed_scenarios_p = new QList<DelayedScenario>();
 
   /* note: the incremental algorithm works in a single thread at the moment, but if less
      latency is needed, it can be made fully parallel by distributing the following loop
@@ -408,23 +417,28 @@ void IncrementalMatch::incrementalMatchUpdate(bool finished, float aggressive) {
     if (debug) { ds->display((char*) "DS> "); }
     if (ds->dead) { continue; }
 
-    ds->getChildsIncr(new_delayed_scenarios, finished, st, true, aggressive); // getChildsIncr will fail fast if curves length are not high enough
-    if (! ds->dead) { new_delayed_scenarios.append(*ds); } // DelayedScenarios will "die" when all their possible childs has been created
+    ds->getChildsIncr(*new_delayed_scenarios_p, finished, st, true, aggressive); // getChildsIncr will fail fast if curves length are not high enough
+    if (ds->dead) { continue; } // DelayedScenarios will "die" when all their possible childs has been created
+
+    new_delayed_scenarios_p->append(*ds);
   }
 
-  // copy back unfinished scenarios to scenario list
-  delayed_scenarios.clear();
-  for(int i = 0 ; i < new_delayed_scenarios.size(); i ++) {
-    if (new_delayed_scenarios[i].isFinished()) {
-      if (new_delayed_scenarios[i].getWordList().size()) {
+  // find candidates
+  for(int i = 0 ; i < new_delayed_scenarios_p->size(); i ++) {
+    if ((*new_delayed_scenarios_p)[i].isFinished()) {
+      if ((*new_delayed_scenarios_p)[i].getWordList().size()) {
 	// This test is a workaround for a real bug (@todo fix this)
-	candidates.append(new_delayed_scenarios[i].getMultiScenario()); // add to candidate list
+	candidates.append((*new_delayed_scenarios_p)[i].getMultiScenario()); // add to candidate list
       }
-
-    } else {
-      delayed_scenarios.append(new_delayed_scenarios[i]);
+      (*new_delayed_scenarios_p)[i].die();
     }
   }
+
+  // flip pointer from old to new list (and avoid a double copy)
+  QList<DelayedScenario> *old_dsp = delayed_scenarios_p;
+  delayed_scenarios_p = new_delayed_scenarios_p;
+  delete old_dsp;
+
 
   delayedScenariosFilter();
 

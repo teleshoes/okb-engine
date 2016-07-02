@@ -98,10 +98,11 @@ class IncrementalMatch : public CurveMatch {
 
   QuickKeys quickKeys;
 
-  QList<DelayedScenario> delayed_scenarios;
+  QList<DelayedScenario> *delayed_scenarios_p;
 
  public:
-  virtual ~IncrementalMatch() {};
+  IncrementalMatch();
+  virtual ~IncrementalMatch();
   virtual void addPoint(Point point, int curve_id, int timestamp = -1);
   virtual void endOneCurve(int curve_id);
   virtual void endCurve(int id);
