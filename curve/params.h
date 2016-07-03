@@ -50,6 +50,10 @@ class Params {
   int final_newdist_range;
   float final_score_v1_coef;
   float final_score_v1_threshold;
+  int flat2_max_height;
+  int flat2_min_height;
+  float flat2_score_max;
+  float flat2_score_min;
   int flat_max_angle;
   int flat_max_deviation;
   float flat_score;
@@ -216,6 +220,10 @@ static Params default_params = {
   40, // final_newdist_range
   1.0, // final_score_v1_coef
   0.12, // final_score_v1_threshold
+  50, // flat2_max_height
+  100, // flat2_min_height
+  0.02, // flat2_score_max
+  0.0, // flat2_score_min
   10, // flat_max_angle
   45, // flat_max_deviation
   0.25, // flat_score
@@ -376,6 +384,10 @@ void Params::toJson(QJsonObject &json) const {
   json["final_newdist_range"] = final_newdist_range;
   json["final_score_v1_coef"] = final_score_v1_coef;
   json["final_score_v1_threshold"] = final_score_v1_threshold;
+  json["flat2_max_height"] = flat2_max_height;
+  json["flat2_min_height"] = flat2_min_height;
+  json["flat2_score_max"] = flat2_score_max;
+  json["flat2_score_min"] = flat2_score_min;
   json["flat_max_angle"] = flat_max_angle;
   json["flat_max_deviation"] = flat_max_deviation;
   json["flat_score"] = flat_score;
@@ -538,6 +550,10 @@ Params Params::fromJson(const QJsonObject &json) {
   p.final_newdist_range = json["final_newdist_range"].toDouble();
   p.final_score_v1_coef = json["final_score_v1_coef"].toDouble();
   p.final_score_v1_threshold = json["final_score_v1_threshold"].toDouble();
+  p.flat2_max_height = json["flat2_max_height"].toDouble();
+  p.flat2_min_height = json["flat2_min_height"].toDouble();
+  p.flat2_score_max = json["flat2_score_max"].toDouble();
+  p.flat2_score_min = json["flat2_score_min"].toDouble();
   p.flat_max_angle = json["flat_max_angle"].toDouble();
   p.flat_max_deviation = json["flat_max_deviation"].toDouble();
   p.flat_score = json["flat_score"].toDouble();

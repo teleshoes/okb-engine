@@ -141,6 +141,9 @@ class QuickKeys {
   inline Point const& get(unsigned char letter) const;
   inline Point const& size(unsigned char letter) const;
   inline Point const& get_raw(unsigned char letter) const;
+
+  // statistics
+  int average_width, average_height;
 };
 
 /* tree traversal evaluation */
@@ -292,6 +295,9 @@ class Scenario {
   void calc_straight_score_all(turn_t *turn_detail, int turn_count, float straight_score);
   void calc_loop_score_all(turn_t *turn_detail, int turn_count);
   void descent(LetterNode currentNode, QList<QPair<LetterNode, QString> > &result, unsigned char *pname);
+  void calc_flat2_score_all();
+  void calc_flat2_score_part(int i1, int i2);
+  int calc_flat2_get_height(int i1, int i2);
 
  public:
   Scenario(LetterTree *tree, QuickKeys *keys, QuickCurve *curve, Params *params);

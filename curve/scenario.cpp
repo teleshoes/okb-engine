@@ -168,6 +168,7 @@ QuickKeys::QuickKeys(QHash<unsigned char, Key> &keys) {
 }
 
 void QuickKeys::setKeys(QHash<unsigned char, Key> &keys) {
+  int count = 0, sum_height = 0, sum_width = 0;
   foreach(unsigned char letter, keys.keys()) {
     points_raw[letter].x = keys[letter].x;
     points_raw[letter].y = keys[letter].y;
@@ -180,6 +181,16 @@ void QuickKeys::setKeys(QHash<unsigned char, Key> &keys) {
     }
     dim[letter].x = keys[letter].height;
     dim[letter].y = keys[letter].width;
+
+    count ++;
+    sum_height += keys[letter].height;
+    sum_width += keys[letter].width;
+  }
+
+  // compute stats
+  if (count) {
+    average_height = sum_height / count;
+    average_width = sum_width / count;
   }
 }
 
@@ -2262,6 +2273,84 @@ void Scenario::calc_loop_score_all(turn_t *turn_detail, int turn_count) {
   }
 }
 
+int Scenario::calc_flat2_get_height(int i1, int i2) {
+  /* height is not just ymax - ymin, because we have to handle "curved" swipe
+     due to areas difficult to reach (e.g.: I, O, P for left hand) */
+
+  int xmin = 0, xmax = 0;
+  for(int i = i1; i <= i2; i++) {
+    Point k = keys->get_raw(letter_history[i]);
+    int x = k.x;
+    if (x < xmin || xmin == 0) { xmin = x; }
+    if (x > xmax) { xmax = x; }
+  }
+
+  int max_height = 0;
+
+  int index1 = index_history[i1];
+  int index2 = index_history[i2];
+  for (int x = xmin; x < xmax; x+= keys->average_width) {
+    int ymin = 0, ymax = 0;
+    for(int index = index1; index < index2; index ++) {
+      Point p1 = curve->point(index);
+      Point p2 = curve->point(index + 1);
+      if (p1.x == p2.x) { continue; }
+
+      if ((p1.x - x) * (p2.x - x) <= 0) {
+        int y = p1.y + (float) (p2.y - p1.y) * (x - p1.x) / (p2.x - p1.x);
+	if (y < ymin || ymin == 0) { ymin = y; }
+	if (y > ymax) { ymax = y; };
+      }
+
+    }
+    if (ymax - ymin > max_height) { max_height = ymax - ymin; }
+
+  }
+
+  return max_height;
+}
+
+void Scenario::calc_flat2_score_part(int i1, int i2) {
+  int height = calc_flat2_get_height(i1, i2);
+  DBG("flat2_max [%s]: [%d:%d] height=%d max=%d", getNameCharPtr(), i1, i2, height, params -> flat2_max_height);
+  if (height > params -> flat2_max_height) {
+    for(int j = i1; j <= i2; j ++) {
+      scores[j].misc_score -= params->flat2_score_max / (i2 - i1 + 1);
+    }
+    MISC_ACCT(getNameCharPtr(), "flat2_score_max", params->loop_penalty, -1);
+  }
+}
+
+
+void Scenario::calc_flat2_score_all() {
+  /* check for "flat" (only horizontal at the moment) swipe
+     this would not word for round keyboard such as Microsoft Word Flow keyboard */
+
+  // check for part that "should be flat"
+  int i1 = 0;
+  int y = keys->get_raw(letter_history[i1]).y;
+  while (i1 < count - 1 && keys->get_raw(letter_history[i1 + 1]).y == y) { i1 ++; }
+  if (i1 >= 2) { calc_flat2_score_part(0, i1); }
+  if (i1 < count - 1) {
+    int i2 = count - 1;
+    int y = keys->get_raw(letter_history[i2]).y;
+    while (i2 > 0 && keys->get_raw(letter_history[i2 - 1]).y == y) { i2 --; }
+    if (i2 < count - 2) { calc_flat2_score_part(i2, count - 1); }
+
+    // check for flat curve on a "not-so-flat" scenario
+    /* bad idea (@todo remove or repair)
+    int height = calc_flat2_get_height(i1, i2);
+    DBG("flat2_min [%s]: height=%d min=%d", getNameCharPtr(), height, params -> flat2_min_height);
+    if (height < params -> flat2_min_height) {
+      for(int j = i1; j <= i2; j ++) {
+	scores[j].misc_score -= params->flat2_score_min / (i2 - i1 + 1);
+      }
+      MISC_ACCT(getNameCharPtr(), "flat2_score_min", params->loop_penalty, -1);
+    }
+    */
+  }
+}
+
 void Scenario::newDistance() {
   /* new distance between candidates and expected words
      it aims at better accuracy (more likely to find the right word), and if it
@@ -2410,6 +2499,9 @@ bool Scenario::postProcess(stats_t &st) {
   calc_straight_score_all(turn_detail, turn_count, curve->straight);
 
   calc_loop_score_all(turn_detail, turn_count);
+
+  /* flat2 score for part of words that should or should not be flat */
+  calc_flat2_score_all();
 
   /* particular case: simple turn (ST=1) shared between two keys
      this is an ugly workaround: curve_score works really badly in this case
