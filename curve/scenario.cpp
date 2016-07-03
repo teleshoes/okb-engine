@@ -19,7 +19,6 @@
 
 #define BUILD_TS (char*) (__DATE__ " " __TIME__)
 
-#define MISC_ACCT(word, coef_name, coef_value, value) { if (abs(value) > 1E-5) { DBG("     [*] MISC %s %s %f %f", (word), (coef_name), (float) (coef_value), (float) (value)) } }
 
 using namespace std;
 
@@ -371,6 +370,8 @@ Scenario::Scenario(LetterTree *tree, QuickKeys *keys, QuickCurve *curve, Params 
   new_dist = -1;
 
   fallback_count = 0;
+
+  misc_acct = NULL;
 }
 
 Scenario::Scenario(const Scenario &from) {
@@ -435,6 +436,13 @@ void Scenario::copy_from(const Scenario &from) {
   new_dist = from.new_dist;
 
   fallback_count = from.fallback_count;
+
+  if (from.misc_acct) {
+    misc_acct = new QList<MiscAcct>();
+    *(misc_acct) = *(from.misc_acct); // copy constructor
+  } else {
+    misc_acct = NULL;
+  }
 }
 
 
@@ -442,6 +450,7 @@ Scenario::~Scenario() {
   delete[] index_history;
   delete[] letter_history;
   delete[] scores;
+  if (misc_acct) { delete misc_acct; }
 }
 
 float Scenario::calc_cos_score(unsigned char prev_letter, unsigned char letter, int index, int new_index) {
@@ -1865,7 +1874,7 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
       float score = max(0, max_dist / max_err - 1);
       if (! score) { continue; }
       DBG("[%s] Flat segment not matched: turn #%d->#%d max_dist=%d --> score=%.2f", getNameCharPtr(), i, i + 1, (int) max_dist, score);
-      MISC_ACCT(getNameCharPtr(), "flat_score", params->flat_score, -1);
+      log_misc(getName(), "flat_score", params->flat_score, -1);
       scores[i].misc_score -= 0.5 * params->flat_score * score;
       scores[i + 1].misc_score -= 0.5 * params->flat_score * score;
     }
@@ -1971,7 +1980,7 @@ void Scenario::check_reverse_turn(int index1, int index2, int direction1, int di
   if (score) {
     for(int i = index1; i <= index2; i ++) {
       scores[i].misc_score -= coef_score * score / (index2 - index1 + 1);
-      MISC_ACCT(getNameCharPtr(), (direction1 && direction2)?"rt_score_coef":"rt_score_coef_tip", coef_score, - score / (index2 - index1 + 1));
+      log_misc(getName(), (direction1 && direction2)?"rt_score_coef":"rt_score_coef_tip", coef_score, - score / (index2 - index1 + 1));
     }
   }
 
@@ -2079,7 +2088,7 @@ void Scenario::check_reverse_turn(int index1, int index2, int direction1, int di
   if (score) {
     for(int i = index1; i <= index2; i ++) {
       scores[i].misc_score -= coef_score * score / (index2 - index1 + 1);
-      MISC_ACCT(getNameCharPtr(), "rt2_score_coef", params -> rt2_score_coef, - score / (index2 - index1 + 1));
+      log_misc(getName(), "rt2_score_coef", params -> rt2_score_coef, - score / (index2 - index1 + 1));
     }
   }
 
@@ -2097,7 +2106,7 @@ float Scenario::calc_score_misc(int i) {
       (i == count - 1 && index_history[count - 1] - index_history[count - 2] <= 1)) {
     DBG("  [score misc] small segment at tip (%s)", (i?"end":"begin"));
     score -= params->tip_small_segment;
-    MISC_ACCT(getNameCharPtr(), "tip_small_segment", params->tip_small_segment, -1);
+    log_misc(getName(), "tip_small_segment", params->tip_small_segment, -1);
   }
 
   /* speed -> slow down points (ST=3) must be matched with a key
@@ -2116,7 +2125,7 @@ float Scenario::calc_score_misc(int i) {
 
 	float value = (st==3)?params->speed_penalty:params->st5_score;
 	score -= value;
-	MISC_ACCT(getNameCharPtr(), (st == 3)?"speed_penalty":"st5_score", value, -1);
+	log_misc(getName(), (st == 3)?"speed_penalty":"st5_score", value, -1);
       }
     }
   }
@@ -2149,7 +2158,7 @@ float Scenario::calc_score_misc(int i) {
 	    if (found == 3) {
 	      DBG("  [score misc] suspect turn rate maxima [%d:%d] index=%d max_turn=%d total=%d", i, i + 1, i0, max_turn, abs(total));
 	      score -= params->ut_score;
-	      MISC_ACCT(getNameCharPtr(), "ut_score", params->ut_score, -1);
+	      log_misc(getName(), "ut_score", params->ut_score, -1);
 	    }
 	  }
 	}
@@ -2179,7 +2188,7 @@ float Scenario::calc_score_misc(int i) {
       if (acos < 0) {
 	DBG("  [score misc] bad %s tip tangent : acos()=%.2f", (i == 0)?"begin":"end", acos);
 	score += .2 * acos; // hardcoded because I did not find any case where value is important
-	MISC_ACCT(getNameCharPtr(), "None", .2, acos);
+	log_misc(getName(), "None", .2, acos);
       }
     }
   }
@@ -2236,7 +2245,7 @@ void Scenario::calc_straight_score_all(turn_t *turn_detail, int turn_count, floa
 
   // spread score as this is a global score
   for(int i = 0; i < count; i ++) {
-    if (result) { MISC_ACCT(getNameCharPtr(), "straight", 1, result / count); }
+    if (result) { log_misc(getName(), "straight", 1, result / count); }
     scores[i].misc_score += result / count;
   }
 
@@ -2265,7 +2274,7 @@ void Scenario::calc_loop_score_all(turn_t *turn_detail, int turn_count) {
 	DBG("Loop detected: turn #%d (index %d, letter '%c')  OK=%d", i, j, letter_history[j], (int) ok);
 	if (! ok) {
 	  scores[j].misc_score -= params->loop_penalty;
-	  MISC_ACCT(getNameCharPtr(), "loop_penalty", params->loop_penalty, -1);
+	  log_misc(getName(), "loop_penalty", params->loop_penalty, -1);
 	}
       }
     }
@@ -2317,7 +2326,7 @@ void Scenario::calc_flat2_score_part(int i1, int i2) {
     for(int j = i1; j <= i2; j ++) {
       scores[j].misc_score -= params->flat2_score_max / (i2 - i1 + 1);
     }
-    MISC_ACCT(getNameCharPtr(), "flat2_score_max", params->loop_penalty, -1);
+    log_misc(getName(), "flat2_score_max", params->loop_penalty, -1);
   }
 }
 
@@ -2345,7 +2354,7 @@ void Scenario::calc_flat2_score_all() {
       for(int j = i1; j <= i2; j ++) {
 	scores[j].misc_score -= params->flat2_score_min / (i2 - i1 + 1);
       }
-      MISC_ACCT(getNameCharPtr(), "flat2_score_min", params->loop_penalty, -1);
+      log_misc(getName(), "flat2_score_min", params->loop_penalty, -1);
     }
     */
   }
@@ -2476,7 +2485,7 @@ bool Scenario::postProcess(stats_t &st) {
 	if (dist > min_dist) {
 	  float coef = (float) (dist - min_dist) / min_dist;
 	  scores[i0 + 1].misc_score -= strict_score * coef;
-	  MISC_ACCT(getNameCharPtr(), "strict_score", strict_score, - coef);
+	  log_misc(getName(), "strict_score", strict_score, - coef);
 	}
       }
       */
@@ -2519,7 +2528,7 @@ bool Scenario::postProcess(stats_t &st) {
 	float dlp = dist_line_point(curve->point(i1), curve->point(i2), curve->point(j));
 	if (dlp > len) {
 	  scores[i + 1].misc_score -= params->sp_bad;
-	  MISC_ACCT(getNameCharPtr(), "sp_bad", params->sp_bad, -1);
+	  log_misc(getName(), "sp_bad", params->sp_bad, -1);
 	}
       }
     }
@@ -2659,6 +2668,19 @@ void Scenario::toJson(QJsonObject &json) {
   scoreToJson(json_avg, avg_score);
   json["avg_score"] = json_avg;
   json["min_score"] = json_min;
+
+  if (misc_acct) {
+    QJsonArray json_acct_list;
+    foreach(MiscAcct rec, (* misc_acct)) {
+      QJsonObject json_acct_rec;
+      json_acct_rec["coef_name"] = rec.coef_name;
+      json_acct_rec["coef_value"] = rec.coef_value;
+      json_acct_rec["value" ] = rec.value;
+
+      json_acct_list.append(json_acct_rec);
+    }
+    json["misc_acct"] = json_acct_list;
+  }
 }
 
 QString Scenario::toString(bool indent) {
@@ -2903,3 +2925,13 @@ void Scenario::deepDive(QList<Scenario> &result, float min_score) {
 
 }
 
+void Scenario::log_misc(QString name, QString coef_name, float coef_value, float value) {
+  if (abs(value) < 1E-5) { return; }
+  DBG("     [*] MISC %s %s %.6f %.6f", QSTRING2PCHAR(name), QSTRING2PCHAR(coef_name), coef_value, value);
+
+  if (! misc_acct) {
+    misc_acct = new QList<MiscAcct>();
+  }
+
+  misc_acct -> append(MiscAcct(coef_name, coef_value, value));
+}

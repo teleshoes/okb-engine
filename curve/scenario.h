@@ -213,6 +213,16 @@ class NextIndex {
   NextIndex(int index, float score) { this->index = index; this->score = score; }
 };
 
+class MiscAcct {
+ public:
+  QString coef_name;
+  float coef_value;
+  float value;
+  MiscAcct(QString &coef_name, float coef_value, float value) {
+    this->coef_name = coef_name; this->coef_value = coef_value; this -> value = value;
+  }
+};
+
 class Scenario;
 typedef QHash<unsigned char, QList<Scenario> > child_cache_t;
 
@@ -274,6 +284,8 @@ class Scenario {
   QSharedPointer<child_cache_t> cacheChilds;
   // no significant impact: @todo try this with aggressive mode: QHash<unsigned char, int> cacheMinLength;
 
+  QList<MiscAcct> *misc_acct;
+
  private:
   float calc_distance_score(unsigned char letter, int index, int count, float *return_distance = NULL);
   float calc_cos_score(unsigned char prev_letter, unsigned char letter, int index, int new_index);
@@ -298,6 +310,7 @@ class Scenario {
   void calc_flat2_score_all();
   void calc_flat2_score_part(int i1, int i2);
   int calc_flat2_get_height(int i1, int i2);
+  void log_misc(QString word, QString coef_name, float coef_value, float value);
 
  public:
   Scenario(LetterTree *tree, QuickKeys *keys, QuickCurve *curve, Params *params);
