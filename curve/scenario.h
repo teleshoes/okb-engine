@@ -265,7 +265,7 @@ class Scenario {
   float new_dist;
 
   unsigned char fallback_count;
-  
+
   // cache
   bool cache;
   QSharedPointer<child_cache_t> cacheChilds;

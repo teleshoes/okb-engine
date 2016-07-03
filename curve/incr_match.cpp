@@ -462,7 +462,7 @@ void IncrementalMatch::incrementalMatchUpdate(bool finished, float aggressive) {
 
   // keep snapshot for later backtracking with the fallback algorithm
   int avg_count = c_total / (c_count?c_count:1);
-  if (avg_count >= params.fallback_min_count && avg_count > last_snapshot_count && delayed_scenarios.size() > 0) {
+  if (avg_count >= params.fallback_start_count && avg_count > last_snapshot_count && delayed_scenarios.size() > 0) {
     DBG("[Taking snapshot: %d, size: %d]", avg_count, old_dsp->size());
     last_snapshot_count = avg_count;
     ds_snapshots.append(old_dsp);
@@ -524,7 +524,9 @@ void IncrementalMatch::fallback(QList<ScenarioType> &result) {
 
   QSet<QString> dedupe;
   for(int i = ds_list->size() - 1; i >= 0; i --) {
-    dedupe.insert((*ds_list)[i].getName());
+    QString name = (*ds_list)[i].getName();
+    if (name.length() < params.fallback_min_length) { continue; }
+    dedupe.insert(name);
   }
 
   qSort(ds_list->begin(), ds_list->end());
@@ -534,8 +536,11 @@ void IncrementalMatch::fallback(QList<ScenarioType> &result) {
   QList<Scenario> list;
   for(int i = ds_list->size() - 1; i >= 0; i --) {
     QString name = (*ds_list)[i].getName();
+    if (name.length() < params.fallback_min_length) { continue; }
+
     QString parent = name.left(name.length() - 1);
     if (dedupe.contains(parent)) { continue; }
+
     (*ds_list)[i].deepDive(list);
     if (list.size() > params.fallback_max_candidates * 4) {
       qSort(list.begin(), list.end());

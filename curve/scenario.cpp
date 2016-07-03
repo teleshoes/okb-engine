@@ -2342,7 +2342,7 @@ bool Scenario::postProcess(stats_t &st) {
   }
 
   if (fallback_count) {
-    // @todo evaluate partial turn & misc scores
+    // @todo evaluate partial turn & misc scores for matched keys
     for(int i = 0; i < count; i ++) {
       scores[i].turn_score = 1;
     }
@@ -2775,12 +2775,15 @@ void Scenario::deepDive(QList<Scenario> &result, float min_score) {
       params->coef_error * error_count * (1 + params->final_coef_turn);
     if (new_temp_score < min_score) { continue; }
 
+    // @todo try to "reverse-match" keys from the end of the words
+    //       (i.e. repeatedly call get_next_key_match() with negative steps)
+
     Scenario new_scenario(*this);
     new_scenario.node = node.first;
     new_scenario.index = new_index;
 
     delete[] new_scenario.scores;
-    new_scenario.scores = new score_t[new_count + 1];
+    new_scenario.scores = new score_t[new_count];
     memcpy(new_scenario.scores, this->scores, sizeof(score_t) * count);
     for(int c = count; c < new_count; c++) { new_scenario.scores[c] = default_score; }
     new_scenario.scores[new_count - 1].distance_score = distance_score;
@@ -2790,7 +2793,7 @@ void Scenario::deepDive(QList<Scenario> &result, float min_score) {
     strcpy((char*) new_scenario.letter_history, (char*) letters);
 
     delete[] new_scenario.index_history;
-    new_scenario.index_history = new unsigned char[new_count + 1];
+    new_scenario.index_history = new unsigned char[new_count];
     memcpy(new_scenario.index_history, this->index_history, count);
     for(int c = count; c < new_count; c++) { new_scenario.index_history[c] = new_index; }
 

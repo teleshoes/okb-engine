@@ -38,8 +38,9 @@ class Params {
   int error_correct;
   int error_ignore_count;
   int fallback_max_candidates;
-  int fallback_min_count;
+  int fallback_min_length;
   int fallback_snapshot_queue;
+  int fallback_start_count;
   int fallback_timeout;
   float final_coef_misc;
   float final_coef_turn;
@@ -203,8 +204,9 @@ static Params default_params = {
   1, // error_correct
   5, // error_ignore_count
   80, // fallback_max_candidates
-  5, // fallback_min_count
+  4, // fallback_min_length
   3, // fallback_snapshot_queue
+  5, // fallback_start_count
   100, // fallback_timeout
   1.0, // final_coef_misc
   11.0, // final_coef_turn
@@ -362,8 +364,9 @@ void Params::toJson(QJsonObject &json) const {
   json["error_correct"] = error_correct;
   json["error_ignore_count"] = error_ignore_count;
   json["fallback_max_candidates"] = fallback_max_candidates;
-  json["fallback_min_count"] = fallback_min_count;
+  json["fallback_min_length"] = fallback_min_length;
   json["fallback_snapshot_queue"] = fallback_snapshot_queue;
+  json["fallback_start_count"] = fallback_start_count;
   json["fallback_timeout"] = fallback_timeout;
   json["final_coef_misc"] = final_coef_misc;
   json["final_coef_turn"] = final_coef_turn;
@@ -523,8 +526,9 @@ Params Params::fromJson(const QJsonObject &json) {
   p.error_correct = json["error_correct"].toDouble();
   p.error_ignore_count = json["error_ignore_count"].toDouble();
   p.fallback_max_candidates = json["fallback_max_candidates"].toDouble();
-  p.fallback_min_count = json["fallback_min_count"].toDouble();
+  p.fallback_min_length = json["fallback_min_length"].toDouble();
   p.fallback_snapshot_queue = json["fallback_snapshot_queue"].toDouble();
+  p.fallback_start_count = json["fallback_start_count"].toDouble();
   p.fallback_timeout = json["fallback_timeout"].toDouble();
   p.final_coef_misc = json["final_coef_misc"].toDouble();
   p.final_coef_turn = json["final_coef_turn"].toDouble();
