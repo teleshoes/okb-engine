@@ -20,7 +20,7 @@ if echo "$name" | egrep '^('"${lang_re}"')\-' >/dev/null ; then
 elif [ -z "$lang"] ; then
     lang="en"
 fi
-name=$(echo "$name" | sed 's/\-.*//')
+name=$(echo "$name" | sed 's/\-.*//' | sed 's/[0-9]*$//')
 
 echo "Lang: $lang, expected word: $name"
 

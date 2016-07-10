@@ -277,6 +277,8 @@ def mkspeedgraph(sx = 240, sy = 120, scenario = None):
 def mux_scenario(scenario):
     if "multi" not in scenario: return scenario
     detail = []
+    misc_acct = []
+    dejavu = set()
     for d in scenario["detail"]:
         curve_id = d["curve_id"]
         index = d["index"]
@@ -285,7 +287,15 @@ def mux_scenario(scenario):
         sub_detail["cid:pos"] = "%d:%d" % (curve_id, index)
         detail.append(sub_detail)
 
-    return dict(detail = detail)
+        ma = scenario["scenarios"][curve_id].get("misc_acct", None)
+        if ma:
+            for sc in ma:
+                key = "%s:%f" % (sc["coef_name"], sc["value"])
+                if key not in dejavu:
+                    misc_acct.append(sc)
+                    dejavu.add(key)
+
+    return dict(detail = detail, misc_acct = misc_acct)
 
 # just output image
 if image_out:
@@ -421,7 +431,8 @@ for scenario in candidates:
     t0.td.img(src = mkimg(xsize = 640, scenario = scenario), border = '0')
 
     first = True
-    t = t0.td.table(border = "1")
+    td = t0.td
+    t = td.table(border = "1")
     total = dict()
     for letter_info in mux_scenario(scenario)["detail"]:
         if first:
@@ -447,6 +458,19 @@ for scenario in candidates:
     for k in sorted(letter_info.keys()):
         tr.td(clean_value(total[k][0] / total[k][1]) if k in total else "", bgcolor="#C0C0C0", align = "center")
     n += 1
+
+    misc_acct = mux_scenario(scenario).get("misc_acct", None)
+    if misc_acct:
+        td.p
+        t = td.table(border = "1")
+        tr = t.tre
+        for col in [ "name", "value", "coef", "score" ]:
+            tr.td(bgcolor="#C0FFC0").font(col, size="-2")
+        for sc in misc_acct:
+            tr = t.tr
+            tr.td(bgcolor="#C0C0C0").font(sc["coef_name"], size="-2")
+            for col in [ sc["coef_value"], sc["value"], sc["coef_value"] * sc["value"] ]:
+                tr.td.font(clean_value(col), size="-2")
 
     t0.td.img(src = mkspeedgraph(sx = 400, sy = 300, scenario = scenario), border = '0')
     t0.td.img(src = mkxygraph(size = 300, scenario = scenario), border = '0')
