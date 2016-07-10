@@ -265,7 +265,7 @@ def optim(pname, params, tests, typ):
             if score > last_score: bad_count = 0
             else: bad_count += 1
 
-            if bad_count > 4: break
+            if bad_count > 6: break
 
             scores.append( (new_value, score) )
             print("Try[%s:%s] %s->%s score=%f" % (typ, pname, value, new_value, score))

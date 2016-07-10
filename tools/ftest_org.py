@@ -190,9 +190,15 @@ if __name__ == '__main__':
         count += 1
         if ok: ok_count += 1
 
+        compare_word = guess
+        if len(ordered_guesses) < 2: compare_word = None
+        elif ok: compare_word = ordered_guesses[1]
+
+
         curve = result["input"]["curve"]
         record.append(dict(id = id, ts = ts, context = context, candidates = candidates,
                            expected = word, lang = lang, speed = speed, old_guess = guess,
+                           compare_word = compare_word,
                            speed_max = max([ c.get("speed", 0) for c in curve ]),
                            st1 = len([ 1 for c in curve if c.get("sharp_turn", 0) == 1 ]),
                            st2 = len([ 1 for c in curve if c.get("sharp_turn", 0) == 2 ]) ))
