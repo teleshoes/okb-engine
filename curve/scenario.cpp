@@ -2187,8 +2187,8 @@ float Scenario::calc_score_misc(int i) {
       float acos = cos(anglep(tg_act, tg_exp));
       if (acos < 0) {
 	DBG("  [score misc] bad %s tip tangent : acos()=%.2f", (i == 0)?"begin":"end", acos);
-	score += .2 * acos; // hardcoded because I did not find any case where value is important
-	log_misc(getName(), "None", .2, acos);
+	score += params->bad_tangent_score * acos; // hardcoded because I did not find any case where value is important
+	log_misc(getName(), "bad_tangent_score", params->bad_tangent_score, acos);
       }
     }
   }
@@ -2218,6 +2218,7 @@ void Scenario::calc_straight_score_all(turn_t *turn_detail, int turn_count, floa
       // if (real_turn_count == 1 and turn_detail[i].expected_
       result = - params->straight_score1 * coef * real_turn_count;
       DBG(" [score_straight] (1) bad=%d score=%.2f", real_turn_count, result);
+      log_misc(getName(), "straight_score1", params->straight_score1, - coef * real_turn_count);
     }
 
     /* check if line orientation is OK */
@@ -2232,20 +2233,23 @@ void Scenario::calc_straight_score_all(turn_t *turn_detail, int turn_count, floa
       a_sin = abs(sin_angle(k2.x - k1.x, k2.y - k1.y, p2.x - p1.x, p2.y - p1.y));
     }
 
-    result += params->straight_slope * (sqrt(1 - a_sin * a_sin) - 1);
+    float coef_slope = sqrt(1 - a_sin * a_sin) - 1;
+    result += params->straight_slope * coef_slope;
+    log_misc(getName(), "straight_slope", params->straight_slope, coef_slope);
 
 
   } else if (straight_score > params->straight_threshold_high) {
     /* other curve: penalty for straight candidates (geometrically speaking) */
     if (! real_turn_count) {
-      result = - params->straight_score2 * min(1, straight_score - 1);
+      float coef = min(1, straight_score - 1);
+      result = - params->straight_score2 * coef;
       DBG(" [score_straight] (2) score=%.2f", result);
+      log_misc(getName(), "straight_score2", params->straight_score2, - coef);
     }
   }
 
   // spread score as this is a global score
   for(int i = 0; i < count; i ++) {
-    if (result) { log_misc(getName(), "straight", 1, result / count); }
     scores[i].misc_score += result / count;
   }
 

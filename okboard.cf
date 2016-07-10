@@ -13,6 +13,7 @@ atp_min_angle1 = 30
 atp_min_turn1 = 12
 atp_opt_gap = 4
 atp_threshold = 4
+bad_tangent_score = 0.2
 bjr_min_turn = 120
 cat_window = 12
 cls_distance_max_ratio = 0.8

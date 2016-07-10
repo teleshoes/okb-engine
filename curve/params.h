@@ -18,6 +18,7 @@ class Params {
   int atp_min_turn1;
   int atp_opt_gap;
   int atp_threshold;
+  float bad_tangent_score;
   int bjr_min_turn;
   int cat_window;
   float cls_distance_max_ratio;
@@ -188,6 +189,7 @@ static Params default_params = {
   12, // atp_min_turn1
   4, // atp_opt_gap
   4, // atp_threshold
+  0.2, // bad_tangent_score
   120, // bjr_min_turn
   12, // cat_window
   0.8, // cls_distance_max_ratio
@@ -352,6 +354,7 @@ void Params::toJson(QJsonObject &json) const {
   json["atp_min_turn1"] = atp_min_turn1;
   json["atp_opt_gap"] = atp_opt_gap;
   json["atp_threshold"] = atp_threshold;
+  json["bad_tangent_score"] = bad_tangent_score;
   json["bjr_min_turn"] = bjr_min_turn;
   json["cat_window"] = cat_window;
   json["cls_distance_max_ratio"] = cls_distance_max_ratio;
@@ -518,6 +521,7 @@ Params Params::fromJson(const QJsonObject &json) {
   p.atp_min_turn1 = json["atp_min_turn1"].toDouble();
   p.atp_opt_gap = json["atp_opt_gap"].toDouble();
   p.atp_threshold = json["atp_threshold"].toDouble();
+  p.bad_tangent_score = json["bad_tangent_score"].toDouble();
   p.bjr_min_turn = json["bjr_min_turn"].toDouble();
   p.cat_window = json["cat_window"].toDouble();
   p.cls_distance_max_ratio = json["cls_distance_max_ratio"].toDouble();
