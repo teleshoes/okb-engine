@@ -1,4 +1,4 @@
-#! /bin/bash -x
+#! /bin/bash
 
 lang=
 if [ "$1" = "-l" ] ; then
@@ -13,12 +13,16 @@ dir=`dirname "$0"`"/.."
 dir=`readlink -f "$dir"`
 name=`basename "$test" .json`
 
-if [ -z "$lang" ] ; then
+lang_re=$(ls "$dir/db/" | grep '^..\.tre' | cut -c1,2 | tr '\n' '|' | sed 's/|$//')
+if echo "$name" | egrep '^('"${lang_re}"')\-' >/dev/null ; then
+    lang=$(echo "$name" | head -n 1 | cut -c 1,2)
+    name=$(echo "$name" | cut -c4-)
+elif [ -z "$lang"] ; then
     lang="en"
-    if echo "$name" | egrep '^[a-z][a-z]\-' >/dev/null ; then
-	lang=`echo "$name" | head -n 1 | cut -c 1,2`
-    fi
 fi
+name=$(echo "$name" | sed 's/\-.*//')
+
+echo "Lang: $lang, expected word: $name"
 
 export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$dir/curve/build"
 tmp=`mktemp /tmp/$name.XXXXXX.json`

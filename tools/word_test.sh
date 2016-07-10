@@ -7,7 +7,8 @@ word="$2"
 if [ ! -f "$test" ] ; then echo "usage: $0 <json test file> [<word to test>]" ; exit 1; fi
 dir=`dirname "$0"`"/.."
 dir=`readlink -f "$dir"`
-[ -n "$word" ] || word=`basename "$test" .json | sed 's/^[a-z][a-z]\-//' | sed 's/[0-9]*$//' | sed 's/\-.*$//'`
+lang_re=$(ls "$dir/db/" | grep '^..\.tre' | cut -c1,2 | tr '\n' '|' | sed 's/|$//')
+[ -n "$word" ] || word=`basename "$test" .json | sed -r 's/^('"${lang_re}"')\-//' | sed 's/[0-9]*$//' | sed 's/\-.*$//'`
 
 echo "Target word: $word"
 
