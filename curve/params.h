@@ -67,6 +67,9 @@ class Params {
   float lazy_loop_bias;
   float length_penalty;
   float loop_penalty;
+  int loop_threshold1;
+  int loop_threshold2;
+  int loop_threshold3;
   int match_wait;
   int max_active_scenarios;
   int max_active_scenarios2;
@@ -229,7 +232,7 @@ static Params default_params = {
   0.0, // flat2_score_min
   10, // flat_max_angle
   45, // flat_max_deviation
-  0.25, // flat_score
+  0.06, // flat_score
   50, // incr_retry
   5, // incremental_index_gap
   100, // incremental_length_lag
@@ -239,6 +242,9 @@ static Params default_params = {
   0.02, // lazy_loop_bias
   0.001, // length_penalty
   0.2, // loop_penalty
+  155, // loop_threshold1
+  120, // loop_threshold2
+  60, // loop_threshold3
   7, // match_wait
   105, // max_active_scenarios
   205, // max_active_scenarios2
@@ -405,6 +411,9 @@ void Params::toJson(QJsonObject &json) const {
   json["lazy_loop_bias"] = lazy_loop_bias;
   json["length_penalty"] = length_penalty;
   json["loop_penalty"] = loop_penalty;
+  json["loop_threshold1"] = loop_threshold1;
+  json["loop_threshold2"] = loop_threshold2;
+  json["loop_threshold3"] = loop_threshold3;
   json["match_wait"] = match_wait;
   json["max_active_scenarios"] = max_active_scenarios;
   json["max_active_scenarios2"] = max_active_scenarios2;
@@ -573,6 +582,9 @@ Params Params::fromJson(const QJsonObject &json) {
   p.lazy_loop_bias = json["lazy_loop_bias"].toDouble();
   p.length_penalty = json["length_penalty"].toDouble();
   p.loop_penalty = json["loop_penalty"].toDouble();
+  p.loop_threshold1 = json["loop_threshold1"].toDouble();
+  p.loop_threshold2 = json["loop_threshold2"].toDouble();
+  p.loop_threshold3 = json["loop_threshold3"].toDouble();
   p.match_wait = json["match_wait"].toDouble();
   p.max_active_scenarios = json["max_active_scenarios"].toDouble();
   p.max_active_scenarios2 = json["max_active_scenarios2"].toDouble();

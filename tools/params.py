@@ -65,6 +65,9 @@ defparams = [
     [ "lazy_loop_bias", float, 0, 1 ],
     [ "length_penalty", float, -0.1, 0.1 ],
     [ "loop_penalty", float, 0, 1 ],
+    [ "loop_threshold1", int, 10, 180 ],
+    [ "loop_threshold2", int, 10, 180 ],
+    [ "loop_threshold3", int, 10, 180 ],
     [ "match_wait", int, 4, 12 ],
     [ "max_active_scenarios", int ],  # no optimization, larger is always better
     [ "max_active_scenarios2", int ],  # no optimization, larger is always better

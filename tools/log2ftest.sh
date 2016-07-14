@@ -10,6 +10,8 @@ set -o pipefail
 cd `dirname "$0"`
 cd ..
 
+. tools/env.sh
+
 [ -f "$HOME/.okboard-test" ] && . $HOME/.okboard-test
 log_dir=${OKBOARD_LOG_DIR:-/tmp/okboard-logs}
 work_dir=${OKBOARD_FTEST_DIR:-/tmp/ftest}

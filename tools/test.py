@@ -63,7 +63,7 @@ if __name__ == "__main__":
     listpara = None
     save = True
     nodebug = False
-    typs = ["max", "max2", "good", "good2", "guess" ]
+    typs = ["max", "max2", "guess" ]
 
     for o, a in opts:
         if o == "-d":

@@ -2262,20 +2262,22 @@ void Scenario::calc_loop_score_all(turn_t *turn_detail, int turn_count) {
     for(int j = d->start_index; j <= d->index; j++) {
       if (get_turn_kind(j) == -1) {
 	int exp = d->expected;
+	int exp1 = -1, exp2 = -1;
 	bool ok = false;
 
-	if (abs(exp) > 170) {
+	if (abs(exp) > params->loop_threshold1) {
 	  ok = true;
-	} else if (abs(exp) > 120 && i > 0 && i < turn_count - 1) {
-	  int exp1 = turn_detail[i - 1].expected;
-	  int exp2 = turn_detail[i + 1].expected;
-	  if ((exp1 * exp < 0 && abs(exp1) > 60) ||
-	      (exp2 * exp < 0 && abs(exp2) > 60)) {
+	} else if (abs(exp) > params->loop_threshold2 && i > 0 && i < turn_count - 1) {
+	  exp1 = turn_detail[i - 1].expected;
+	  exp2 = turn_detail[i + 1].expected;
+	  if ((exp1 * exp < 0 && abs(exp1) > params->loop_threshold3) ||
+	      (exp2 * exp < 0 && abs(exp2) > params->loop_threshold3)) {
 	    ok = true;
 	  }
 	}
 
-	DBG("Loop detected: turn #%d (index %d, letter '%c')  OK=%d", i, j, letter_history[j], (int) ok);
+	DBG("Loop detected: turn #%d (index %d, letter '%c') exp=[%d:%d:%d] OK=%d",
+	    i, j, letter_history[j], exp1, exp, exp2, (int) ok);
 	if (! ok) {
 	  scores[j].misc_score -= params->loop_penalty;
 	  log_misc(getName(), "loop_penalty", params->loop_penalty, -1);
