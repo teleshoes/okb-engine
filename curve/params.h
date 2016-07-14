@@ -189,7 +189,7 @@ static Params default_params = {
   12, // atp_min_turn1
   4, // atp_opt_gap
   4, // atp_threshold
-  0.2, // bad_tangent_score
+  0.03, // bad_tangent_score
   120, // bjr_min_turn
   12, // cat_window
   0.8, // cls_distance_max_ratio
