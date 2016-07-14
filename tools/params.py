@@ -117,6 +117,7 @@ defparams = [
     [ "straight_score1", float, 0, 1],
     [ "straight_score2", float, 0, 1],
     [ "straight_slope", float, 0, 1],
+    [ "straight_tip", int, 0, 10],
     [ "straight_threshold_high", float, 0.1, 4],
     [ "straight_threshold_low", float, 0.1, 4],
     [ "thumb_correction", int ],  # user decision, depends on style

@@ -216,6 +216,7 @@ def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, s
             save(os.path.join(dump, "%s.out" % key), json_out)
             save(os.path.join(dump, "%s.err" % key), err)
             save(os.path.join(dump, "%s.run" % key), cmd + '\n')
+            save(os.path.join(dump, "%s.word" % key), word)
 
         if code != 0:
             dump_txt(inj[word])
@@ -297,7 +298,9 @@ def load_tests():
         test_id = letters = fname[:-5]  # remove ".json"
 
         mo = re.match('^([a-z][a-z])\-(.*)', letters)
-        if mo: lang, letters = mo.group(1), mo.group(2)
+        if mo:
+            if os.path.isfile(os.path.join(TRE_DIR, "%s.tre" % mo.group(1))):
+                lang, letters = mo.group(1), mo.group(2)
 
         letters = re.sub(r'-.*$', '', letters)
         letters = ''.join(c for c in unicodedata.normalize('NFD', letters) if unicodedata.category(c) != 'Mn')

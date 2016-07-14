@@ -24,3 +24,4 @@ GTAGS
 ID
 clusters-*.txt
 *.id
+*.tmp

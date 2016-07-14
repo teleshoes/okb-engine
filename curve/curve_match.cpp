@@ -589,9 +589,10 @@ void CurveMatch::curvePreprocess2() {
 
   /* check for straight line & compute speed */
   st.st_speed = 0;
-  float sc1 = 0, sc2 = 0;
-  int total = 0;
   for (int i = 0; i < curve_count; i ++) {
+    float sc1 = 0, sc2 = 0;
+    int total = 0;
+
     QList<int> indexes;
     for (int j = 0; j < curve.size(); j ++) {
       if (curve[j].curve_id != i) { continue; }
@@ -605,13 +606,17 @@ void CurveMatch::curvePreprocess2() {
       st.st_speed += 1000.0 * curve[i1].length / (curve[i1].t - curve[i0].t);
     }
 
-    for(int k = 0; k < indexes.size(); k ++) {
+    int tip_soft = params.straight_tip;
+    for(int k = tip_soft / 2; k < indexes.size() - tip_soft / 2; k ++) {
       int j = indexes[k];
-      int turn = curve[j].turn_smooth;
-      if (j > 2 && j < indexes.size() - 2) { // ignore near tip anomalies
-	total += turn;
-	sc1 = max(sc1, (float) abs(turn) / params.straight_max_turn);
-      }
+
+      float coef = (k <= tip_soft || k >= indexes.size() - 1 - tip_soft)?0.5:1;
+      int turn = coef * curve[j].turn_smooth;
+
+      DBG("Straight score: Curve #%d:%d:%d %.3f -> %d", i, k, j, coef, turn);
+
+      total += turn;
+      sc1 = max(sc1, (float) abs(turn) / params.straight_max_turn);
     }
     sc2 = abs(total) * (0.35 + 0.65 * min(1, (float) curve.size() / 250)) / params.straight_max_total; // @todo use parameters
     float straight = max(sc1, sc2);

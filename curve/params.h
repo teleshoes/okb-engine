@@ -121,6 +121,7 @@ class Params {
   float straight_slope;
   float straight_threshold_high;
   float straight_threshold_low;
+  int straight_tip;
   int thumb_correction;
   float tip_small_segment;
   int turn2_ignore_maxgap;
@@ -292,6 +293,7 @@ static Params default_params = {
   0.5, // straight_slope
   1.2, // straight_threshold_high
   0.6, // straight_threshold_low
+  6, // straight_tip
   1, // thumb_correction
   0.02, // tip_small_segment
   20, // turn2_ignore_maxgap
@@ -457,6 +459,7 @@ void Params::toJson(QJsonObject &json) const {
   json["straight_slope"] = straight_slope;
   json["straight_threshold_high"] = straight_threshold_high;
   json["straight_threshold_low"] = straight_threshold_low;
+  json["straight_tip"] = straight_tip;
   json["thumb_correction"] = thumb_correction;
   json["tip_small_segment"] = tip_small_segment;
   json["turn2_ignore_maxgap"] = turn2_ignore_maxgap;
@@ -624,6 +627,7 @@ Params Params::fromJson(const QJsonObject &json) {
   p.straight_slope = json["straight_slope"].toDouble();
   p.straight_threshold_high = json["straight_threshold_high"].toDouble();
   p.straight_threshold_low = json["straight_threshold_low"].toDouble();
+  p.straight_tip = json["straight_tip"].toDouble();
   p.thumb_correction = json["thumb_correction"].toDouble();
   p.tip_small_segment = json["tip_small_segment"].toDouble();
   p.turn2_ignore_maxgap = json["turn2_ignore_maxgap"].toDouble();

@@ -114,6 +114,7 @@ straight_max_turn = 8
 straight_score1 = 0.5
 straight_score2 = 0.2
 straight_slope = 0.5
+straight_tip = 6
 straight_threshold_high = 1.2
 straight_threshold_low = 0.6
 thumb_correction = 1
