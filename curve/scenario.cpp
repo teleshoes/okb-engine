@@ -2530,7 +2530,10 @@ bool Scenario::postProcess(stats_t &st) {
 	DBG("  workaround: %s shared turn point (ST=1) %c:%c", getNameCharPtr(), letter_history[i], letter_history[i + 1]);
 	float len = distancep(curve->point(i1), curve->point(i2));
 	float dlp = dist_line_point(curve->point(i1), curve->point(i2), curve->point(j));
-	if (dlp > len) {
+	if (dlp > len * 1.1) {
+	  DBG("bad shared turn: %d:%c-->%d-->%d:%c  dlp=%d len=%d",
+	      i1, letter_history[i], j, i2, letter_history[i + 1],
+	      (int) dlp, (int) len);
 	  scores[i + 1].misc_score -= params->sp_bad;
 	  log_misc(getName(), "sp_bad", params->sp_bad, -1);
 	}
