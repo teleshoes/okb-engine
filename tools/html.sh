@@ -17,7 +17,7 @@ lang_re=$(ls "$dir/db/" | grep '^..\.tre' | cut -c1,2 | tr '\n' '|' | sed 's/|$/
 if echo "$name" | egrep '^('"${lang_re}"')\-' >/dev/null ; then
     lang=$(echo "$name" | head -n 1 | cut -c 1,2)
     name=$(echo "$name" | cut -c4-)
-elif [ -z "$lang"] ; then
+elif [ -z "$lang" ] ; then
     lang="en"
 fi
 name=$(echo "$name" | sed 's/\-.*//' | sed 's/[0-9]*$//')
