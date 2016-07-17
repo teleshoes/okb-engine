@@ -132,9 +132,13 @@ if __name__ == '__main__':
         word = t["word"]
         context = t["context"]
         pre = os.path.join(work_dir, id)
-        result = json.load(open(pre + ".json", 'r'))
+        if os.path.isfile(pre + ".json"):
+            result = json.load(open(pre + ".json", 'r'))
+        else:
+            result = {}
 
-        lang = os.path.basename(result["input"]["treefile"])[:2]
+        if result: lang = os.path.basename(result["input"]["treefile"])[:2]
+        else: lang = "xx"
 
         check = False
         comment = False
@@ -156,8 +160,6 @@ if __name__ == '__main__':
                 lm = None
             last_lang = lang
 
-        if not lm: continue
-
         prefix = "  - [%s] %s %s [[file:%s][json]] [[file:%s][log]] [[file:%s][html]] [[file:%s][png]] [[file:%s][predict log]] %s %s" % \
                  ("X" if check else " ", id, lang, pre + ".json", pre + ".log", pre + ".html", pre + ".png", pre + ".predict.log",
                   " ".join(context), word)
@@ -172,6 +174,10 @@ if __name__ == '__main__':
         if not check or comment:
             f.write("%s\n" % prefix)
             continue
+
+        if not lm: continue
+
+        if not result: raise Exception("Could not load file: %s.json" % pre)
 
         speed = result["stats"]["speed"]
 

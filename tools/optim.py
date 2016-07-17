@@ -97,12 +97,12 @@ def run1(json_str, lang, nodebug = False, full = False):
     opts = re.split('\s+', os.getenv('CLI_OPTS', "-a 1"))  # by default test with incremental mode (more representative)
     opts = [ x for x in opts if x ]
     if nodebug: opts = [ "-g" ] + opts
-    cmd = [ CLI ] + opts + [ os.path.join(TRE_DIR, "%s%s.tre" % (lang, "-full" if full else "")) ]
+    cmd = [ CLI ] + opts + [ "-s", os.path.join(TRE_DIR, "%s%s.tre" % (lang, "-full" if full else "")) ]
 
     sp = subprocess.Popen(cmd, stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
 
-    (json_out, err) = sp.communicate(bytes(json_str, "UTF-8"))
-    return json_out, err, sp.returncode, ' '.join(cmd)
+    (out, err) = sp.communicate(bytes(json_str, "UTF-8"))
+    return out, err, sp.returncode, ' '.join(cmd)
 
 def update_json(json_str, params):
     js = json.loads(json_str)
@@ -110,30 +110,23 @@ def update_json(json_str, params):
     js["params"] = dict([ (x, y["value"]) for x, y in params.items() ])
     return json.dumps(js)
 
-def score1(json_str, expected, typ):
+def score1(candidates, expected, typ):
     # mot attendu premier = score > 0 (distance au prochain dans la liste)
     # sinon < 0 : somme des distance de ceux qui sont devant ! (x 10000)
-    json_str = re.sub(r'(\n|\\n).*$', '', json_str)
-    js = json.loads(json_str)
 
     score_ref = None
     others = []
     starred = False
     star_count = 0
-    for c in js["candidates"]:
-        score = c["score"]
-        if score is None: raise Exception("null score for '%s'" % expected)
-        name = c["name"]
-        if name == expected:
+    for c in candidates:
+        score = candidates[c]
+        if score is None: raise Exception("null score for '%s'" % c)
+        if c == expected:
             score_ref = score
-            starred = c["star"]
         else:
             others.append(score)
-            if c["star"]: star_count += 1
 
-    # print "Detail:" + ",".join("%s: %.3f" % (c, c["score"]) for x in js["candidates"])
-
-    cputime = js["stats"]["cputime"]
+    cputime = 0  # ouch!
 
     if score_ref is None: return -9999999, cputime  # targeted word is not even found
     if not len(others): return 1, cputime  # sometime happens :-)
@@ -156,7 +149,7 @@ def score1(json_str, expected, typ):
             score = score_ref - max_score
         else:
             coef = 10 if typ.startswith("max2") else 1
-            score = - coef * sum([ c["score"] - score_ref for c in js["candidates"] if c["score"] > score_ref ])
+            score = - coef * sum([ candidates[c] - score_ref for c in candidates if candidates[c] > score_ref ])
             if typ.endswith("b"):
                 if max_score - score_ref > 0.01: score -= 1  # predict can not save it
 
@@ -178,9 +171,6 @@ def score1(json_str, expected, typ):
 
     elif typ == "guess":
         score = 1 if score_ref >= max_score else 0
-
-    elif typ == "perf":
-        score = - js["stats"]["cputime"]
 
     else: raise Exception("unknown score type: %d", typ)
 
@@ -210,9 +200,9 @@ def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, s
     results = parallel(runall)
 
     for key, result in results.items():
-        (json_out, err, code, cmd) = result
+        (out, err, code, cmd) = result
         word = wordk[key]
-        json_out, err = json_out.decode(encoding='UTF-8'), err.decode(encoding='UTF-8')
+        out, err = out.decode(encoding='UTF-8'), err.decode(encoding='UTF-8')
 
         if dump:
             save(os.path.join(dump, "%s.out" % key), json_out)
@@ -223,12 +213,15 @@ def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, s
         if code != 0:
             dump_txt(inj[word])
             raise Exception("return code: %s [id=%s, word=%s, lang=%s] command: %s" % (code, key, word, lang, cmd))
-        log1("<<<< " + json_out)
+        log1("<<<< " + out)
         log1("")
 
-        i = json_out.find('Result: {')
-        if i > -1: json_out = json_out[i + 8:]
-        score, cputime = score1(json_out, word, typ)
+        candidates = dict()
+        for li in out.split('\n'):
+            mo = re.match(r'^([a-z]+)\s+([\d\.]+)$', li.strip())
+            if mo: candidates[mo.group(1)] = float(mo.group(2))
+
+        score, cputime = score1(candidates, word, typ)
 
         if not silent:
             print("%s (%s): " % (word, lang), "%.3f - " % score, end = "")
