@@ -205,7 +205,7 @@ def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, s
         out, err = out.decode(encoding='UTF-8'), err.decode(encoding='UTF-8')
 
         if dump:
-            save(os.path.join(dump, "%s.out" % key), json_out)
+            save(os.path.join(dump, "%s.out" % key), out)
             save(os.path.join(dump, "%s.err" % key), err)
             save(os.path.join(dump, "%s.run" % key), cmd + '\n')
             save(os.path.join(dump, "%s.word" % key), word)
@@ -226,7 +226,7 @@ def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, s
         if not silent:
             print("%s (%s): " % (word, lang), "%.3f - " % score, end = "")
         if score < -999999 and fail_on_bad_score:
-            dump_txt(json_out, "out")
+            dump_txt(out, "out")
             dump_txt(err, "err")
             dump_txt(json_in2, "in")
             raise Exception("negative score in reference test data: %s (type=%s, score=%d)" % (word, typ, score))
