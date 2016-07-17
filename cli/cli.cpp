@@ -196,7 +196,6 @@ int main(int argc, char* argv[]) {
       break;
     }
     
-    cm->log(QString("OUT: ") + cm->resultToString());
     if (showscore) {
       QList<ScenarioType> candidates = cm->getCandidates();
       foreach(ScenarioType s, candidates) {

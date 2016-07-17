@@ -12,6 +12,8 @@ cd ..
 
 . tools/env.sh
 
+FT_FILE="tools/ftest.org"
+
 [ -f "$HOME/.okboard-test" ] && . $HOME/.okboard-test
 log_dir=${OKBOARD_LOG_DIR:-/tmp/okboard-logs}
 work_dir=${OKBOARD_FTEST_DIR:-/tmp/ftest}
@@ -23,6 +25,17 @@ reset=
 params=
 opts=
 force_check=
+only_selected=
+
+usage() {
+    echo "usage :"`basename "$0"`" <opts>"
+    echo "opts:"
+    echo " -m <max_age>"
+    echo " -z : reset"
+    echo " -p <parameters> : parameters for prediction engine"
+    echo " -f : force check"
+    echo " -s : only process selected strokes"
+}
 
 while [ -n "$1" ] ; do
     case "$1" in
@@ -31,7 +44,9 @@ while [ -n "$1" ] ; do
 	-p) params="$2" ; shift ;;
 	-a) opts="${opts}-a " ;;
 	-f) force_check=1 ;;
-	*) echo "Unknown parameter: $1" ; exit 1 ;;
+	-s) only_selected=1 ;;
+	-h) usage ; exit 0 ;;
+	*) echo "Unknown parameter: $1" ; usage ; exit 1 ;;
     esac
     shift
 done
@@ -50,6 +65,9 @@ ts="$work_dir/.ts"
 rescan=
 [ -z "$force_check" -a -z "$reset" -a -f "$ts" ] || rescan=1
 
+selected=
+[ -f "$FT_FILE" ] && selected="$(egrep ' \[X\] ' $FT_FILE | awk '{ print $3 }')"
+
 if [ -n "$rescan" ] ; then
     getlogs | egrep '^(==WORD==|OUT:)' | (
 	n=0
@@ -63,6 +81,11 @@ if [ -n "$rescan" ] ; then
 	    word=`echo "$word" | sed -r "s/^'(.*)'$/\1/"`
 
 	    pre="$work_dir/$id"
+
+	    if [ -n "$only_selected" ] && [ -n "$selected" ] && ! echo "$selected" | grep '^'"$id"'$' >/dev/null ; then
+		echo "Skipping $id (not selected)" >&2
+		continue
+	    fi
 
 	    if [ ! -f "$pre.png" -o -n "$reset" ] ; then
 		js=$(echo "$js" | tools/json-recover-keys.py "$tmpjson")

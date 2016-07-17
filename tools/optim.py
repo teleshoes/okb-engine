@@ -93,7 +93,7 @@ def log1(txt):
         f.write(txt)
         f.write("\n")
 
-def run1(json_str, lang, nodebug = False, full = True):
+def run1(json_str, lang, nodebug = False, full = False):
     opts = re.split('\s+', os.getenv('CLI_OPTS', "-a 1"))  # by default test with incremental mode (more representative)
     opts = [ x for x in opts if x ]
     if nodebug: opts = [ "-g" ] + opts
@@ -155,8 +155,10 @@ def score1(json_str, expected, typ):
         if score_ref >= max_score:
             score = score_ref - max_score
         else:
-            coef = 10 if typ == "max2" else 1
+            coef = 10 if typ.startswith("max2") else 1
             score = - coef * sum([ c["score"] - score_ref for c in js["candidates"] if c["score"] > score_ref ])
+            if typ.endswith("b"):
+                if max_score - score_ref > 0.01: score -= 1  # predict can not save it
 
     elif typ == "good":
         x = (score_ref - max_score) * 10
@@ -311,6 +313,39 @@ def load_tests():
     tests.sort(key = lambda x: x[0])
     return tests
 
+def run_optim_one_shot(params, typ, listpara, p_include, p_exclude, param_file):
+    params0 = copy.deepcopy(params)
+    tests = load_tests()
+    score0, _ignored_ = run_all(tests, params, typ, fail_on_bad_score = True, nodebug = True)
+    result_txt = ""
+
+    for p in sorted(list(params.keys())):
+        if "min" not in params[p]: continue
+        if listpara and p not in listpara: continue
+
+        if p_include and not re.match(p_include, p): continue
+        if p_exclude and re.match(p_exclude, p): continue
+
+        params = copy.deepcopy(params0)
+
+        print("===== Optimizing parameter '%s' =====" % p)
+        last_score = score0
+        while True:
+            score = optim(p, params, tests, typ)
+            if score <= last_score: break
+            last_score = score
+            changed = True
+
+        if score > score0:
+            bla = "%s: Parameter change[%s]: %.4f -> %.4f: score: %.4f -> %.4f" % \
+                  (typ, p, params0[p]["value"], params[p]["value"], score0, score)
+            print(">", bla)
+            result_txt += bla + "\n"
+            with open(OUT, "a") as f:
+                f.write(bla + "\n")
+
+    return result_txt
+
 def run_optim(params, typ, listpara, p_include, p_exclude, param_file):
     params0 = copy.deepcopy(params)
 
@@ -384,7 +419,7 @@ def run_optim(params, typ, listpara, p_include, p_exclude, param_file):
 
     with open(OUT, "a") as f:
         detail_max = dict()
-        run_all(tests, params, typ, return_dict = detail_max, nodebug=True)
+        run_all(tests, params, typ, return_dict = detail_max, nodebug = True)
         fcntl.flock(f, fcntl.LOCK_EX)
         f.write('=' * 70 + '\n')
         f.write("Score type: %s - Time: [%s] - Duration: %d - Iterations: %d\n\n" % (typ, time.ctime(), int(time.time() - start), it))
@@ -401,8 +436,9 @@ if __name__ == "__main__":
 
     p_include = p_exclude = None
     param_file = None
+    one_shot = False
 
-    opts, args =  getopt.getopt(sys.argv[1:], 'l:p:i:x:s:')
+    opts, args =  getopt.getopt(sys.argv[1:], 'l:p:i:x:s:o')
     listpara = None
     for o, a in opts:
         if o == "-l":
@@ -415,6 +451,8 @@ if __name__ == "__main__":
             p_exclude = a
         elif o == "-s":
             param_file = os.path.realpath(a)
+        elif o == "-o":
+            one_shot = True
         else:
             print("Bad option: %s", o)
             exit(1)
@@ -427,6 +465,7 @@ if __name__ == "__main__":
         print(" -i <regexp> : only update parameters with matching names")
         print(" -x <regexp> : don't update parameters with matching names")
         print(" -s <file> : save parameters to file (and read them on startup)")
+        print(" -o : one-shot (optimize all parameters separately")
         print("score type can be 'all' or a comma separated list")
         exit(1)
 
@@ -436,15 +475,19 @@ if __name__ == "__main__":
     print('Parameters: ' + params2str(params))
 
     if typ == "all":
-        typ_list = ["max", "max2", "good", "good2" ]
+        typ_list = ["max", "max2", "max2b", "guess" ]
     elif typ.find(',') > -1:
         typ_list = typ.split(',')
     else:
         typ_list = [ typ ]
 
+    with open(OUT, "a") as f:
+        f.write("\n=== optim " + time.ctime(time.time()) + " / " + " " . join(sys.argv[1:]) + " ===\n\n")
+
     results = dict()
     for typ in typ_list:
-        result = run_optim(copy.deepcopy(params), typ, listpara, p_include, p_exclude, param_file)
+        optim_f = run_optim_one_shot if one_shot else run_optim
+        result = optim_f(copy.deepcopy(params), typ, listpara, p_include, p_exclude, param_file)
         results[typ] = result
 
     for typ, result in results.items():

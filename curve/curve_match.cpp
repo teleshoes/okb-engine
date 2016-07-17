@@ -120,8 +120,6 @@ void CurveMatch::curvePreprocess1(int curve_id) {
     oneCurve[l-1].turn_smooth = oneCurve[l-2].turn_angle / 4;
   }
 
-  int max_speed = 0;
-
   for(int i = 0 ; i < l; i ++) {
     oneCurve[i].sharp_turn = 0;
   }
@@ -218,16 +216,23 @@ void CurveMatch::curvePreprocess1(int curve_id) {
   /* --- acceleration computation --- */
   // timestamps smoothing
   int ts[l], len[l];
-  len[0] = 0;
+  len[0] = ts[0] = 0;
   for(int i = 1; i < l; i ++) {
     len[i] = len[i - 1] + distance(oneCurve[i - 1].smoothx, oneCurve[i - 1].smoothy, oneCurve[i].smoothx, oneCurve[i].smoothy);
+    ts[i] = oneCurve[i].t;
   }
-  for(int i = 0; i < l; i ++) {
-    int i1 = max(0, i - 5);
-    int i2 = min(l - 1, i + 5);
-    int t1 = oneCurve[i1].t;
-    int t2 = oneCurve[i2].t;
-    ts[i] = t1 + ((float) (t2 - t1) * (i - i1) / (i2 - i1));
+
+  int savitsky_golay_coefs9[] = { -21, 14, 39, 54, 59, 54, 39, 14, -21 };
+
+  for(int i = 5; i < l - 4; i ++) {
+    if (! len[i - 4]) { continue; }
+
+    int total = 0, total_coef = 0;
+    for(int j = i - 4; j <= i + 4; j ++) {
+      total += savitsky_golay_coefs9[j - i + 4] * oneCurve[j].t / len[j];
+      total_coef += savitsky_golay_coefs9[j - i + 4];
+    }
+    ts[i] = len[i] * total / total_coef;
   }
 
   // speed evaluation
@@ -253,20 +258,18 @@ void CurveMatch::curvePreprocess1(int curve_id) {
     int i1 = i, i2 = i;
     if (! i1) { i1 = 1; } // avoid first point in case of device lag (which is very common)
 
-    while (i1 > 1 && oneCurve[i1].t > oneCurve[i].t - time_interval) { i1 --; }
-    while (i2 < l - 1 && oneCurve[i2].t < oneCurve[i].t + time_interval) { i2 ++; }
+    while (i1 > 1 && ts[i1] > ts[i] - time_interval) { i1 --; }
+    while (i2 < l - 1 && ts[i2] < ts[i] + time_interval) { i2 ++; }
     float speed = 0;
-    if (i2 > i1 && oneCurve[i2].t > oneCurve[i1].t) {
+    if (i2 > i1 && ts[i2] > ts[i1]) {
       speed = distance(oneCurve[i1].smoothx, oneCurve[i1].smoothy,
-		       oneCurve[i2].smoothx, oneCurve[i2].smoothy) / (oneCurve[i2].t - oneCurve[i1].t);
+		       oneCurve[i2].smoothx, oneCurve[i2].smoothy) / (ts[i2] - ts[i1]);
     } else if (i > 0) {
       speed = (float) oneCurve[i - 1].speed / 1000;
     }
 
     oneCurve[i].speed = 1000.0 * speed;
-    if (oneCurve[i].speed > max_speed) { max_speed = oneCurve[i].speed; }
   }
-
 
   // speed smoothing
   float xsmooth[l], ysmooth[l];
@@ -295,6 +298,7 @@ void CurveMatch::curvePreprocess1(int curve_id) {
   }
   xsmooth[l - 1] = xsmooth[l - 2];
   ysmooth[l - 1] = ysmooth[l - 2];
+
 
   // acceleration evalution
   int accel[l];
@@ -491,20 +495,32 @@ void CurveMatch::curvePreprocess1(int curve_id) {
     // slow down point search
     int maxd = params.max_turn_index_gap;
     for(int i = maxd / 2; i < l - maxd / 2; i ++) {
+      if (oneCurve[i].sharp_turn) { continue; }
+
       int spd0 = oneCurve[i].speed;
       int ok = 0;
-      for(int j = -maxd; j <= maxd; j ++) {
-	if (i + j < 0 || i + j >= l) { continue; }
-	int spd = oneCurve[i + j].speed;
-	if (spd < spd0 || oneCurve[i + j].sharp_turn) { ok = 0; break; }
-	if ((spd >= params.slow_down_ratio * spd0) ||
-	    (spd0 == 0 && spd > spd0)) { // case of 0 speed point (if user does move during speed calculation window)
-	  ok |= (1 << (j>0));
+      int index[2] = { -1, -1 };
+      for(int dir = -1; dir <= 1; dir += 2) {
+	for(int j = 1; j <= maxd; j ++) {
+	  if (i + dir * j < 0 || i + dir * j >= l) { continue; }
+
+	  int spd = oneCurve[i + dir * j].speed;
+	  if (spd < spd0 || oneCurve[i + dir * j].sharp_turn) { ok = 0; break; }
+
+	  if ((spd > spd0 * params.slow_down_ratio) ||
+	      (spd0 == 0 && spd > spd0)) { // case of 0 speed point (if user does move during speed calculation window)
+	    ok |= (1 << (dir>0));
+	    if (index[(dir + 1) >> 1] == -1) {
+	      index[(dir + 1) >> 1] = i + dir * j;
+	    }
+	  }
 	}
       }
-      if (ok == 3) {
+      int delay = ts[index[1]] - ts[index[0]];
+      if ((ok == 3) &&
+	  (abs(oneCurve[i].turn_smooth) <= params.slow_down_max_turn)) {
 	oneCurve[i].sharp_turn = 3;
-	DBG("Special point[%d]=3", i);
+	DBG("Special point[%d]=3 indexed=[%d,%d] delay=%d", i, index[0], index[1], delay);
       }
     }
 

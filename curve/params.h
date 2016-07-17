@@ -105,6 +105,7 @@ class Params {
   float same_point_score;
   float score_pow;
   float sharp_turn_penalty;
+  int slow_down_max_turn;
   float slow_down_ratio;
   float small_segment_min_score;
   int smooth;
@@ -280,7 +281,8 @@ static Params default_params = {
   0.1, // same_point_score
   1.0, // score_pow
   0.6, // sharp_turn_penalty
-  2.2, // slow_down_ratio
+  3, // slow_down_max_turn
+  2.5, // slow_down_ratio
   0.2, // small_segment_min_score
   0, // smooth
   0.2, // sp_bad
@@ -449,6 +451,7 @@ void Params::toJson(QJsonObject &json) const {
   json["same_point_score"] = same_point_score;
   json["score_pow"] = score_pow;
   json["sharp_turn_penalty"] = sharp_turn_penalty;
+  json["slow_down_max_turn"] = slow_down_max_turn;
   json["slow_down_ratio"] = slow_down_ratio;
   json["small_segment_min_score"] = small_segment_min_score;
   json["smooth"] = smooth;
@@ -620,6 +623,7 @@ Params Params::fromJson(const QJsonObject &json) {
   p.same_point_score = json["same_point_score"].toDouble();
   p.score_pow = json["score_pow"].toDouble();
   p.sharp_turn_penalty = json["sharp_turn_penalty"].toDouble();
+  p.slow_down_max_turn = json["slow_down_max_turn"].toDouble();
   p.slow_down_ratio = json["slow_down_ratio"].toDouble();
   p.small_segment_min_score = json["small_segment_min_score"].toDouble();
   p.smooth = json["smooth"].toDouble();
