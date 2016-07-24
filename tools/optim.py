@@ -172,6 +172,18 @@ def score1(candidates, expected, typ):
     elif typ == "guess":
         score = 1 if score_ref >= max_score else 0
 
+    elif typ == "plop":
+        x = score_ref - max_score
+        x2 = max(0., (0.01 - x) / 0.02)
+        score = 1 - 4 * (x2 ** 2)
+
+    elif typ == "plop2":
+        x = score_ref - max_score
+        score = 0
+        if x > 0: score = 1
+        if x < -0.01: score = -5
+
+
     else: raise Exception("unknown score type: %d", typ)
 
     return score, cputime
