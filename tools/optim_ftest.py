@@ -32,7 +32,7 @@ def optim(records, tools):
                     new_value = value0 + sens * step * 2 ** c
                     if new_value < 0 or new_value > max(1, value0 * 2): break
                     c += 1
-                    tools.params[p] = new_value
+                    tools.set_param(p, new_value)
                     score = fr.play_all(records, tools, verbose = False)
                     print(" > try %s = %.3f --> score %.4f %s" % (p, new_value, score, "*" if score > max_score else ""))
                     if score <= score0:
@@ -47,21 +47,21 @@ def optim(records, tools):
 
             if max_value:
                 print("Param %s: value %.3f -> %.3f ... score %.4f -> %.4f" % (p, value0, max_value, score0, max_score))
-                tools.params[p] = max_value
+                tools.set_param(p, max_value)
                 score0 = max_score
                 updated = True
             else:
                 print("Param %s: no change" % p)
-                tools.params[p] = value0
+                tools.set_param(p, value0)
 
+            log = [ "* %s: %.3f -> %.3f" % (q, params0[q], tools.params[q]) for q in sorted(param_list) ]
+            log.append("* max_score: %.5f" % max_score)
             print()
-            for q in sorted(param_list):
-                print("* %s: %.3f -> %.3f" % (q, params0[q], tools.params[q]))
+            print("\n".join(log))
             print()
             if "outfile" in tools.params:
                 with open(tools.params["outfile"], "w") as f:
-                    f.write("\n".join([ "%s: %.3f -> %.3f" % (p, params0[p], tools.params[p])
-                                        for p in sorted(param_list) ]) + "\n")
+                    f.write("\n".join(log) + "\n")
 
 
 tools = fr.Tools()

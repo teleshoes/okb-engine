@@ -30,6 +30,10 @@ class Tools:
                 f.write(message + "\n")
         if self.messages is not None: self.messages.append(message)
 
+    def set_param(self, key, value):
+        self._cache.pop(key, None)
+        self.params[key] = value
+
     def cf(self, key, default_value = None, cast = None):
         if key in self._cache: return self._cache[key]
 
@@ -96,7 +100,7 @@ def play_all(records, tools, backtrack = False, verbose = True, mock_time = Fals
                            "%.4f" % (max([ score_curve(g) - score_curve(exp) for g in guesses ])),
                            "%.4f" % (score_curve(guesses[0]) - score_curve(exp)) ]
 
-            fields.extend([t["id"], lang, exp, guesses[0],
+            fields.extend([t["id"], lang, exp, guesses[0] if guesses else None,
                            "speed=%d:%d" % (t["speed"], t["speed_max"]),
                            "st=%d:%d" % (t["st1"], t["st2"]),
                            "=rpt" ])
