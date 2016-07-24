@@ -51,7 +51,7 @@ def play_all(records, tools, backtrack = False, verbose = True, mock_time = Fals
              learn = False, db_path = None, db_reset = True, display_stats = True,
              learn_replace = False):
     all_langs = set([ x["lang"] for x in records ])
-    count = count_ok = 0
+    count = count_ok = count_bad = 0
     bt_count = bt_ok = 0
 
     if learn and not db_path: raise Exception("Learning can not be tested on development database")
@@ -95,6 +95,7 @@ def play_all(records, tools, backtrack = False, verbose = True, mock_time = Fals
 
             if exp not in guesses:
                 fields = [ "NOT_FOUND", -1, -1 ]
+                count_bad += 1
             else:
                 fields = [ "OK" if exp == guesses[0] else "FAIL",
                            "%.4f" % (max([ score_curve(g) - score_curve(exp) for g in guesses ])),
@@ -171,7 +172,7 @@ def play_all(records, tools, backtrack = False, verbose = True, mock_time = Fals
         db.close()
 
     if display_stats:
-        print("Summary: total=%d OK=(%.2f%%)" % (count, 100.0 * count_ok / count))
+        print("Summary: total=%d OK=(%.2f%%) bad=(%.2f%%)" % (count, 100.0 * count_ok / count, 100.0 * count_bad / count))
         if bt_count: print("Summary: backtrack=%d OK=(%.2f%%)" % (bt_count, 100.0 * bt_ok / bt_count))
 
     return 100.0 * count_ok / count

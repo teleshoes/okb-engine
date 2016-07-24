@@ -466,7 +466,7 @@ class LanguageModel:
             >= 1  = second word wins
             x (in ]-1, 1[)  = ex-aequo (x is positive if second word is slightly better) """
 
-        curve_max_gap2 = self.cf("p2_curve_max2", 0.024, float)
+        curve_max_gap2 = self.cf("p2_curve_max2", 0.011, float)
 
         # filter candidates with bad curve (coarse setting)
         if curve_score1 > curve_score2 + curve_max_gap2: return -1
@@ -477,10 +477,10 @@ class LanguageModel:
         if not coefs2: return -1
 
 
-        curve_max_gap = self.cf("p2_curve_max", 0.009, float)
-        curve_ratio = self.cf("p2_curve_ratio", 0.168, float)
+        curve_max_gap = self.cf("p2_curve_max", 0.003, float)
+        curve_ratio = self.cf("p2_curve_ratio", 0.824, float)
         ratio = self.cf("p2_ratio", 100.0, float)
-        fishout = self.cf("p2_fishout", 1.4, float)
+        fishout = self.cf("p2_fishout", 1.142, float)
 
         # score evaluation: linear combination of log probability ratios
         curve_coef = 10. ** (curve_ratio * (curve_score2 - curve_score1) / curve_max_gap)  # [0.1, 10], <1 if first word wins
@@ -508,7 +508,7 @@ class LanguageModel:
                 total += coef * sc
                 total_coef += coef
 
-        score = self.cf("p2_master_coef", 2, float) * total / total_coef if total_coef else 0
+        score = self.cf("p2_master_coef", 1.872, float) * total / total_coef if total_coef else 0
 
         # filter candidates with bad curve (fine setting but with exception for obvious winners)
         if curve_score1 > curve_score2 + curve_max_gap and score < fishout: return -1
@@ -602,7 +602,7 @@ class LanguageModel:
 
         for c in candidates:
             if c not in all_coefs:
-                predict_scores[c] = (- self.cf("p2_score_unknown", 0.019, float), "unknown")
+                predict_scores[c] = (- self.cf("p2_score_unknown", 0.007, float), "unknown")
             elif c not in predict_scores:
                 predict_scores[c] = (- self.cf("p2_score_coarse", 0.015, float), "coarse")
 

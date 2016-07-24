@@ -188,12 +188,12 @@ static Params default_params = {
   500, // accel_threshold2
   0.0, // aggressive_mode
   1.35, // anisotropy_ratio
-  7, // atp_excl_gap
+  8, // atp_excl_gap
   5, // atp_max_pts
   30, // atp_min_angle1
   12, // atp_min_turn1
   4, // atp_opt_gap
-  16, // atp_threshold
+  8, // atp_threshold
   0.03, // bad_tangent_score
   120, // bjr_min_turn
   12, // cat_window
@@ -220,7 +220,7 @@ static Params default_params = {
   5, // fallback_start_count
   100, // fallback_timeout
   1.0, // final_coef_misc
-  16.0, // final_coef_turn
+  29.0, // final_coef_turn
   0.33, // final_coef_turn_exp
   0.5, // final_distance_pow
   1.0, // final_newdist_pow
@@ -258,7 +258,7 @@ static Params default_params = {
   25, // multi_dot_threshold
   300, // multi_max_time_rewind
   0.43, // newdist_c1
-  0.42, // newdist_c2
+  0.58, // newdist_c2
   2.63, // newdist_c3
   0.67, // newdist_c5
   1.62, // newdist_c6
@@ -274,7 +274,7 @@ static Params default_params = {
   4, // rt2_offcenter
   0.2, // rt2_score_coef
   0.08, // rt_score_coef
-  0.01, // rt_score_coef_tip
+  0.32, // rt_score_coef_tip
   3, // rt_tip_gaps
   5, // rt_turn_threshold
   120, // same_point_max_angle
@@ -287,7 +287,7 @@ static Params default_params = {
   1, // smooth
   0.2, // sp_bad
   4, // speed_max_index_gap
-  2, // speed_min_angle
+  45, // speed_min_angle
   0.05, // speed_penalty
   58, // speed_time_interval
   120, // st2_ignore
