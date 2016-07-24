@@ -187,13 +187,13 @@ static Params default_params = {
   120, // accel_threshold1
   500, // accel_threshold2
   0.0, // aggressive_mode
-  1.5, // anisotropy_ratio
+  1.35, // anisotropy_ratio
   7, // atp_excl_gap
   5, // atp_max_pts
   30, // atp_min_angle1
   12, // atp_min_turn1
   4, // atp_opt_gap
-  4, // atp_threshold
+  16, // atp_threshold
   0.03, // bad_tangent_score
   120, // bjr_min_turn
   12, // cat_window
@@ -205,10 +205,10 @@ static Params default_params = {
   95, // curve_dist_threshold
   50, // curve_score_min_dist
   20.0, // curve_surface_coef
-  100, // dist_max_next
+  90, // dist_max_next
   75, // dist_max_start
-  30, // dst_x_add
-  70, // dst_x_max
+  22, // dst_x_add
+  97, // dst_x_max
   40, // dst_y_add
   120, // dst_y_max
   100, // end_scenario_wait
@@ -220,19 +220,19 @@ static Params default_params = {
   5, // fallback_start_count
   100, // fallback_timeout
   1.0, // final_coef_misc
-  11.0, // final_coef_turn
+  16.0, // final_coef_turn
   0.33, // final_coef_turn_exp
   0.5, // final_distance_pow
   1.0, // final_newdist_pow
   40, // final_newdist_range
-  1.0, // final_score_v1_coef
+  0.0, // final_score_v1_coef
   0.12, // final_score_v1_threshold
   50, // flat2_max_height
   100, // flat2_min_height
-  0.02, // flat2_score_max
+  0.18, // flat2_score_max
   0.0, // flat2_score_min
   10, // flat_max_angle
-  45, // flat_max_deviation
+  29, // flat_max_deviation
   0.06, // flat_score
   50, // incr_retry
   5, // incremental_index_gap
@@ -242,7 +242,7 @@ static Params default_params = {
   20, // inter_pt_min_dist
   0.02, // lazy_loop_bias
   0.001, // length_penalty
-  0.2, // loop_penalty
+  0.01, // loop_penalty
   155, // loop_threshold1
   120, // loop_threshold2
   60, // loop_threshold3
@@ -253,8 +253,8 @@ static Params default_params = {
   50, // max_candidates
   25, // max_segment_length
   8, // max_star_index
-  6, // max_turn_index_gap
-  2, // min_turn_index_gap
+  10, // max_turn_index_gap
+  3, // min_turn_index_gap
   25, // multi_dot_threshold
   300, // multi_max_time_rewind
   0.43, // newdist_c1
@@ -268,12 +268,12 @@ static Params default_params = {
   3.12, // newdist_speed
   3, // rt2_count_nz
   4, // rt2_count_z
-  25, // rt2_flat_max
+  37, // rt2_flat_max
   8, // rt2_high
   5, // rt2_low
   4, // rt2_offcenter
   0.2, // rt2_score_coef
-  0.12, // rt_score_coef
+  0.08, // rt_score_coef
   0.01, // rt_score_coef_tip
   3, // rt_tip_gaps
   5, // rt_turn_threshold
@@ -284,12 +284,12 @@ static Params default_params = {
   3, // slow_down_max_turn
   2.5, // slow_down_ratio
   0.2, // small_segment_min_score
-  0, // smooth
+  1, // smooth
   0.2, // sp_bad
   4, // speed_max_index_gap
-  15, // speed_min_angle
-  0.1, // speed_penalty
-  30, // speed_time_interval
+  2, // speed_min_angle
+  0.05, // speed_penalty
+  58, // speed_time_interval
   120, // st2_ignore
   170, // st2_max
   70, // st2_min
@@ -311,11 +311,11 @@ static Params default_params = {
   40, // turn2_ignore_zz_maxangle
   70, // turn2_ignore_zz_maxlen
   120, // turn2_ignore_zz_minangle
-  228, // turn2_large_threshold
+  185, // turn2_large_threshold
   96, // turn2_large_y0
   5, // turn2_min_y2
   0.5, // turn2_powscale_tip
-  0.05, // turn2_score1
+  0.014, // turn2_score1
   2.0, // turn2_score_pow
   160, // turn2_xscale_tip
   30, // turn2_yscale
@@ -329,10 +329,10 @@ static Params default_params = {
   10, // turn_min_angle
   160, // turn_optim
   0.3, // turn_score_unmatched
-  160, // turn_separation
+  184, // turn_separation
   75, // turn_threshold
-  140, // turn_threshold2
-  115, // turn_threshold3
+  132, // turn_threshold2
+  95, // turn_threshold3
   0, // turn_threshold_st6
   1, // user_dict_learn
   2000, // user_dict_size
@@ -341,11 +341,11 @@ static Params default_params = {
   80, // ut_total
   15, // ut_turn
   2.0, // weight_cos
-  3.0, // weight_curve
+  6.0, // weight_curve
   2.0, // weight_distance
   1.0, // weight_length
-  8.0, // weight_misc
-  4.0, // weight_turn
+  1.5, // weight_misc
+  8.0, // weight_turn
 
   /* END DEFAULT */
 };

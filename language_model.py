@@ -466,7 +466,7 @@ class LanguageModel:
             >= 1  = second word wins
             x (in ]-1, 1[)  = ex-aequo (x is positive if second word is slightly better) """
 
-        curve_max_gap2 = self.cf("p2_curve_max2", 0.02, float)
+        curve_max_gap2 = self.cf("p2_curve_max2", 0.024, float)
 
         # filter candidates with bad curve (coarse setting)
         if curve_score1 > curve_score2 + curve_max_gap2: return -1
@@ -583,7 +583,7 @@ class LanguageModel:
         if green_list:
             for _ in range(2):
                 green_list.sort(key = lambda x:  (score_f(x), x), reverse = True)  # the tuple ensures repeatable results
-                p2_score_fine = self.cf("p2_score_fine", 0.005, float)
+                p2_score_fine = self.cf("p2_score_fine", 0.004, float)
                 self.debug("green list", str(green_list))
                 c0 = green_list[0]
                 if c0 == last_c0: break
@@ -602,7 +602,7 @@ class LanguageModel:
 
         for c in candidates:
             if c not in all_coefs:
-                predict_scores[c] = (- self.cf("p2_score_unknown", 0.02, float), "unknown")
+                predict_scores[c] = (- self.cf("p2_score_unknown", 0.019, float), "unknown")
             elif c not in predict_scores:
                 predict_scores[c] = (- self.cf("p2_score_coarse", 0.015, float), "coarse")
 
