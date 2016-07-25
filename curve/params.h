@@ -231,7 +231,7 @@ static Params default_params = {
   100, // flat2_min_height
   0.18, // flat2_score_max
   0.0, // flat2_score_min
-  10, // flat_max_angle
+  24, // flat_max_angle
   29, // flat_max_deviation
   0.06, // flat_score
   50, // incr_retry
@@ -331,7 +331,7 @@ static Params default_params = {
   0.3, // turn_score_unmatched
   184, // turn_separation
   75, // turn_threshold
-  132, // turn_threshold2
+  128, // turn_threshold2
   95, // turn_threshold3
   0, // turn_threshold_st6
   1, // user_dict_learn

@@ -477,12 +477,13 @@ class LanguageModel:
         if not coefs2: return -1
 
 
-        curve_max_gap = self.cf("p2_curve_max", 0.003, float)
-        curve_ratio = self.cf("p2_curve_ratio", 0.824, float)
+        curve_max_gap = self.cf("p2_curve_max", 0.002, float)
+        curve_ratio = self.cf("p2_curve_ratio", 0.536, float)
         ratio = self.cf("p2_ratio", 100.0, float)
-        fishout = self.cf("p2_fishout", 1.142, float)
+        fishout = self.cf("p2_fishout", 0.996, float)
 
         # score evaluation: linear combination of log probability ratios
+        if not curve_max_gap: return 0  # optimizer dirty workaround
         curve_coef = 10. ** (curve_ratio * (curve_score2 - curve_score1) / curve_max_gap)  # [0.1, 10], <1 if first word wins
 
         score_ratio = dict()
@@ -508,7 +509,7 @@ class LanguageModel:
                 total += coef * sc
                 total_coef += coef
 
-        score = self.cf("p2_master_coef", 1.872, float) * total / total_coef if total_coef else 0
+        score = self.cf("p2_master_coef", 1.887, float) * total / total_coef if total_coef else 0
 
         # filter candidates with bad curve (fine setting but with exception for obvious winners)
         if curve_score1 > curve_score2 + curve_max_gap and score < fishout: return -1
@@ -583,7 +584,7 @@ class LanguageModel:
         if green_list:
             for _ in range(2):
                 green_list.sort(key = lambda x:  (score_f(x), x), reverse = True)  # the tuple ensures repeatable results
-                p2_score_fine = self.cf("p2_score_fine", 0.004, float)
+                p2_score_fine = self.cf("p2_score_fine", 0.003, float)
                 self.debug("green list", str(green_list))
                 c0 = green_list[0]
                 if c0 == last_c0: break

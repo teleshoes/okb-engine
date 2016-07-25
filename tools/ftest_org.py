@@ -238,7 +238,7 @@ if __name__ == '__main__':
                                                            word if ok else ("%s/%s" % (guess, word)),
                                                            gap, rank))
 
-        manifest.append(';'.join([ str(x) for x in [ id, word, guess, gap, rank, st ] ]))
+        manifest.append(';'.join([ str(x) for x in [ id, word, guess, gap, rank, st, lang ] ]))
 
         # @todo add wiring to learning / backtracking
 
