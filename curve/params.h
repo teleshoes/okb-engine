@@ -229,7 +229,7 @@ static Params default_params = {
   0.12, // final_score_v1_threshold
   50, // flat2_max_height
   100, // flat2_min_height
-  0.18, // flat2_score_max
+  0.03, // flat2_score_max
   0.0, // flat2_score_min
   24, // flat_max_angle
   29, // flat_max_deviation

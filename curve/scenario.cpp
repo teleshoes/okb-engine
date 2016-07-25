@@ -2131,6 +2131,7 @@ float Scenario::calc_score_misc(int i) {
   }
 
   /* detect suspect turn rate maxima in the middle of segments */
+  /* @TODO dump this if i can't find a better way to do it (and remove parameters)
   if (i < count - 1) {
     int i1 = index_history[i];
     int i2 = index_history[i + 1];
@@ -2166,6 +2167,7 @@ float Scenario::calc_score_misc(int i) {
       }
     }
   }
+  */
 
   // find bad tangents at curve tips
   // (usefull for small turn that would be overlooked by turn score)
