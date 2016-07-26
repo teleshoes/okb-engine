@@ -297,9 +297,9 @@ def params2str(p):
     if not p: return "*none*"
     return ' '.join([ "%s=%s" % (x, y["value"]) for x, y in sorted(p.items()) ])
 
-def load_tests():
+def load_tests(test_dir = TEST_DIR):
     tests = []
-    l = os.listdir(TEST_DIR)
+    l = os.listdir(test_dir)
     for fname in [ x for x in l if x[-5:] == '.json']:
         lang = "en"
         test_id = letters = fname[:-5]  # remove ".json"
@@ -313,14 +313,14 @@ def load_tests():
         letters = ''.join(c for c in unicodedata.normalize('NFD', letters) if unicodedata.category(c) != 'Mn')
         letters = re.sub(r'[^a-z]', '', letters.lower())
         letters = re.sub(r'(.)\1+', lambda m: m.group(1), letters)
-        tests.append((letters, open(os.path.join(TEST_DIR, fname)).read(), lang, test_id))
+        tests.append((letters, open(os.path.join(test_dir, fname)).read(), lang, test_id))
 
     tests.sort(key = lambda x: x[0])
     return tests
 
-def run_optim_one_shot(params, typ, listpara, p_include, p_exclude, param_file):
+def run_optim_one_shot(params, typ, listpara, p_include, p_exclude, param_file, test_dir = None):
     params0 = copy.deepcopy(params)
-    tests = load_tests()
+    tests = load_tests(test_dir)
     score0, _ignored_ = run_all(tests, params, typ, fail_on_bad_score = True, nodebug = True)
     result_txt = ""
 
@@ -351,11 +351,11 @@ def run_optim_one_shot(params, typ, listpara, p_include, p_exclude, param_file):
 
     return result_txt
 
-def run_optim(params, typ, listpara, p_include, p_exclude, param_file):
+def run_optim(params, typ, listpara, p_include, p_exclude, param_file, test_dir = None):
     params0 = copy.deepcopy(params)
 
     # load test suite
-    tests = load_tests()
+    tests = load_tests(test_dir)
 
     # load saved parameters
     if param_file:
@@ -442,8 +442,9 @@ if __name__ == "__main__":
     p_include = p_exclude = None
     param_file = None
     one_shot = False
+    test_dir = None
 
-    opts, args =  getopt.getopt(sys.argv[1:], 'l:p:i:x:s:o')
+    opts, args =  getopt.getopt(sys.argv[1:], 'l:p:i:x:s:oT:')
     listpara = None
     for o, a in opts:
         if o == "-l":
@@ -458,6 +459,8 @@ if __name__ == "__main__":
             param_file = os.path.realpath(a)
         elif o == "-o":
             one_shot = True
+        elif o == "-T":
+            test_dir = os.path.realpath(a)
         else:
             print("Bad option: %s", o)
             exit(1)
@@ -492,7 +495,7 @@ if __name__ == "__main__":
     results = dict()
     for typ in typ_list:
         optim_f = run_optim_one_shot if one_shot else run_optim
-        result = optim_f(copy.deepcopy(params), typ, listpara, p_include, p_exclude, param_file)
+        result = optim_f(copy.deepcopy(params), typ, listpara, p_include, p_exclude, param_file, test_dir = test_dir)
         results[typ] = result
 
     for typ, result in results.items():

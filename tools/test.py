@@ -52,11 +52,9 @@ def usage():
     exit(1)
 
 if __name__ == "__main__":
-    os.chdir(os.path.dirname(sys.argv[0]))
-
     dump_dir = None
     try:
-        opts, args =  getopt.getopt(sys.argv[1:], 'd:nt:g')
+        opts, args =  getopt.getopt(sys.argv[1:], 'd:nt:gT:')
     except:
         usage()
 
@@ -64,24 +62,29 @@ if __name__ == "__main__":
     save = True
     nodebug = False
     typs = ["max", "max2", "guess" ]
+    test_dir = None
 
     for o, a in opts:
         if o == "-d":
-            dump_dir = a
+            dump_dir = os.path.realpath(a)
         elif o == "-n":
             save = False
         elif o == "-t":
             typs = a.split(',')
         elif o == "-g":
             nodebug = True
+        elif o == "-T":
+            test_dir = os.path.realpath(a)
         else:
             print("Bad option: %s" % o)
             usage()
 
+    os.chdir(os.path.dirname(sys.argv[0]))
+
     if dump_dir and not os.path.isdir(dump_dir): os.mkdir(dump_dir)
 
     params = optim.params
-    tests = optim.load_tests()
+    tests = optim.load_tests(test_dir)
 
     color = False
     if sys.stdout.isatty():
