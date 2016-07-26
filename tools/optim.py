@@ -297,8 +297,9 @@ def params2str(p):
     if not p: return "*none*"
     return ' '.join([ "%s=%s" % (x, y["value"]) for x, y in sorted(p.items()) ])
 
-def load_tests(test_dir = TEST_DIR):
+def load_tests(test_dir = None):
     tests = []
+    if not test_dir: test_dir = TEST_DIR
     l = os.listdir(test_dir)
     for fname in [ x for x in l if x[-5:] == '.json']:
         lang = "en"
