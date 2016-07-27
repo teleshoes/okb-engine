@@ -342,6 +342,8 @@ void CurveMatch::curvePreprocess1(int curve_id) {
     int tip_gap = 0;
     int opt_gap = params.atp_opt_gap;
     int excl_gap = params.atp_excl_gap;
+    float pt61 = params.atp_pt_61;
+
     bool st_found = false;
     for(int i = tip_gap; i < l - tip_gap; i ++) {
       int turn = oneCurve[i].turn_smooth; // take care of jagged curves
@@ -363,12 +365,20 @@ void CurveMatch::curvePreprocess1(int curve_id) {
 	    if (oneCurve[j].sharp_turn) { st_found = true; }
 	  }
 	  if (max_index >= 2 && max_index < l + 2) {
-	    DBG("New turn %d->%d total=%d max_index=%d st_found=%d", start_index, end_index, total, max_index, st_found);
+	    DBG("New turn %d->%d total=%d max_index=%d max_turn=%d st_found=%d",
+		start_index, end_index, total, max_index, abs(oneCurve[max_index].turn_smooth), st_found);
 	    if (abs(total) > min_angle1 &&
 		abs(oneCurve[max_index].turn_smooth) >= min_turn1 &&
 		end_index - start_index <= max_pts &&
 		! st_found) {
-	      int value = 1;
+
+	      int value;
+	      if (abs(oneCurve[max_index].turn_smooth) * pt61 > abs(oneCurve[max_index - 1].turn_smooth) &&
+		  abs(oneCurve[max_index].turn_smooth) * pt61 > abs(oneCurve[max_index + 1].turn_smooth)) {
+		value = 1;
+	      } else {
+		value = 6; // position of the matching point is not obvious
+	      }
 	      if (start_index <= opt_gap || end_index >= l - opt_gap) { value = 5; }
 	      DBG("Special point[%d]=%d (try 2)", max_index, value);
 	      oneCurve[max_index].sharp_turn = value;

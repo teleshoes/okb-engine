@@ -15,6 +15,7 @@ defparams = [
     [ "atp_min_angle1", int, 10, 45],
     [ "atp_min_turn1", int, 5, 25],
     [ "atp_opt_gap", int, 1, 6],
+    [ "atp_pt_61", float, 0, 1],
     [ "atp_threshold", int, 1, 20],
     [ "bad_tangent_score", float ],  # population too small for optimization (4 strokes!)
     [ "bjr_min_turn", int, 90, 180],

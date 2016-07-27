@@ -17,6 +17,7 @@ class Params {
   int atp_min_angle1;
   int atp_min_turn1;
   int atp_opt_gap;
+  float atp_pt_61;
   int atp_threshold;
   float bad_tangent_score;
   int bjr_min_turn;
@@ -187,12 +188,13 @@ static Params default_params = {
   120, // accel_threshold1
   500, // accel_threshold2
   0.0, // aggressive_mode
-  1.35, // anisotropy_ratio
+  1.5, // anisotropy_ratio
   8, // atp_excl_gap
   5, // atp_max_pts
-  30, // atp_min_angle1
-  12, // atp_min_turn1
+  34, // atp_min_angle1
+  14, // atp_min_turn1
   4, // atp_opt_gap
+  0.75, // atp_pt_61
   8, // atp_threshold
   0.03, // bad_tangent_score
   120, // bjr_min_turn
@@ -205,7 +207,7 @@ static Params default_params = {
   95, // curve_dist_threshold
   50, // curve_score_min_dist
   20.0, // curve_surface_coef
-  90, // dist_max_next
+  100, // dist_max_next
   75, // dist_max_start
   22, // dst_x_add
   97, // dst_x_max
@@ -314,7 +316,7 @@ static Params default_params = {
   185, // turn2_large_threshold
   96, // turn2_large_y0
   5, // turn2_min_y2
-  0.5, // turn2_powscale_tip
+  0.1, // turn2_powscale_tip
   0.014, // turn2_score1
   2.0, // turn2_score_pow
   160, // turn2_xscale_tip
@@ -363,6 +365,7 @@ void Params::toJson(QJsonObject &json) const {
   json["atp_min_angle1"] = atp_min_angle1;
   json["atp_min_turn1"] = atp_min_turn1;
   json["atp_opt_gap"] = atp_opt_gap;
+  json["atp_pt_61"] = atp_pt_61;
   json["atp_threshold"] = atp_threshold;
   json["bad_tangent_score"] = bad_tangent_score;
   json["bjr_min_turn"] = bjr_min_turn;
@@ -535,6 +538,7 @@ Params Params::fromJson(const QJsonObject &json) {
   p.atp_min_angle1 = json["atp_min_angle1"].toDouble();
   p.atp_min_turn1 = json["atp_min_turn1"].toDouble();
   p.atp_opt_gap = json["atp_opt_gap"].toDouble();
+  p.atp_pt_61 = json["atp_pt_61"].toDouble();
   p.atp_threshold = json["atp_threshold"].toDouble();
   p.bad_tangent_score = json["bad_tangent_score"].toDouble();
   p.bjr_min_turn = json["bjr_min_turn"].toDouble();
