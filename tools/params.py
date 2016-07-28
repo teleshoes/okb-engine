@@ -66,6 +66,7 @@ defparams = [
     [ "lazy_loop_bias", float, 0, 1 ],
     [ "length_penalty", float, -0.1, 0.1 ],
     [ "loop_penalty", float, 0, 1 ],
+    [ "loop_recover_max_len", int, 10, 150 ],
     [ "loop_threshold1", int, 10, 180 ],
     [ "loop_threshold2", int, 10, 180 ],
     [ "loop_threshold3", int, 10, 180 ],

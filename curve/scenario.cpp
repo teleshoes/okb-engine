@@ -1373,6 +1373,36 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
   }
 
   /*
+    detect (seemingly) missing expected loops (which would make the matching process below fail)
+    this is acceptable in the following case:
+     - very small loop
+     - the loop is hidden because of match points position
+  */
+  for(int i = 1; i < count - 2; i ++) {
+    float sum_actual = a_actual[i] + a_actual[i + 1];
+    float sum_expected = a_expected[i] + a_expected[i + 1];
+    if (abs(sum_expected) > 225 && // loop expected
+	a_expected[i] * a_expected[i + 1] > 0 && // same expected direction turn
+	abs(sum_actual - sum_expected) > 270) {
+
+      if (sum_expected * curve -> getTurnSmooth((index_history[i] + index_history[i + 1]) / 2) > 0) {
+	// turn rate sigh is consistent (so the loop probably occured)
+	Point pt1 = curve -> point(index_history[i]);
+	Point pt2 = curve -> point(index_history[i + 1]);
+	if (distancep(pt1, pt2) < params->loop_recover_max_len) {
+	  float new_value = (sum_actual - 360 * ((sum_actual > 0) - (sum_actual < 0))) / 2;
+	  DBG("Ignoring unmatched loop: [%d:%d] (%d,%d)/(%d,%d) --> (%d,%d)",
+	      i, i + 1,
+	      (int) a_actual[i], (int) a_actual[i + 1],
+	      (int) a_expected[i], (int) a_expected[i + 1],
+	      (int) new_value, (int) new_value);
+	  a_actual[i] = a_actual[i + 1] = new_value;
+	}
+      }
+    }
+  }
+
+  /*
   for(int i = 1; i < count - 1; i ++) {
     DBG("Turn detail #%d: '%c' %d/%d", i, letter_history[i], (int) a_actual[i], (int) a_expected[i]);
   }

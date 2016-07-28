@@ -68,6 +68,7 @@ class Params {
   float lazy_loop_bias;
   float length_penalty;
   float loop_penalty;
+  int loop_recover_max_len;
   int loop_threshold1;
   int loop_threshold2;
   int loop_threshold3;
@@ -245,6 +246,7 @@ static Params default_params = {
   0.02, // lazy_loop_bias
   0.001, // length_penalty
   0.01, // loop_penalty
+  50, // loop_recover_max_len
   155, // loop_threshold1
   120, // loop_threshold2
   60, // loop_threshold3
@@ -416,6 +418,7 @@ void Params::toJson(QJsonObject &json) const {
   json["lazy_loop_bias"] = lazy_loop_bias;
   json["length_penalty"] = length_penalty;
   json["loop_penalty"] = loop_penalty;
+  json["loop_recover_max_len"] = loop_recover_max_len;
   json["loop_threshold1"] = loop_threshold1;
   json["loop_threshold2"] = loop_threshold2;
   json["loop_threshold3"] = loop_threshold3;
@@ -589,6 +592,7 @@ Params Params::fromJson(const QJsonObject &json) {
   p.lazy_loop_bias = json["lazy_loop_bias"].toDouble();
   p.length_penalty = json["length_penalty"].toDouble();
   p.loop_penalty = json["loop_penalty"].toDouble();
+  p.loop_recover_max_len = json["loop_recover_max_len"].toDouble();
   p.loop_threshold1 = json["loop_threshold1"].toDouble();
   p.loop_threshold2 = json["loop_threshold2"].toDouble();
   p.loop_threshold3 = json["loop_threshold3"].toDouble();
