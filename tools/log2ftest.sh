@@ -51,6 +51,8 @@ while [ -n "$1" ] ; do
     shift
 done
 
+[ -n "$CLI_OPTS" ] || export CLI_OPTS="-a 1"
+
 getlogs() {
     local filt=
     [ -n "$max_age" ] && filt="-mtime -${max_age}"

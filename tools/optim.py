@@ -192,7 +192,7 @@ def save(fname, content):
     with open(fname, 'w') as f: f.write(content)
 
 def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, silent = False, dump = None, nodebug = False):
-    total, n = 0.0, 0
+    total, n, bad_count = 0.0, 0, 0
     total_cpu = 0
     runall = []
     inj = dict()
@@ -237,23 +237,26 @@ def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, s
 
         if not silent:
             print("%s (%s): " % (word, lang), "%.3f - " % score, end = "")
-        if score < -999999 and fail_on_bad_score:
-            dump_txt(out, "out")
-            dump_txt(err, "err")
-            dump_txt(json_in2, "in")
-            raise Exception("negative score in reference test data: %s (type=%s, score=%d)" % (word, typ, score))
+        if score <= -999999:
+            if fail_on_bad_score:
+                dump_txt(out, "out")
+                dump_txt(err, "err")
+                dump_txt(json_in2, "in")
+                raise Exception("negative score in reference test data: %s (type=%s, score=%d)" % (word, typ, score))
+            else:
+                bad_count += 1
         total += score
         total_cpu += cputime
         n += 1
         if return_dict is not None:
             return_dict[key] = score
     if not silent: print("OK")
-    return total / n, total_cpu / n
+    return total / n, total_cpu / n, (n - bad_count) / n
 
 def optim(pname, params, tests, typ):
     value = value0 = params[pname]["value"]
     min, max, type = params[pname]["min"], params[pname]["max"], params[pname]["type"]
-    score0, _ignored_ = run_all(tests, params, typ, nodebug = True)
+    score0, _ignored_, _ig2_ = run_all(tests, params, typ, nodebug = True)
     print("Optim: %s (value=%s, score=%s)" % (pname, value0, score0))
 
     scores = [ (value, score0) ]
@@ -269,7 +272,7 @@ def optim(pname, params, tests, typ):
             if new_value < min or new_value > max: break
 
             params[pname]["value"] = new_value
-            score, _ignored_ = run_all(tests, params, typ, nodebug = True)
+            score, _ignored_,_ig2_ = run_all(tests, params, typ, nodebug = True)
             if score > last_score: bad_count = 0
             else: bad_count += 1
 
@@ -322,7 +325,7 @@ def load_tests(test_dir = None):
 def run_optim_one_shot(params, typ, listpara, p_include, p_exclude, param_file, test_dir = None):
     params0 = copy.deepcopy(params)
     tests = load_tests(test_dir)
-    score0, _ignored_ = run_all(tests, params, typ, fail_on_bad_score = True, nodebug = True)
+    score0, _ignored_, _ig2_ = run_all(tests, params, typ, fail_on_bad_score = True, nodebug = True)
     result_txt = ""
 
     for p in sorted(list(params.keys())):
@@ -372,7 +375,7 @@ def run_optim(params, typ, listpara, p_include, p_exclude, param_file, test_dir 
 
     print("===== Reference run =====")
     detail0 = dict()
-    score, _ignored_ = run_all(tests, params, typ, fail_on_bad_score = True, return_dict = detail0, nodebug = True)
+    score, _ignored_,_ig2_ = run_all(tests, params, typ, fail_on_bad_score = True, return_dict = detail0, nodebug = True)
     max_score = score0 = score
     max_params = copy.deepcopy(params)
     print()
@@ -475,6 +478,7 @@ if __name__ == "__main__":
         print(" -x <regexp> : don't update parameters with matching names")
         print(" -s <file> : save parameters to file (and read them on startup)")
         print(" -o : one-shot (optimize all parameters separately")
+        print(" -T <dir> : read test files from this directory")
         print("score type can be 'all' or a comma separated list")
         exit(1)
 
