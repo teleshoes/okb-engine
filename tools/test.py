@@ -81,7 +81,7 @@ if __name__ == "__main__":
         elif o == "-g":
             nodebug = True
         elif o == "-T":
-            test_dir = os.path.realpath(a)
+            test_dir = [ os.path.realpath(x) for x in a.split(',') ]
         elif o == "-p":
             override_params = a
         else:
