@@ -48,13 +48,19 @@ class Color:
         if self.fname: pickle.dump(self.db, open(self.fname, 'wb'))
 
 def usage():
-    print("Usage: ", os.path.basename(__file__), " [-d <dump dir>] [-n] [-g] [-t <types>]  [<compare file>]")
+    print("Usage: ", os.path.basename(__file__), " <options> [<compare file>]")
+    print("Options :")
+    print("-d <dump dir> : dump all input / output / result")
+    print("-n : do not update compare file")
+    print("-g : disable debug & logging (faster)")
+    print("-T <dirs> : comma separated test dir (comma separated)")
+    print("-p <params> : override parameters value (key1=value1,key2=value2)")
     exit(1)
 
 if __name__ == "__main__":
     dump_dir = None
     try:
-        opts, args =  getopt.getopt(sys.argv[1:], 'd:nt:gT:')
+        opts, args =  getopt.getopt(sys.argv[1:], 'd:nt:gT:p:')
     except:
         usage()
 
@@ -63,6 +69,7 @@ if __name__ == "__main__":
     nodebug = False
     typs = ["max", "max2", "guess" ]
     test_dir = None
+    override_params = None
 
     for o, a in opts:
         if o == "-d":
@@ -75,6 +82,8 @@ if __name__ == "__main__":
             nodebug = True
         elif o == "-T":
             test_dir = os.path.realpath(a)
+        elif o == "-p":
+            override_params = a
         else:
             print("Bad option: %s" % o)
             usage()
@@ -84,6 +93,12 @@ if __name__ == "__main__":
     if dump_dir and not os.path.isdir(dump_dir): os.mkdir(dump_dir)
 
     params = optim.params
+
+    if override_params:
+        for p in override_params.split(','):
+            key, value = p.split('=')
+            params[key]["value"] = params[key]["type"](value)
+
     tests = optim.load_tests(test_dir)
 
     color = False

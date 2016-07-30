@@ -27,6 +27,7 @@ TRE_DIR = "../db"
 TEST_DIR = "../test"
 LOG = None  # "/tmp/optim.log"
 OUT = "optim.log"
+FAIL_SCORE = -999
 
 def get_params(fname):
     cp = ConfigParser.SafeConfigParser()
@@ -128,7 +129,7 @@ def score1(candidates, expected, typ):
 
     cputime = 0  # ouch!
 
-    if score_ref is None: return -9999999, cputime  # targeted word is not even found
+    if score_ref is None: return FAIL_SCORE, cputime  # targeted word is not even found
     if not len(others): return 1, cputime  # sometime happens :-)
 
     average = sum(others) / len(others)
@@ -141,7 +142,7 @@ def score1(candidates, expected, typ):
     elif typ == "cls":
         score = 0.5 * (score_ref - (average + stddev))
         if star_count > 0:
-            if not starred: score -= 9999999
+            if not starred: score += FAIL_SCORE
             else: score += 0.5 / (1.0 + star_count / 2)
 
     elif typ.startswith("max"):
@@ -182,7 +183,6 @@ def score1(candidates, expected, typ):
         score = 0
         if x > 0: score = 1
         if x < -0.01: score = -5
-
 
     else: raise Exception("unknown score type: %d", typ)
 
@@ -237,7 +237,7 @@ def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, s
 
         if not silent:
             print("%s (%s): " % (word, lang), "%.3f - " % score, end = "")
-        if score <= -999999:
+        if score <= FAIL_SCORE:
             if fail_on_bad_score:
                 dump_txt(out, "out")
                 dump_txt(err, "err")
@@ -272,7 +272,7 @@ def optim(pname, params, tests, typ):
             if new_value < min or new_value > max: break
 
             params[pname]["value"] = new_value
-            score, _ignored_,_ig2_ = run_all(tests, params, typ, nodebug = True)
+            score, _ignored_, _ig2_ = run_all(tests, params, typ, nodebug = True)
             if score > last_score: bad_count = 0
             else: bad_count += 1
 
@@ -303,6 +303,10 @@ def params2str(p):
 def load_tests(test_dir = None):
     tests = []
     if not test_dir: test_dir = TEST_DIR
+    elif isinstance(test_dir, list):
+        for td in test_dir: tests.extend(load_tests(td))
+        return tests
+
     l = os.listdir(test_dir)
     for fname in [ x for x in l if x[-5:] == '.json']:
         lang = "en"
@@ -322,10 +326,10 @@ def load_tests(test_dir = None):
     tests.sort(key = lambda x: x[0])
     return tests
 
-def run_optim_one_shot(params, typ, listpara, p_include, p_exclude, param_file, test_dir = None):
+def run_optim_one_shot(params, typ, listpara, p_include, p_exclude, param_file, test_dir = None, fail_on_bad_score = True):
     params0 = copy.deepcopy(params)
     tests = load_tests(test_dir)
-    score0, _ignored_, _ig2_ = run_all(tests, params, typ, fail_on_bad_score = True, nodebug = True)
+    score0, _ignored_, _ig2_ = run_all(tests, params, typ, fail_on_bad_score = fail_on_bad_score, nodebug = True)
     result_txt = ""
 
     for p in sorted(list(params.keys())):
@@ -355,7 +359,7 @@ def run_optim_one_shot(params, typ, listpara, p_include, p_exclude, param_file, 
 
     return result_txt
 
-def run_optim(params, typ, listpara, p_include, p_exclude, param_file, test_dir = None):
+def run_optim(params, typ, listpara, p_include, p_exclude, param_file, test_dir = None, fail_on_bad_score = True):
     params0 = copy.deepcopy(params)
 
     # load test suite
@@ -375,7 +379,7 @@ def run_optim(params, typ, listpara, p_include, p_exclude, param_file, test_dir 
 
     print("===== Reference run =====")
     detail0 = dict()
-    score, _ignored_,_ig2_ = run_all(tests, params, typ, fail_on_bad_score = True, return_dict = detail0, nodebug = True)
+    score, _ignored_, _ig2_ = run_all(tests, params, typ, fail_on_bad_score = fail_on_bad_score, return_dict = detail0, nodebug = True)
     max_score = score0 = score
     max_params = copy.deepcopy(params)
     print()
@@ -447,8 +451,9 @@ if __name__ == "__main__":
     param_file = None
     one_shot = False
     test_dir = None
+    fail_on_bad_score = True
 
-    opts, args =  getopt.getopt(sys.argv[1:], 'l:p:i:x:s:oT:')
+    opts, args =  getopt.getopt(sys.argv[1:], 'l:p:i:x:s:oT:f')
     listpara = None
     for o, a in opts:
         if o == "-l":
@@ -464,7 +469,9 @@ if __name__ == "__main__":
         elif o == "-o":
             one_shot = True
         elif o == "-T":
-            test_dir = os.path.realpath(a)
+            test_dir = [ os.path.realpath(x) for x in a.split(',') ]
+        elif o == "-f":
+            fail_on_bad_score = False
         else:
             print("Bad option: %s", o)
             exit(1)
@@ -478,7 +485,8 @@ if __name__ == "__main__":
         print(" -x <regexp> : don't update parameters with matching names")
         print(" -s <file> : save parameters to file (and read them on startup)")
         print(" -o : one-shot (optimize all parameters separately")
-        print(" -T <dir> : read test files from this directory")
+        print(" -T <dirs> : read test files from these directories (comma separated)")
+        print(" -f : optimize even if some tests are failing")
         print("score type can be 'all' or a comma separated list")
         exit(1)
 
@@ -500,7 +508,8 @@ if __name__ == "__main__":
     results = dict()
     for typ in typ_list:
         optim_f = run_optim_one_shot if one_shot else run_optim
-        result = optim_f(copy.deepcopy(params), typ, listpara, p_include, p_exclude, param_file, test_dir = test_dir)
+        result = optim_f(copy.deepcopy(params), typ, listpara, p_include, p_exclude, param_file,
+                         test_dir = test_dir, fail_on_bad_score = fail_on_bad_score)
         results[typ] = result
 
     for typ, result in results.items():
