@@ -2088,7 +2088,7 @@ void Scenario::check_reverse_turn(int index1, int index2, int direction1, int di
   } else if (n == 3 && parts[1].type != 0) {
     reason = (char*) "*middle part is not flat*";
     score = 1;
-  } else {
+  } else if (n >= 2) {
     int count0 = 0;
     for(i = 0; i < n; i ++) {
       if (parts[i].type == 0) {
