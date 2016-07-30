@@ -1003,10 +1003,7 @@ bool Scenario::childScenarioInternal(LetterNode &childNode, QList<Scenario> &res
       }
     }
 
-    DBG("debug [%s:%c] %s%s %d:%d %s [d=%.2f cr=%.2f cs=%.2f l=%.2f t=%.2f]",
-	getNameCharPtr(), letter, endScenario?"*":" ", first?"":" <FORK>", count, new_index, error_ignore?"ERROR[ignored]":(ok?"=OK=":"*FAIL*"),
-	score.distance_score, score.curve_score, score.cos_score, score.length_score, score.turn_score);
-
+    float new_score = -1;
     if (ok) {
       // create a new scenario for this child node
       Scenario new_scenario(*this); // use our copy constructor
@@ -1057,11 +1054,17 @@ bool Scenario::childScenarioInternal(LetterNode &childNode, QList<Scenario> &res
       }
 
       // temporary score is used only for simple filtering
-      new_scenario.temp_score = 1.0 / (1.0 + new_scenario.dist / 30) -
-	params->coef_error * error_count * (1 + params->final_coef_turn);
+      new_score = new_scenario.temp_score = 1.0 / (1.0 + new_scenario.dist / 30) -
+	params->coef_error_tmp * error_count * (1 + params->final_coef_turn);
 
       result.append(new_scenario);
     }
+
+    DBG("debug [%s:%c] %s%s %d:%d %s [d=%.2f cr=%.2f cs=%.2f l=%.2f t=%.2f] --- Score: %.3f -> %.3f",
+	getNameCharPtr(), letter, endScenario?"*":" ", first?"":" <FORK>", count, new_index, error_ignore?"ERROR[ignored]":(ok?"=OK=":"*FAIL*"),
+	score.distance_score, score.curve_score, score.cos_score, score.length_score, score.turn_score,
+	temp_score, new_score);
+
 
     first = false;
 

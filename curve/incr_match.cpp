@@ -512,7 +512,8 @@ void IncrementalMatch::incrementalMatchUpdate(bool finished, float aggressive) {
   }
   logdebug("==] incrementalMatchUpdate: curveIndex=%d, finished=%d, scenarios=%d, skim=%d, fork=%d, nodes=%d, retry=%d [time=%.3f]",
 	   curve.size(), finished, delayed_scenarios.size(),
-	   st.st_skim, st.st_fork, st.st_count, st.st_retry, (float)(t_start.msecsTo(QTime::currentTime())) / 1000);
+	   st.st_skim, st.st_fork, st.st_count, st.st_retry,
+	   (float)(t_start.msecsTo(QTime::currentTime())) / 1000);
 }
 
 void IncrementalMatch::fallback(QList<ScenarioType> &result) {
@@ -674,8 +675,6 @@ void IncrementalMatch::addPoint(Point point, int curve_id, int timestamp) {
   } else if (curve.size() >= next_iteration_index) {
     incrementalMatchUpdate(false, params.aggressive_mode);
   }
-  st.st_cputime = (int) (1000 * (getCPUTime() - start_cpu_time));
-  st.st_time = (int) timer.elapsed();
 }
 
 void IncrementalMatch::endOneCurve(int curve_id) {
@@ -686,6 +685,9 @@ void IncrementalMatch::endCurve(int id) {
   done = true;
   CurveMatch::endCurve(id);
   incrementalMatchUpdate(true);
+  st.st_cputime = (int) (1000 * (getCPUTime() - start_cpu_time));
+  st.st_time = (int) timer.elapsed();
+  logdebug("cputime=%d", st.st_cputime);
 }
 
 #endif /* INCREMENTAL */

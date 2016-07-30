@@ -127,10 +127,8 @@ def score1(candidates, expected, typ):
         else:
             others.append(score)
 
-    cputime = 0  # ouch!
-
-    if score_ref is None: return FAIL_SCORE, cputime  # targeted word is not even found
-    if not len(others): return 1, cputime  # sometime happens :-)
+    if score_ref is None: return FAIL_SCORE  # targeted word is not even found
+    if not len(others): return 1  # sometime happens :-)
 
     average = sum(others) / len(others)
     stddev = math.sqrt(sum([(x - average) ** 2 for x in others]) / len(others))
@@ -186,7 +184,7 @@ def score1(candidates, expected, typ):
 
     else: raise Exception("unknown score type: %d", typ)
 
-    return score, cputime
+    return score
 
 def save(fname, content):
     with open(fname, 'w') as f: f.write(content)
@@ -228,12 +226,15 @@ def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, s
         log1("<<<< " + out)
         log1("")
 
+        mo = re.search(r'cputime=(\d+)', err)
+        cputime = int(mo.group(1)) if mo else -1
+
         candidates = dict()
         for li in out.split('\n'):
             mo = re.match(r'^([a-z]+)\s+([\d\.]+)$', li.strip())
             if mo: candidates[mo.group(1)] = float(mo.group(2))
 
-        score, cputime = score1(candidates, word, typ)
+        score = score1(candidates, word, typ)
 
         if not silent:
             print("%s (%s): " % (word, lang), "%.3f - " % score, end = "")

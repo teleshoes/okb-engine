@@ -164,7 +164,7 @@ void CurveMatch::curvePreprocess1(int curve_id) {
 	  } else if (diff == 2) {
 	    sharp_turn_index --;
 	    oneCurve[sharp_turn_index - 1].sharp_turn = 0;
-	  } else if (diff <= 4) {
+	  } else if (diff <= params.turn_min_gap) {
 	    bool remove_old = false, remove_new = false;
 	    int old_value = oneCurve[last_turn_index].sharp_turn;
 
@@ -956,7 +956,7 @@ bool CurveMatch::match() {
   sortCandidates();
   scenarioFilter(candidates, 0.7, 10, params.max_candidates, true); // @todo add to parameter list
 
-  logdebug("Candidates: %d (time=%d, nodes=%d, forks=%d, skim=%d, speed=%d, special=%d)", candidates.size(), st.st_time, st.st_count, st.st_fork, st.st_skim, st.st_speed, st.st_special);
+  logdebug("Candidates: %d (time=%d, nodes=%d, forks=%d, skim=%d, speed=%d, special=%d, cputime=%d)", candidates.size(), st.st_time, st.st_count, st.st_fork, st.st_skim, st.st_speed, st.st_special, st.st_cputime);
 
   done = true;
 

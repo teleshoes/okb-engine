@@ -26,6 +26,7 @@ class Params {
   int cls_enable;
   float coef_distance;
   float coef_error;
+  float coef_error_tmp;
   int cos_max_gap;
   int curve_dist_threshold;
   int curve_score_min_dist;
@@ -153,6 +154,7 @@ class Params {
   int turn_max_angle;
   int turn_max_transfer;
   int turn_min_angle;
+  int turn_min_gap;
   int turn_optim;
   float turn_score_unmatched;
   int turn_separation;
@@ -204,6 +206,7 @@ static Params default_params = {
   1, // cls_enable
   0.1, // coef_distance
   0.1, // coef_error
+  0.1, // coef_error_tmp
   112, // cos_max_gap
   95, // curve_dist_threshold
   50, // curve_score_min_dist
@@ -331,6 +334,7 @@ static Params default_params = {
   10, // turn_max_angle
   55, // turn_max_transfer
   10, // turn_min_angle
+  4, // turn_min_gap
   160, // turn_optim
   0.3, // turn_score_unmatched
   184, // turn_separation
@@ -376,6 +380,7 @@ void Params::toJson(QJsonObject &json) const {
   json["cls_enable"] = cls_enable;
   json["coef_distance"] = coef_distance;
   json["coef_error"] = coef_error;
+  json["coef_error_tmp"] = coef_error_tmp;
   json["cos_max_gap"] = cos_max_gap;
   json["curve_dist_threshold"] = curve_dist_threshold;
   json["curve_score_min_dist"] = curve_score_min_dist;
@@ -503,6 +508,7 @@ void Params::toJson(QJsonObject &json) const {
   json["turn_max_angle"] = turn_max_angle;
   json["turn_max_transfer"] = turn_max_transfer;
   json["turn_min_angle"] = turn_min_angle;
+  json["turn_min_gap"] = turn_min_gap;
   json["turn_optim"] = turn_optim;
   json["turn_score_unmatched"] = turn_score_unmatched;
   json["turn_separation"] = turn_separation;
@@ -550,6 +556,7 @@ Params Params::fromJson(const QJsonObject &json) {
   p.cls_enable = json["cls_enable"].toDouble();
   p.coef_distance = json["coef_distance"].toDouble();
   p.coef_error = json["coef_error"].toDouble();
+  p.coef_error_tmp = json["coef_error_tmp"].toDouble();
   p.cos_max_gap = json["cos_max_gap"].toDouble();
   p.curve_dist_threshold = json["curve_dist_threshold"].toDouble();
   p.curve_score_min_dist = json["curve_score_min_dist"].toDouble();
@@ -677,6 +684,7 @@ Params Params::fromJson(const QJsonObject &json) {
   p.turn_max_angle = json["turn_max_angle"].toDouble();
   p.turn_max_transfer = json["turn_max_transfer"].toDouble();
   p.turn_min_angle = json["turn_min_angle"].toDouble();
+  p.turn_min_gap = json["turn_min_gap"].toDouble();
   p.turn_optim = json["turn_optim"].toDouble();
   p.turn_score_unmatched = json["turn_score_unmatched"].toDouble();
   p.turn_separation = json["turn_separation"].toDouble();

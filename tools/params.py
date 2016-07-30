@@ -24,6 +24,7 @@ defparams = [
     [ "cls_enable", int ],
     [ "coef_distance", float, 0.01, 1 ],
     [ "coef_error", float ],  # more is better (at the moment ... unless i have better test cases)
+    [ "coef_error_tmp", float ],  # idem
     [ "cos_max_gap", int, 20, 150 ],
     [ "curve_dist_threshold", int, 30, 200 ],
     [ "curve_score_min_dist", int, 20, 100 ],
@@ -151,6 +152,7 @@ defparams = [
     [ "turn_max_angle", int, 10, 80 ],
     [ "turn_max_transfer", int, 10, 90 ],
     [ "turn_min_angle", int, 1, 45 ],
+    [ "turn_min_gap", int, 2, 10],
     [ "turn_optim", int, 20, 150 ],
     [ "turn_score_unmatched", float, 0, 1],
     [ "turn_separation", int, 30, 300 ],

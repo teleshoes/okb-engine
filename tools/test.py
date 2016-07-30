@@ -117,7 +117,7 @@ if __name__ == "__main__":
         print("### score", c.var(typ, score, "score.%s" % typ, noreg = True),
               ' '.join([ c.var(w, s, "word.%s.%s" % (typ, w))
                          for (w, s) in sorted(detail.items()) ]))
-        print("cputime", cputime, "found=%.2f%%" % (100. * ok_pct))
+        print("cputime %.2f - found %.2f%%" % (cputime, 100. * ok_pct))
 
     if save: c.save()
 
