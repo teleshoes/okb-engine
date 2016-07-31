@@ -459,8 +459,9 @@ if __name__ == "__main__":
     one_shot = False
     test_dir = None
     fail_on_bad_score = True
+    usage = False
 
-    opts, args =  getopt.getopt(sys.argv[1:], 'l:p:i:x:s:oT:f')
+    opts, args =  getopt.getopt(sys.argv[1:], 'l:p:i:x:s:oT:fh')
     listpara = None
     for o, a in opts:
         if o == "-l":
@@ -479,11 +480,13 @@ if __name__ == "__main__":
             test_dir = [ os.path.realpath(x) for x in a.split(',') ]
         elif o == "-f":
             fail_on_bad_score = False
+        elif o == "-h":
+            usage = True
         else:
             print("Bad option: %s", o)
             exit(1)
 
-    if len(args) < 1:
+    if len(args) < 1 or usage:
         print("usage:", os.path.basename(sys.argv[0]), " [<options>] <score type>")
         print("options:")
         print(" -p <list> : only optimize this parameters (comma separated)")

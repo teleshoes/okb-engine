@@ -55,12 +55,13 @@ def usage():
     print("-g : disable debug & logging (faster)")
     print("-T <dirs> : comma separated test dir (comma separated)")
     print("-p <params> : override parameters value (key1=value1,key2=value2)")
+    print("-t <types> : comma separated scores to use")
     exit(1)
 
 if __name__ == "__main__":
     dump_dir = None
     try:
-        opts, args =  getopt.getopt(sys.argv[1:], 'd:nt:gT:p:')
+        opts, args =  getopt.getopt(sys.argv[1:], 'd:nt:gT:p:h')
     except:
         usage()
 
@@ -84,6 +85,8 @@ if __name__ == "__main__":
             test_dir = [ os.path.realpath(x) for x in a.split(',') ]
         elif o == "-p":
             override_params = a
+        elif o == "-h":
+            usage()
         else:
             print("Bad option: %s" % o)
             usage()
