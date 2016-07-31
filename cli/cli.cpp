@@ -57,7 +57,7 @@ int main(int argc, char* argv[]) {
   bool act_learn = false;
   bool act_dump = false;
   bool act_get = false;
-  
+
   extern char *optarg;
   extern int optind;
 
@@ -81,7 +81,7 @@ int main(int argc, char* argv[]) {
   }
 
   if (! (argc > optind)) { usage(argv[0]); }
- 
+
   if (act_learn) {
     if (! (argc > optind + 2)) { usage(argv[0]); }
   } else if (act_dump || act_get) {
@@ -96,7 +96,7 @@ int main(int argc, char* argv[]) {
       usage(argv[0]);
     }
   }
-  
+
   QTextStream in(&file);
   QString line = in.readLine();
   while (! line.isNull()) {
@@ -110,7 +110,7 @@ int main(int argc, char* argv[]) {
   case 0:
     cm = new CurveMatch();
     break;
-  case 1: 
+  case 1:
   case 2:
 #ifdef INCREMENTAL
     // hey this is my first new :-)
@@ -134,7 +134,7 @@ int main(int argc, char* argv[]) {
     cm->learn(argv[optind + 1], argv[optind + 2]);
     cm->saveUserDict();
     cout << "learn OK" << endl;
-    return 0; 
+    return 0;
   } else if (act_dump) {
     cm->dumpDict();
     return 0;
@@ -144,7 +144,7 @@ int main(int argc, char* argv[]) {
     return 0;
   }
 
-#ifdef THREAD 
+#ifdef THREAD
   CurveThread t;
 #endif /* THREAD */
 
@@ -154,9 +154,9 @@ int main(int argc, char* argv[]) {
     cm->clearCurve();
     cm->fromString(input);
     if (defparam) { cm->useDefaultParameters(); }
-    
+
     QList<CurvePoint> points = cm->getCurve();
-    
+
     switch (implem) {
     case 0:
     case 1:
@@ -170,7 +170,7 @@ int main(int argc, char* argv[]) {
 	  cm->addPoint(p, p.curve_id, p.t);
 	}
       }
-      cm->endCurve(-1);      
+      cm->endCurve(-1);
       break;
     case 2:
 #ifdef THREAD
@@ -183,7 +183,7 @@ int main(int argc, char* argv[]) {
 	  t.endOneCurve(p.curve_id);
 	} else {
 	  t.addPoint(p, p.curve_id, p.t);
-	}	  
+	}
       }
       t.endCurve(-1);
       qDebug("Waiting for thread ...");
@@ -195,11 +195,13 @@ int main(int argc, char* argv[]) {
 #endif /* THREAD */
       break;
     }
-    
+
     if (showscore) {
       QList<ScenarioType> candidates = cm->getCandidates();
       foreach(ScenarioType s, candidates) {
-	cout << s.getName().toLocal8Bit().constData() << " " << s.getScore() << endl;
+	foreach(QString word, s.getWordListAsList()) {
+	  cout << word.toLocal8Bit().constData() << " " << s.getScore() << endl;
+	}
       }
     } else {
       cerr << "==> Match: " << (cm->getCandidates().size()) << endl;

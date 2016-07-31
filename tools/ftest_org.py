@@ -24,14 +24,15 @@ def remove_quotes(word):
     return  re.sub(r'^([\'\"])(.*)\1$', r'\2', word)
 
 class Tools:
-    def __init__(self, params = dict()):
+    def __init__(self, params = dict(), verbose = True):
         self.messages = []
         self.params = params
+        self.verbose = verbose
 
     def log(self, *args, **kwargs):
         if not args: return
         message = ' '.join(map(str, args))
-        print(message)
+        if self.verbose: print(message)
         self.messages.append(message)
 
     def cf(self, key, default_value, cast):
@@ -96,9 +97,11 @@ def ftest_load(index_org, work_dir, params = dict()):
 if __name__ == '__main__':
 
     add_new = False
-    opts, args =  getopt.getopt(sys.argv[1:], 'a')
+    quick = False
+    opts, args =  getopt.getopt(sys.argv[1:], 'aq')
     for o, a in opts:
         if o == "-a": add_new = True
+        elif o == "-q": quick = True
         else:
             print("Bad option: %s" % o)
             exit(1)
@@ -121,7 +124,7 @@ if __name__ == '__main__':
     last_lang = None
     lm = None
 
-    tools = Tools(params)
+    tools = Tools(params, verbose = not quick)
 
     record = []
     manifest = []
@@ -132,13 +135,33 @@ if __name__ == '__main__':
         word = t["word"]
         context = t["context"]
         pre = os.path.join(work_dir, id)
-        if os.path.isfile(pre + ".json"):
-            result = json.load(open(pre + ".json", 'r'))
-        else:
-            result = {}
 
-        if result: lang = os.path.basename(result["input"]["treefile"])[:2]
-        else: lang = "xx"
+        load_ok = False
+        lang = None
+        if quick:
+            if os.path.isfile(pre + ".txt"):
+                candidates = dict()
+                for li in open(pre + ".txt", "r").readlines():
+                    li = li.strip()
+                    if not li: continue
+                    word, score = li.split(" ")
+                    candidates[word] = float(score)
+                err = open(pre + ".err", "r").read()
+                mo = re.search(r'speed=(\d+)', err)
+                speed = int(mo.group(1)) if mo else -1
+                mo = re.search(r'treefile=([a-z0-9A-Z\/\.\-\_]+)', err)
+                if mo: lang = os.path.basename(mo.group(1))[:2]
+                load_ok = True
+                speed_max = -1
+
+        else:
+            if os.path.isfile(pre + ".json"):
+                result = json.load(open(pre + ".json", 'r'))
+                speed = result["stats"]["speed"]
+                candidates = language_model.split_old_candidate_list(result["candidates"])
+                lang = os.path.basename(result["input"]["treefile"])[:2]
+                speed_max = max([ c.get("speed", 0) for c in result["curve"] ])
+                load_ok = True
 
         check = False
         comment = False
@@ -147,7 +170,7 @@ if __name__ == '__main__':
         elif not add_new:
             comment = True
 
-        if lang != last_lang:
+        if lang and lang != last_lang:
             if lm: lm.close()
             db_file = os.path.join(mydir, "db/predict-%s.db" % lang)
             print("Language change: %s -> %s" % (last_lang or "None", lang))
@@ -175,15 +198,12 @@ if __name__ == '__main__':
             f.write("%s\n" % prefix)
             continue
 
-        if not lm: continue
+        if not lang or not lm: continue
+        if not load_ok: raise Exception("Could not load file: %s.json" % pre)
 
-        if not result: raise Exception("Could not load file: %s.json" % pre)
-
-        speed = result["stats"]["speed"]
 
         print("==== %s [%s] %s (lang=%s)" % (id, " ".join(context), word, lang))
-
-        candidates = language_model.split_old_candidate_list(result["candidates"])
+        print("candidates:", ','.join(candidates.keys()))
 
         details = dict()
         ordered_guesses = lm.guess(context, candidates,
@@ -200,14 +220,18 @@ if __name__ == '__main__':
         if len(ordered_guesses) < 2: compare_word = None
         elif ok: compare_word = ordered_guesses[1]
 
+        if quick:
+            st1 = st2 = -1
+        else:
+            curve = result["input"]["curve"]
+            st1 = len([ 1 for c in curve if c.get("sharp_turn", 0) == 1 ])
+            st2 = len([ 1 for c in curve if c.get("sharp_turn", 0) == 2 ])
 
-        curve = result["input"]["curve"]
         record.append(dict(id = id, ts = ts, context = context, candidates = candidates,
                            expected = word, lang = lang, speed = speed, old_guess = guess,
                            compare_word = compare_word,
-                           speed_max = max([ c.get("speed", 0) for c in curve ]),
-                           st1 = len([ 1 for c in curve if c.get("sharp_turn", 0) == 1 ]),
-                           st2 = len([ 1 for c in curve if c.get("sharp_turn", 0) == 2 ]) ))
+                           speed_max = speed_max,
+                           st1 = st1, st2 = st2))
 
         if ok: rank = 0
         else:
@@ -272,7 +296,10 @@ if __name__ == '__main__':
 """ % stats)
 
     f.close()
-    os.rename(index_org + ".tmp", index_org)
+    if quick:
+        os.unlink(index_org + ".tmp")
+    else:
+        os.rename(index_org + ".tmp", index_org)
 
     pck_file = os.path.join(work_dir, "ftest-all.pck")
     with open(pck_file, 'wb') as f:

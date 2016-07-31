@@ -26,6 +26,7 @@ params=
 opts=
 force_check=
 only_selected=
+quick=
 
 usage() {
     echo "usage :"`basename "$0"`" <opts>"
@@ -35,6 +36,7 @@ usage() {
     echo " -p <parameters> : parameters for prediction engine"
     echo " -f : force check"
     echo " -s : only process selected strokes"
+    echo " -q : quick (do not generate json files & reports, disable debug log)"
 }
 
 while [ -n "$1" ] ; do
@@ -45,6 +47,7 @@ while [ -n "$1" ] ; do
 	-a) opts="${opts}-a " ;;
 	-f) force_check=1 ;;
 	-s) only_selected=1 ;;
+	-q) quick=1 ; opts="${opts}-q " ; only_selected=1 ;;
 	-h) usage ; exit 0 ;;
 	*) echo "Unknown parameter: $1" ; usage ; exit 1 ;;
     esac
@@ -89,25 +92,40 @@ if [ -n "$rescan" ] ; then
 		continue
 	    fi
 
-	    if [ ! -f "$pre.png" -o -n "$reset" ] ; then
-		js=$(echo "$js" | tools/json-recover-keys.py "$tmpjson")
+	    if [ -n "$quick" ] ; then
+		# quick mode when we need the result quickly
+		if [ ! -f "$pre.txt" -o -n "$reset" ] ; then
+		    lang=$(echo "$js" | head -n 1 | sed 's/^.*treefile[^\}]*\///' | less | cut -c 1-2)
 
-		lang=`echo "$js" | head -n 1 | sed 's/^.*treefile[^\}]*\///' | less | cut -c 1-2`
+		    in="$pre.in.json"
+		    echo "$js" > $in
+		    cmd="tools/json-recover-keys.py \"$tmpjson\" < $in | cli/build/cli -a 1 -g -s -d db/${lang}.tre > $pre.txt 2> $pre.err"
+		    echo "[$n] $id $word ($lang) --> $cmd" >&2
+		    echo "$cmd"
+		fi
 
-		in="$pre.in.json"
-		log="$pre.log"
-		json="$pre.json"
-		html="$pre.html"
-		png="$pre.png"
+	    else
+		# traditional mode with all fancy reporting & logging
+		if [ ! -f "$pre.png" -o -n "$reset" ] ; then
+		    js=$(echo "$js" | tools/json-recover-keys.py "$tmpjson")
 
-		echo "$js" > $in
-		cmd="cli/build/cli -a 1 -d db/${lang}.tre \"$in\" > $log 2>&1 && "
-		cmd="${cmd} cat $log | grep -i '^Result:' | tail -n 1 | sed 's/^Result:\ *//' > $json && "
-		cmd="${cmd} cat $json | tools/jsonresult2html.py \"$word\" > $html.tmp && mv -f $html.tmp $html && "
-		cmd="${cmd} cat $json | tools/jsonresult2html.py --image \"$png\""
+		    lang=$(echo "$js" | head -n 1 | sed 's/^.*treefile[^\}]*\///' | less | cut -c 1-2)
 
-		echo "[$n] $id $word ($lang) --> $cmd" >&2
-		echo "$cmd"
+		    in="$pre.in.json"
+		    log="$pre.log"
+		    json="$pre.json"
+		    html="$pre.html"
+		    png="$pre.png"
+
+		    echo "$js" > $in
+		    cmd="cli/build/cli -a 1 -d db/${lang}.tre \"$in\" > $log 2>&1 && "
+		    cmd="${cmd} cat $log | grep -i '^Result:' | tail -n 1 | sed 's/^Result:\ *//' > $json && "
+		    cmd="${cmd} cat $json | tools/jsonresult2html.py \"$word\" > $html.tmp && mv -f $html.tmp $html && "
+		    cmd="${cmd} cat $json | tools/jsonresult2html.py --image \"$png\""
+
+		    echo "[$n] $id $word ($lang) --> $cmd" >&2
+		    echo "$cmd"
+		fi
 	    fi
 
 	done
@@ -119,7 +137,7 @@ fi
 
 getlogs | tools/ftest_org.py $opts "tools/ftest.org" "$work_dir" $params
 
-if [ -n "$rescan" ] ; then
+if [ -n "$rescan" ] && [ -z "$quick" ] ; then
     cat "$work_dir/manifest.txt" | cut -d';' -f 1-2 | tr ';' ' ' | (
 	while read id exp ; do
 	    if [ ! -f "$work_dir/$id.wt.log" ] ; then

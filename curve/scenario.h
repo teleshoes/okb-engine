@@ -327,6 +327,7 @@ class Scenario {
   QString getName() const;
   unsigned char* getNameCharPtr() const;
   QString getWordList();
+  QStringList getWordListAsList();
   float getScore() const;
   bool postProcess(stats_t &st);
   float getTempScore() const;

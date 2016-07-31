@@ -325,6 +325,17 @@ QString MultiScenario::getWordList() {
   return QString((char*) payload.first); // payload is always zero-terminated
 }
 
+QStringList MultiScenario::getWordListAsList() {
+  QString list_str = getWordList();
+  QStringList list = list_str.split(",");
+  for(int i = 0; i < list.size(); i ++) {
+    if (list[i] == "=") {
+      list[i] = getName();
+    }
+  }
+  return list;
+}
+
 float MultiScenario::getScore() const {
   if (! count) { return 0; }
   float score = 0;

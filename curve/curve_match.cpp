@@ -956,7 +956,9 @@ bool CurveMatch::match() {
   sortCandidates();
   scenarioFilter(candidates, 0.7, 10, params.max_candidates, true); // @todo add to parameter list
 
-  logdebug("Candidates: %d (time=%d, nodes=%d, forks=%d, skim=%d, speed=%d, special=%d, cputime=%d)", candidates.size(), st.st_time, st.st_count, st.st_fork, st.st_skim, st.st_speed, st.st_special, st.st_cputime);
+  logdebug("Candidates: %d (time=%d, nodes=%d, forks=%d, skim=%d, speed=%d, special=%d, cputime=%d, treefile=%s)",
+	   candidates.size(), st.st_time, st.st_count, st.st_fork, st.st_skim, st.st_speed,
+	   st.st_special, st.st_cputime, QSTRING2PCHAR(treeFile));
 
   done = true;
 

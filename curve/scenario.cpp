@@ -1092,6 +1092,17 @@ QString Scenario::getWordList() {
   return QString((char*) payload.first); // payload is always zero-terminated
 }
 
+QStringList Scenario::getWordListAsList() {
+  QString list_str = getWordList();
+  QStringList list = list_str.split(",");
+  for(int i = 0; i < list.size(); i ++) {
+    if (list[i] == "=") {
+      list[i] = getName();
+    }
+  }
+  return list;
+}
+
 float Scenario::getScore() const {
   if (! count) { return 0; }
   return (final_score == -1)?getTempScore():final_score;
@@ -1850,8 +1861,11 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
 
       if (abs(d->actual) > 140 || abs(d->expected) > 140) { // @todo set as parameter
 	if (d->start_index == d->index) {
-	  int t = curve->getTurnSmooth(index_history[d->index]);
-	  d->corrected_direction = (t>0) - (t<0);
+	  if (curve->getSpecialPoint(index_history[d->index]) != 2) {
+	    // do not correct for ST=2 because it is already done in check_reverse_turn function
+	    int t = curve->getTurnSmooth(index_history[d->index]);
+	    d->corrected_direction = (t>0) - (t<0);
+	  }
 	} else if (d->start_index + 1 == d->index && d->length > params->turn_separation / 2) {
 	  int t1 = curve->getTurnSmooth(index_history[d->start_index]);
 	  int t2 = curve->getTurnSmooth(index_history[d->index]);

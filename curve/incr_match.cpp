@@ -687,7 +687,7 @@ void IncrementalMatch::endCurve(int id) {
   incrementalMatchUpdate(true);
   st.st_cputime = (int) (1000 * (getCPUTime() - start_cpu_time));
   st.st_time = (int) timer.elapsed();
-  logdebug("cputime=%d", st.st_cputime);
+  logdebug("cputime=%d speed=%d treefile=%s", st.st_cputime, st.st_speed, QSTRING2PCHAR(treeFile));
 }
 
 #endif /* INCREMENTAL */
