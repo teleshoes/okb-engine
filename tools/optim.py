@@ -29,6 +29,12 @@ LOG = None  # "/tmp/optim.log"
 OUT = "optim.log"
 FAIL_SCORE = -999
 
+def word2letters(word):
+    letters = ''.join(c for c in unicodedata.normalize('NFD', word) if unicodedata.category(c) != 'Mn')
+    letters = re.sub(r'[^a-z]', '', letters.lower())
+    letters = re.sub(r'(.)\1+', lambda m: m.group(1), letters)
+    return letters
+
 def get_params(fname):
     cp = ConfigParser.SafeConfigParser()
     cp.read(fname)
@@ -231,8 +237,10 @@ def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, s
 
         candidates = dict()
         for li in out.split('\n'):
-            mo = re.match(r'^([a-z]+)\s+([\d\.]+)$', li.strip())
-            if mo: candidates[mo.group(1)] = float(mo.group(2))
+            li = li.strip()
+            if not li: continue
+            mo = re.match(r'^([\w\'\-]+)\s+([\d\-\.]+)$', li)
+            candidates[word2letters(mo.group(1))] = float(mo.group(2))
 
         score = score1(candidates, word, typ)
 
@@ -319,9 +327,7 @@ def load_tests(test_dir = None):
                 lang, letters = mo.group(1), mo.group(2)
 
         letters = re.sub(r'-.*$', '', letters)
-        letters = ''.join(c for c in unicodedata.normalize('NFD', letters) if unicodedata.category(c) != 'Mn')
-        letters = re.sub(r'[^a-z]', '', letters.lower())
-        letters = re.sub(r'(.)\1+', lambda m: m.group(1), letters)
+        letters = word2letters(letters)
         tests.append((letters, open(os.path.join(test_dir, fname)).read(), lang, test_id))
 
     tests.sort(key = lambda x: x[0])
