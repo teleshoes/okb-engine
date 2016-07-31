@@ -603,7 +603,7 @@ class LanguageModel:
 
         for c in candidates:
             if c not in all_coefs:
-                predict_scores[c] = (- self.cf("p2_score_unknown", 0.007, float), "unknown")
+                predict_scores[c] = (- self.cf("p2_score_unknown", 0.008, float), "unknown")
             elif c not in predict_scores:
                 predict_scores[c] = (- self.cf("p2_score_coarse", 0.015, float), "coarse")
 
