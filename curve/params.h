@@ -198,7 +198,7 @@ static Params default_params = {
   34, // atp_min_angle1
   14, // atp_min_turn1
   4, // atp_opt_gap
-  0.75, // atp_pt_61
+  0.79, // atp_pt_61
   8, // atp_threshold
   0.03, // bad_tangent_score
   120, // bjr_min_turn
@@ -208,7 +208,7 @@ static Params default_params = {
   0.1, // coef_distance
   0.05, // coef_error
   0.05, // coef_error_tmp
-  112, // cos_max_gap
+  120, // cos_max_gap
   95, // curve_dist_threshold
   50, // curve_score_min_dist
   20.0, // curve_surface_coef
@@ -217,7 +217,7 @@ static Params default_params = {
   22, // dst_x_add
   97, // dst_x_max
   40, // dst_y_add
-  120, // dst_y_max
+  124, // dst_y_max
   100, // end_scenario_wait
   1, // error_correct
   5, // error_ignore_count
@@ -261,7 +261,7 @@ static Params default_params = {
   50, // max_candidates
   25, // max_segment_length
   8, // max_star_index
-  10, // max_turn_index_gap
+  7, // max_turn_index_gap
   2, // min_turn_index_gap
   3, // min_turn_index_gap_st
   25, // multi_dot_threshold
@@ -275,8 +275,8 @@ static Params default_params = {
   0.5, // newdist_length_bias_pow
   2.0, // newdist_pow
   3.12, // newdist_speed
-  3, // rt2_count_nz
-  4, // rt2_count_z
+  4, // rt2_count_nz
+  5, // rt2_count_z
   37, // rt2_flat_max
   8, // rt2_high
   5, // rt2_low

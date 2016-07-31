@@ -171,6 +171,6 @@ defparams = [
     [ "weight_curve", float, 0.1, 10 ],
     [ "weight_distance", float ],  # reference (=1)
     [ "weight_length", float, 0.1, 10 ],
-    [ "weight_misc", float, 0.1, 10 ],
+    [ "weight_misc", float ],  # each "misc" score can be tuned separately with its own coefficients
     [ "weight_turn", float, 0.1, 10 ],
 ]
