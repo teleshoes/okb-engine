@@ -80,6 +80,7 @@ defparams = [
     [ "max_star_index", int, 3, 20 ],
     [ "max_turn_index_gap", int, 2, 10],
     [ "min_turn_index_gap", int, 1, 5],
+    [ "min_turn_index_gap_st", int, 1, 5],
     [ "multi_dot_threshold", int ],
     [ "multi_max_time_rewind", int ],  # impact is not continuous
     [ "newdist_c1", float, 0, 4 ],

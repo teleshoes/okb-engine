@@ -82,6 +82,7 @@ class Params {
   int max_star_index;
   int max_turn_index_gap;
   int min_turn_index_gap;
+  int min_turn_index_gap_st;
   int multi_dot_threshold;
   int multi_max_time_rewind;
   float newdist_c1;
@@ -262,6 +263,7 @@ static Params default_params = {
   8, // max_star_index
   10, // max_turn_index_gap
   2, // min_turn_index_gap
+  3, // min_turn_index_gap_st
   25, // multi_dot_threshold
   300, // multi_max_time_rewind
   0.43, // newdist_c1
@@ -436,6 +438,7 @@ void Params::toJson(QJsonObject &json) const {
   json["max_star_index"] = max_star_index;
   json["max_turn_index_gap"] = max_turn_index_gap;
   json["min_turn_index_gap"] = min_turn_index_gap;
+  json["min_turn_index_gap_st"] = min_turn_index_gap_st;
   json["multi_dot_threshold"] = multi_dot_threshold;
   json["multi_max_time_rewind"] = multi_max_time_rewind;
   json["newdist_c1"] = newdist_c1;
@@ -612,6 +615,7 @@ Params Params::fromJson(const QJsonObject &json) {
   p.max_star_index = json["max_star_index"].toDouble();
   p.max_turn_index_gap = json["max_turn_index_gap"].toDouble();
   p.min_turn_index_gap = json["min_turn_index_gap"].toDouble();
+  p.min_turn_index_gap_st = json["min_turn_index_gap_st"].toDouble();
   p.multi_dot_threshold = json["multi_dot_threshold"].toDouble();
   p.multi_max_time_rewind = json["multi_max_time_rewind"].toDouble();
   p.newdist_c1 = json["newdist_c1"].toDouble();

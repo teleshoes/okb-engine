@@ -1791,8 +1791,8 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
       if (a_same[i] || a_same[i - 1]) { continue; } // case is rare enough to ignore it
 
       if (! st) {
-	for(int j = max(0, curve_index - params->min_turn_index_gap);
-	    j <= min(curve->size() - 1, curve_index + params->min_turn_index_gap);
+	for(int j = max(0, curve_index - params->min_turn_index_gap_st);
+	    j <= min(curve->size() - 1, curve_index + params->min_turn_index_gap_st);
 	    j++) {
 	  if (curve->getSpecialPoint(j) == 5) { st = 5; break; }
 	}
