@@ -261,7 +261,7 @@ static Params default_params = {
   25, // max_segment_length
   8, // max_star_index
   10, // max_turn_index_gap
-  3, // min_turn_index_gap
+  2, // min_turn_index_gap
   25, // multi_dot_threshold
   300, // multi_max_time_rewind
   0.43, // newdist_c1
