@@ -206,8 +206,8 @@ static Params default_params = {
   0.8, // cls_distance_max_ratio
   1, // cls_enable
   0.1, // coef_distance
-  0.1, // coef_error
-  0.1, // coef_error_tmp
+  0.05, // coef_error
+  0.05, // coef_error_tmp
   112, // cos_max_gap
   95, // curve_dist_threshold
   50, // curve_score_min_dist

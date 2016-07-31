@@ -23,8 +23,8 @@ defparams = [
     [ "cls_distance_max_ratio", float, 0, 2 ],
     [ "cls_enable", int ],
     [ "coef_distance", float, 0.01, 1 ],
-    [ "coef_error", float ],  # more is better (at the moment ... unless i have better test cases)
-    [ "coef_error_tmp", float ],  # idem
+    [ "coef_error", float, 0, 1 ],  # more is better (at the moment ... unless i have better test cases)
+    [ "coef_error_tmp", float, 0, 1 ],  # idem
     [ "cos_max_gap", int, 20, 150 ],
     [ "curve_dist_threshold", int, 30, 200 ],
     [ "curve_score_min_dist", int, 20, 100 ],
