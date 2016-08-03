@@ -73,7 +73,7 @@ for lang in fr en ; do
     cat $lang.tre | gzip -c > %{buildroot}/%{share_dir}/$lang.tre.gz
     cat predict-$lang.db | gzip -c > %{buildroot}/%{share_dir}/predict-$lang.db.gz
     cat predict-$lang.ng | gzip -c > %{buildroot}/%{share_dir}/predict-$lang.ng.gz
-    cp -f predict-$lang.id > %{buildroot}/%{share_dir}/predict-$lang.id
+    cp -f predict-$lang.id %{buildroot}/%{share_dir}/predict-$lang.id
 done
 
 %files
