@@ -112,6 +112,8 @@ class MultiScenario {
   /* deprecated */
   int getClass() { return 0; }
   int getStar() { return 0; }
+
+  QList<QPair<unsigned char, Point> > get_key_error(void);
 };
 
 #endif /* MULTI */

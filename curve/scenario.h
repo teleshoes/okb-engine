@@ -364,6 +364,8 @@ class Scenario {
   void setCurveCount(int) {}; // for compatibility only
 
   void deepDive(QList<Scenario> &result, float min_score = 0.);
+
+  QList<QPair<unsigned char, Point> > get_key_error(void);
 };
 
 

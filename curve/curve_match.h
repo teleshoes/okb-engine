@@ -16,14 +16,12 @@
 #include <QTime>
 
 #include "config.h"
-
 #include "tree.h"
 #include "log.h"
-
 #include "params.h"
-
 #include "scenario.h"
 #include "multi.h"
+#include "key_shift.h"
 
 #ifdef MULTI
 typedef MultiScenario ScenarioType;
@@ -88,6 +86,10 @@ class CurveMatch {
 
   void setCurves();
 
+  KeyShift keyShift;
+
+  QuickKeys quickKeys;
+
  public:
   CurveMatch();
   virtual ~CurveMatch() {};
@@ -126,6 +128,11 @@ class CurveMatch {
   char* getPayload(unsigned char *letters);
 
   void sortCandidates();
+
+  void loadKeyPos();
+  void saveKeyPos();
+  void updateKeyPosForTest(QString expected);
+  void storeKeyPos();
 };
 
 #endif /* CURVE_MATCH_H */

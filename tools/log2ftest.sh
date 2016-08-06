@@ -99,7 +99,9 @@ if [ -n "$rescan" ] ; then
 
 		    in="$pre.in.json"
 		    echo "$js" > $in
-		    cmd="tools/json-recover-keys.py \"$tmpjson\" < $in | cli/build/cli -a 1 -g -s -d db/${lang}.tre > $pre.txt 2> $pre.err"
+		    quote_word=$(tools/quoteshell.py "$word")
+		    cmd="tools/json-recover-keys.py \"$tmpjson\" < $in | "
+		    cmd="${cmd} cli/build/cli ${CLI_OPTS} -e ${quote_word} -g -s -d db/${lang}.tre > $pre.txt 2> $pre.err"
 		    echo "[$n] $id $word ($lang) --> $cmd" >&2
 		    echo "$cmd"
 		fi
@@ -118,7 +120,7 @@ if [ -n "$rescan" ] ; then
 		    png="$pre.png"
 
 		    echo "$js" > $in
-		    cmd="cli/build/cli -a 1 -d db/${lang}.tre \"$in\" > $log 2>&1 && "
+		    cmd="cli/build/cli ${CLI_OPTS} -e ${word} -d db/${lang}.tre \"$in\" > $log 2>&1 && "
 		    cmd="${cmd} cat $log | grep -i '^Result:' | tail -n 1 | sed 's/^Result:\ *//' > $json && "
 		    cmd="${cmd} cat $json | tools/jsonresult2html.py \"$word\" > $html.tmp && mv -f $html.tmp $html && "
 		    cmd="${cmd} cat $json | tools/jsonresult2html.py --image \"$png\""

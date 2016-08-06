@@ -12,10 +12,9 @@
 #include <stdio.h> // for rename()
 
 #include "functions.h"
-
 #include "params.h"
-
 #include "kb_distort.h"
+#include "key_shift.h"
 
 #define BUILD_TS (char*) (__DATE__ " " __TIME__)
 
@@ -2992,4 +2991,22 @@ void Scenario::log_misc(QString name, QString coef_name, float coef_value, float
   }
 
   misc_acct -> append(MiscAcct(coef_name, coef_value, value));
+}
+
+
+QList<QPair<unsigned char, Point> > Scenario::get_key_error(void) {
+  QList<QPair<unsigned char, Point> > result;
+  
+  for(int i = 0; i < count; i ++) {
+    Point key = keys->get_raw(letter_history[i]);
+    Point mp = curve->point(index_history[i]);
+
+    unsigned char letter = letter_history[i];
+    Point delta = mp - key;
+    DBG("[key shift] update \"%s\" %d:'%c' (%d, %d)",
+	getNameCharPtr(), i, letter, delta.x, delta.y);
+
+    result.append(QPair<unsigned char, Point>(letter, delta));
+  }
+  return result;
 }

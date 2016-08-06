@@ -26,3 +26,5 @@ clusters-*.txt
 *.id
 *.tmp
 badcurve
+key_shift_*.ks
+*.lock

@@ -502,6 +502,8 @@ void IncrementalMatch::incrementalMatchUpdate(bool finished, float aggressive) {
     sortCandidates();
     scenarioFilter(candidates, 0.7, 10, max_candidates, true); // @todo add to parameter list
 
+    storeKeyPos();
+
     // cache stats
     int n = st.st_cache_hit;
     int d = st.st_cache_hit + st.st_cache_miss;

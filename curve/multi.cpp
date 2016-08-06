@@ -536,4 +536,12 @@ bool MultiScenario::nextLength(unsigned char next_letter, int curve_id, int &min
   return scenario->nextLength(next_letter, 0, min_length, max_length);
 }
 
+
+QList<QPair<unsigned char, Point> > MultiScenario::get_key_error(void) {
+  QList<QPair<unsigned char, Point> > result;
+  FOREACH_ALL_SCENARIOS(s, { result.append(s->get_key_error()); });
+  return result;
+}
+
+
 #endif /* MULTI */

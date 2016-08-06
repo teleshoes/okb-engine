@@ -28,6 +28,7 @@ TEST_DIR = "../test"
 LOG = None  # "/tmp/optim.log"
 OUT = "optim.log"
 FAIL_SCORE = -999
+EPS = 0.0002
 
 def word2letters(word):
     letters = ''.join(c for c in unicodedata.normalize('NFD', word) if unicodedata.category(c) != 'Mn')
@@ -100,10 +101,11 @@ def log1(txt):
         f.write(txt)
         f.write("\n")
 
-def run1(json_str, lang, nodebug = False, full = False):
+def run1(json_str, lang, expected = None, nodebug = False, full = False):
     opts = re.split('\s+', os.getenv('CLI_OPTS', "-a 1"))  # by default test with incremental mode (more representative)
     opts = [ x for x in opts if x ]
     if nodebug: opts = [ "-g" ] + opts
+    if expected: opts.extend([ "-e", expected ])
     cmd = [ CLI ] + opts + [ "-s", os.path.join(TRE_DIR, "%s%s.tre" % (lang, "-full" if full else "")) ]
 
     sp = subprocess.Popen(cmd, stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
@@ -209,7 +211,7 @@ def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, s
         sys.stdout.flush()
         json_in2 = update_json(json_in, params)
         log1(">>>> " + json_in2)
-        runall.append((key, run1, [json_in2, lang, nodebug ]))
+        runall.append((key, run1, [json_in2, lang, word, nodebug ]))
         if dump:
             save(os.path.join(dump, "%s.in" % key), json_in2)
 
@@ -296,7 +298,7 @@ def optim(pname, params, tests, typ):
             else: step *= 1.2
 
     value, score = sorted(scores, key = lambda x: x[1])[-1]
-    if score > score0 + 0.01 * abs(score0):
+    if score > score0 + EPS:
         params[pname]["value"] = value
         print("===> Update[%s:%s] %s->%s (score: %.3f -> %.3f)" % (typ, pname, value0, value, score0, score))
         return score

@@ -5,6 +5,7 @@
 #include <QElapsedTimer>
 #include <QTextStream>
 #include <QStringList>
+#include <QFileInfo>
 #include <cmath>
 #include <iostream>
 #include <math.h>
@@ -48,7 +49,7 @@ void curve_smooth(QList<CurvePoint> &curve) {
 }
 
 /* --- main class for curve matching ---*/
-CurveMatch::CurveMatch() {
+CurveMatch::CurveMatch() : keyShift(&params) {
   loaded = false;
   params = default_params;
   debug = false;
@@ -685,6 +686,8 @@ void CurveMatch::addPoint(Point point, int curve_id, int timestamp) {
       // we must apply keyboard biases before feeding the curve
       // in case of incremental processing
       kb_distort(keys, params);
+      if (params.key_shift_enable) { keyShift.loadAndApply(keys); }
+
       if (debug) {
 	DBG("Keys adjustments:");
 	QHashIterator<unsigned char, Key> ki(keys);
@@ -760,6 +763,9 @@ void CurveMatch::endOneCurve(int curve_id) {
 
 bool CurveMatch::loadTree(QString fileName) {
   /* load a .tre (word tree) file */
+
+  keyShift.setDirectory(QFileInfo(fileName).path()); // by convention key-shift will use the same directory as .tre files
+
   if (loaded && fileName == this -> treeFile) { return true; }
   userDictionary.clear();
 
@@ -894,7 +900,7 @@ bool CurveMatch::match() {
 
   // change order for equal items: qSort(curve.begin(), curve.end()); // in multi mode we may lose point ordering
 
-  QuickKeys quickKeys(keys);
+  quickKeys.setKeys(keys);
 
   setCurves();
   curvePreprocess2();
@@ -955,6 +961,9 @@ bool CurveMatch::match() {
   scenarioFilter(candidates, 0.5, 10, 3 * params.max_candidates, true); // @todo add to parameter list
   sortCandidates();
   scenarioFilter(candidates, 0.7, 10, params.max_candidates, true); // @todo add to parameter list
+
+  storeKeyPos();
+
 
   logdebug("Candidates: %d (time=%d, nodes=%d, forks=%d, skim=%d, speed=%d, special=%d, cputime=%d, treefile=%s)",
 	   candidates.size(), st.st_time, st.st_count, st.st_fork, st.st_skim, st.st_speed,
@@ -1294,4 +1303,48 @@ void CurveMatch::dumpDict() {
 
 char* CurveMatch::getPayload(unsigned char *letters) {
   return (char*) wordtree.getPayload(letters).first;
+}
+
+void CurveMatch::loadKeyPos() {
+  // this is not done automatically when context is loaded from a JSON file
+  // (this is used from CLI tool)
+  keyShift.loadAndApply(keys);
+}
+
+void CurveMatch::storeKeyPos() {
+  /* @TODO */
+}
+
+void CurveMatch::updateKeyPosForTest(QString expected) {
+  if (! params.key_shift_enable) { return; }
+  DBG(KS_TAG "*test* Update for word %s", QSTRING2PCHAR(expected));
+
+  int found = -1;
+  for(int i = 0; i < candidates.size(); i ++) {
+    QStringList words = candidates[i].getWordList().split(',');
+    if (candidates[i].getName() == expected ||
+	words.contains(expected)) {
+      found = i;
+    }
+  }
+  if (found == -1) {
+    DBG(KS_TAG "*test* word not found !");
+    return;
+  }
+
+  keyShift.lock();
+  QList<QPair<unsigned char, Point> > match_points = candidates[found].get_key_error();
+
+  for(int i = 0; i < match_points.size(); i ++) {
+    keyShift.update(match_points[i].first,
+		    match_points[i].second.x,
+		    match_points[i].second.y);
+  }
+
+  keyShift.save();
+  DBG(KS_TAG "*test* update done !");
+}
+
+void CurveMatch::saveKeyPos() {
+  keyShift.save();
 }

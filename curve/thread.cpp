@@ -147,6 +147,7 @@ void CurveThread::run() {
       matcher->saveUserDict();
       matcher->loadTree(QString());
       tre_loaded = false;
+      matcher->saveKeyPos(); // also save key position error stats
     } else if (inProgress.size() > 0) {
       last_activity = now;
     }

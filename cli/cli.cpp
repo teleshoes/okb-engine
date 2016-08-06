@@ -38,6 +38,8 @@ static void usage(char *progname) {
   cout << " -s : online display scores (instead of full json)" << endl;
   cout << " -m <ms> : delay between curve point feeding (thread mode only)" << endl;
   cout << " -r <count> : repeat (for profiling)" << endl;
+  cout << " -k <mode> : 0=ignore, 1=load (default), 2=load+save" << endl;
+  cout << " -e <word> : sets expected word for \"-k 2\" option" << endl;
   exit(1);
 }
 
@@ -57,12 +59,14 @@ int main(int argc, char* argv[]) {
   bool act_learn = false;
   bool act_dump = false;
   bool act_get = false;
+  int key_error = 1;
+  char *expected = NULL;
 
   extern char *optarg;
   extern int optind;
 
   int c;
-  while ((c = getopt(argc, argv, "dl:a:sgm:r:LDG")) != -1) {
+  while ((c = getopt(argc, argv, "dl:a:sgm:r:LDGk:e:")) != -1) {
     switch (c) {
     case 'a': implem = atoi(optarg); break;
     case 'd': defparam = true; break;
@@ -76,11 +80,16 @@ int main(int argc, char* argv[]) {
     case 'L': act_learn = true; break;
     case 'D': act_dump = true; break;
     case 'G': act_get = true; break;
+    case 'k': key_error = atoi(optarg); break;
+    case 'e': expected = optarg; break;
     default: usage(argv[0]); break;
     }
   }
 
   if (! (argc > optind)) { usage(argv[0]); }
+
+  if (key_error >= 2 && !expected) { usage(argv[0]); }
+
 
   if (act_learn) {
     if (! (argc > optind + 2)) { usage(argv[0]); }
@@ -153,6 +162,8 @@ int main(int argc, char* argv[]) {
   for (int i = 0; i < repeat; i ++) {
     cm->clearCurve();
     cm->fromString(input);
+    // @todo (must be deactivated in add_point for key_error = 0) if (key_error >= 1) { cm->loadKeyPos(); }
+
     if (defparam) { cm->useDefaultParameters(); }
 
     QList<CurvePoint> points = cm->getCurve();
@@ -194,6 +205,10 @@ int main(int argc, char* argv[]) {
       return 1;
 #endif /* THREAD */
       break;
+    }
+
+    if (key_error >= 2) {
+      cm->updateKeyPosForTest(QString(expected));
     }
 
     if (showscore) {

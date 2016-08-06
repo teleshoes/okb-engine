@@ -160,7 +160,7 @@ if __name__ == '__main__':
                 speed = result["stats"]["speed"]
                 candidates = language_model.split_old_candidate_list(result["candidates"])
                 lang = os.path.basename(result["input"]["treefile"])[:2]
-                speed_max = max([ c.get("speed", 0) for c in result["curve"] ])
+                speed_max = max([ c.get("speed", 0) for c in result["input"]["curve"] ])
                 load_ok = True
 
         check = False

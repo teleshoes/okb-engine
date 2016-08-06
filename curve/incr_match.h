@@ -100,8 +100,6 @@ class IncrementalMatch : public CurveMatch {
   QElapsedTimer timer;
   double start_cpu_time;
 
-  QuickKeys quickKeys;
-
   QList<DelayedScenario> *delayed_scenarios_p;
 
   int last_snapshot_count;

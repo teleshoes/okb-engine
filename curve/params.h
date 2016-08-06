@@ -66,6 +66,9 @@ class Params {
   int inf_max;
   int inf_min;
   int inter_pt_min_dist;
+  float key_shift_ema_coef;
+  int key_shift_enable;
+  float key_shift_ratio;
   float lazy_loop_bias;
   float length_penalty;
   float loop_penalty;
@@ -247,6 +250,9 @@ static Params default_params = {
   120, // inf_max
   20, // inf_min
   20, // inter_pt_min_dist
+  0.005, // key_shift_ema_coef
+  1, // key_shift_enable
+  1.0, // key_shift_ratio
   0.02, // lazy_loop_bias
   0.001, // length_penalty
   0.01, // loop_penalty
@@ -422,6 +428,9 @@ void Params::toJson(QJsonObject &json) const {
   json["inf_max"] = inf_max;
   json["inf_min"] = inf_min;
   json["inter_pt_min_dist"] = inter_pt_min_dist;
+  json["key_shift_ema_coef"] = key_shift_ema_coef;
+  json["key_shift_enable"] = key_shift_enable;
+  json["key_shift_ratio"] = key_shift_ratio;
   json["lazy_loop_bias"] = lazy_loop_bias;
   json["length_penalty"] = length_penalty;
   json["loop_penalty"] = loop_penalty;
@@ -599,6 +608,9 @@ Params Params::fromJson(const QJsonObject &json) {
   p.inf_max = json["inf_max"].toDouble();
   p.inf_min = json["inf_min"].toDouble();
   p.inter_pt_min_dist = json["inter_pt_min_dist"].toDouble();
+  p.key_shift_ema_coef = json["key_shift_ema_coef"].toDouble();
+  p.key_shift_enable = json["key_shift_enable"].toDouble();
+  p.key_shift_ratio = json["key_shift_ratio"].toDouble();
   p.lazy_loop_bias = json["lazy_loop_bias"].toDouble();
   p.length_penalty = json["length_penalty"].toDouble();
   p.loop_penalty = json["loop_penalty"].toDouble();
