@@ -12,11 +12,14 @@ lang_re=$(ls "$dir/db/" | grep '^..\.tre' | cut -c1,2 | tr '\n' '|' | sed 's/|$/
 
 echo "Target word: $word"
 
-tre=`mktemp /tmp/tre.XXXXXX`
+tre_dir=`mktemp -d /tmp/tre.XXXXXX`
+tre="${tre_dir}/dummy.tre"
 echo "$word" | $dir/tools/loadkb.py "$tre"
+cp -f $(find "$dir/db/" -name "key_shift*.ks") "$tre_dir/"
 
 export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$dir/curve/build"
 
 $dir/cli/build/cli ${CLI_OPTS} -d "$tre" "$test" 2>&1 | grep -vi '^Result:'
 
-rm -f "$tre"
+rm -f "$tre_dir/*"
+rmdir "$tre_dir"
