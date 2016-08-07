@@ -116,6 +116,7 @@ class CurveMatch {
   void resultToJson(QJsonObject &json);
   QString resultToString(bool indent = false);
   void setParameters(QString jsonStr);
+  Params* getParamsPtr();
   void useDefaultParameters();
 
   void setDebug(bool debug);

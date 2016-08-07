@@ -1348,3 +1348,7 @@ void CurveMatch::updateKeyPosForTest(QString expected) {
 void CurveMatch::saveKeyPos() {
   keyShift.save();
 }
+
+Params* CurveMatch::getParamsPtr() {
+  return &params;
+}

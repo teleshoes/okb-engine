@@ -595,8 +595,6 @@ void IncrementalMatch::delayedScenariosFilter() {
   /* makes sure thats delayed scenario list stays at a reasoneable size & remove duplicate
      This is an adaptation from scenarioFilter() in curve_match.cpp */
 
-  DBG("Scenarios filter ...");
-
   int nb = delayed_scenarios.size();
   float min_score = 0, min_score2 = 0;
   if (nb > params.max_active_scenarios) {
@@ -613,6 +611,9 @@ void IncrementalMatch::delayedScenariosFilter() {
 
     delete[] scores;
   }
+
+  DBG("Scenarios filter ... (min scores = [%.2f, %.2f]", min_score, min_score2);
+
 
   QHash<QString, int> dejavu;
 

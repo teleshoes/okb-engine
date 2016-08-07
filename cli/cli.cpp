@@ -40,6 +40,7 @@ static void usage(char *progname) {
   cout << " -r <count> : repeat (for profiling)" << endl;
   cout << " -k <mode> : 0=ignore, 1=load (default), 2=load+save" << endl;
   cout << " -e <word> : sets expected word for \"-k 2\" option" << endl;
+  cout << " -f : disable scenario filtering" << endl;
   exit(1);
 }
 
@@ -59,6 +60,7 @@ int main(int argc, char* argv[]) {
   bool act_learn = false;
   bool act_dump = false;
   bool act_get = false;
+  bool no_filt = false;
   int key_error = 1;
   char *expected = NULL;
 
@@ -66,7 +68,7 @@ int main(int argc, char* argv[]) {
   extern int optind;
 
   int c;
-  while ((c = getopt(argc, argv, "dl:a:sgm:r:LDGk:e:")) != -1) {
+  while ((c = getopt(argc, argv, "dl:a:sgm:r:LDGk:e:f")) != -1) {
     switch (c) {
     case 'a': implem = atoi(optarg); break;
     case 'd': defparam = true; break;
@@ -82,6 +84,7 @@ int main(int argc, char* argv[]) {
     case 'G': act_get = true; break;
     case 'k': key_error = atoi(optarg); break;
     case 'e': expected = optarg; break;
+    case 'f': no_filt = true; break;
     default: usage(argv[0]); break;
     }
   }
@@ -165,6 +168,11 @@ int main(int argc, char* argv[]) {
     // @todo (must be deactivated in add_point for key_error = 0) if (key_error >= 1) { cm->loadKeyPos(); }
 
     if (defparam) { cm->useDefaultParameters(); }
+    if (no_filt) {
+      Params *params = cm->getParamsPtr();
+      params->max_active_scenarios = params->max_active_scenarios2 = 1000000;
+    }
+
 
     QList<CurvePoint> points = cm->getCurve();
 
