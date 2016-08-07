@@ -251,7 +251,7 @@ static Params default_params = {
   20, // inf_min
   20, // inter_pt_min_dist
   0.005, // key_shift_ema_coef
-  1, // key_shift_enable
+  0, // key_shift_enable
   1.0, // key_shift_ratio
   0.02, // lazy_loop_bias
   0.001, // length_penalty
