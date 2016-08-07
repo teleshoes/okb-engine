@@ -58,7 +58,7 @@ for t in records:
         out.append(dict(key = l,
                         kx = keys[l][0], ky = keys[l][1],
                         kw = keys[l][2], kh = keys[l][3],
-                        mx = c["x"], my = c["y"]))
+                        mx = c["x"], my = c["y"], speed = c["speed"]))
 
 
 if not select_key:
