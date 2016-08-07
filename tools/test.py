@@ -33,6 +33,10 @@ class Color:
         self.db[key] = value
         text2 = "%s[%.2f<<%.2f]" % (label, value, old_value)
 
+        if value < -10:
+            if self.color_ok: return "\x1b[1;35m%s\x1b[0m" % text2
+            else: return "[X]" + text2
+
         if value > old_value + err(old_value):
             if self.color_ok: return "\x1b[1;32m%s\x1b[0m" % text2
             else: return "[+]" + text2
