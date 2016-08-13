@@ -126,6 +126,8 @@ if [ -n "$rescan" ] ; then
 		    cmd="${cmd} cat $json | tools/jsonresult2html.py \"$word\" > $html.tmp && mv -f $html.tmp $html && "
 		    cmd="${cmd} cat $json | tools/jsonresult2html.py --image \"$png\""
 
+		    rm -f "$work_dir/$id.wt.log"
+
 		    echo "[$n] $id $word ($lang) --> $cmd" >&2
 		    echo "$cmd"
 		fi

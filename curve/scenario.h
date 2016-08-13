@@ -54,6 +54,7 @@ class CurvePoint : public Point {
   bool end_marker;
   int d2x, d2y, lac;
   int smoothx, smoothy;
+  int flags;
 };
 
 class EndMarker : public CurvePoint {
@@ -93,6 +94,7 @@ class QuickCurve {
   int *length;
   int *timestamp;
   int *ts;
+  int *flags;
   Point *points;
   int count;
 
@@ -116,6 +118,7 @@ class QuickCurve {
   inline int getCurveId(int index);
   inline int size();
   inline int getTimestamp(int index);
+  inline int getFlags(int index);
   /* inline is probably useless nowadays */
 
   bool finished;

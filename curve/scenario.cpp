@@ -71,6 +71,7 @@ void QuickCurve::clearCurve() {
     delete[] points;
     delete[] timestamp;
     delete[] length;
+    delete[] flags;
   }
   count = -1;
 }
@@ -95,6 +96,7 @@ void QuickCurve::setCurve(QList<CurvePoint> &curve, int curve_id, int min_length
   points = new Point[cs];
   timestamp = new int[cs];
   length = new int[cs];
+  flags = new int[cs];
 
   int l = 0;
   int j = 0;
@@ -115,6 +117,7 @@ void QuickCurve::setCurve(QList<CurvePoint> &curve, int curve_id, int min_length
     points[j].y = p.y;
     timestamp[j] = p.t;
     length[j] = l;
+    flags[j] = p.flags;
 
     if (j > 0) {
       l += distance(x[j - 1], y[j - 1], x[j], y[j]);
@@ -149,6 +152,7 @@ int QuickCurve::getNormalY(int index) { return normaly[index]; }
 int QuickCurve::getSpeed(int index) { return speed[index]; }
 int QuickCurve::getLength(int index) { return length[index]; }
 int QuickCurve::getTimestamp(int index) { return timestamp[index]; }
+int QuickCurve::getFlags(int index) { return flags[index]; }
 int QuickCurve::getTotalLength() { return (count > 0)?length[count - 1]:0; }
 
 /* optimized keys information */
@@ -248,6 +252,7 @@ CurvePoint::CurvePoint(Point p, int curve_id, int t, int l, bool dummy) : Point(
   this -> d2y = 0;
   this -> lac = 0;
   this -> smoothx = this -> smoothy = 0;
+  this -> flags = 0;
 }
 
 bool CurvePoint::operator<(const CurvePoint &other) const {
@@ -278,6 +283,9 @@ void CurvePoint::toJson(QJsonObject &json) const {
       json["smoothx"] = smoothx;
       json["smoothy"] = smoothy;
     }
+    if (flags) {
+      json["flags"] = flags;
+    }
   }
 }
 
@@ -295,6 +303,7 @@ CurvePoint CurvePoint::fromJson(const QJsonObject &json) {
   p.y = json["y"].toDouble();
   p.t = json["t"].toDouble();
   p.dummy = json["dummy"].toDouble();
+  p.flags = json["flags"].toDouble();
   return p;
 }
 
