@@ -37,6 +37,7 @@ usage() {
     echo " -f : force check"
     echo " -s : only process selected strokes"
     echo " -q : quick (do not generate json files & reports, disable debug log)"
+    echo " -a : add new strokes found in logs"
 }
 
 while [ -n "$1" ] ; do
@@ -120,7 +121,7 @@ if [ -n "$rescan" ] ; then
 		    png="$pre.png"
 
 		    echo "$js" > $in
-		    cmd="cli/build/cli ${CLI_OPTS} -e ${word} -d db/${lang}.tre \"$in\" > $log 2>&1 && "
+		    cmd="cli/build/cli ${CLI_OPTS} -e \"${word}\" -d db/${lang}.tre \"$in\" > $log 2>&1 && "
 		    cmd="${cmd} cat $log | grep -i '^Result:' | tail -n 1 | sed 's/^Result:\ *//' > $json && "
 		    cmd="${cmd} cat $json | tools/jsonresult2html.py \"$word\" > $html.tmp && mv -f $html.tmp $html && "
 		    cmd="${cmd} cat $json | tools/jsonresult2html.py --image \"$png\""
