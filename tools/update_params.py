@@ -11,7 +11,7 @@ os.chdir(os.path.dirname(sys.argv[0]))
 todo = [
     ( 'DECL',     '  __type__ __param__;' ),
     ( 'DEFAULT',  '  __value__, // __param__' ),
-    ( 'FROMJSON', '  p.__param__ = json["__param__"].toDouble();' ),
+    ( 'FROMJSON', '  if (json.contains("__param__")) { p.__param__ = json["__param__"].toDouble(); }' ),
     ( 'TOJSON',   '  json["__param__"] = __param__;' ),
 ]
 

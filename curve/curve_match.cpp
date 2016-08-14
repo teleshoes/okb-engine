@@ -645,7 +645,7 @@ void CurveMatch::curvePreprocess2() {
       total += turn;
       sc1 = max(sc1, (float) abs(turn) / params.straight_max_turn);
     }
-    sc2 = abs(total) * (0.35 + 0.65 * min(1, (float) curve.size() / 250)) / params.straight_max_total; // @todo use parameters
+    sc2 = abs(total) * (0.35 + 0.65 * min(1, (float) indexes.size() / 250)) / params.straight_max_total; // @todo use parameters
     float straight = max(sc1, sc2);
     logdebug("Straight curve score: %.2f (%.2f, %.2f)", straight, sc1, sc2);
     quickCurves[i].straight = straight;

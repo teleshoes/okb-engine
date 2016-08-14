@@ -603,7 +603,7 @@ float Scenario::calc_distance_score(unsigned char letter, int index, int count, 
   float dist;
   float u = 0;
   float v = 0;
-  if (cplus == 0 && cminus == 0) {
+  if ((cplus == 0 && cminus == 0) || (dx == 0 && dy == 0)) {
     // good old standard formula for distance
     dist = sqrt(px * px + py * py) / ratio;
 
@@ -634,8 +634,9 @@ float Scenario::calc_distance_score(unsigned char letter, int index, int count, 
   }
 
   // @todo add a "more verbose" debug option
-  //DBG("    distance_score[%c:%d] offset=%d:%d direction=%d:%d u=%.3f v=%.3f coefs=%.2f:%.2f dist=%.3f score=%.3f",
-  //    letter, index, (int) px, (int) py, (int) dx, (int) dy, u, v, cplus, cminus, dist, score);
+  // DBG("    distance_score[%c:%d] ST=%d count=%d offset=%d:%d direction=%d:%d u=%.3f v=%.3f coefs=%.2f:%.2f dist=%.3f score=%.3f",
+  //     letter, index, curve->getSharpTurn(index), count,
+  //     (int) px, (int) py, (int) dx, (int) dy, u, v, cplus, cminus, dist, score);
 
   return score;
 }
@@ -694,8 +695,9 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<NextIn
     float new_score = calc_distance_score(letter, index, this -> count);
 
     // @todo add a "even more verbose" debug option
-    // DBG("    get_next_key_match(%c, %d) index=%d score=%.3f)", letter, start_index, index, new_score);
-
+    // DBG("    > get_next_key_match(%c) index=%d->%d score=%.3f max=[%d:%.2f] last_turn=[%d:%.2f]",
+    // 	letter, start_index, index, new_score,
+    // 	max_score_index, max_score, last_turn_point, last_turn_score);
     if (new_score > max_score) {
       max_score = new_score;
       max_score_index = index;
