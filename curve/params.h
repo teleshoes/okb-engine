@@ -28,6 +28,9 @@ class Params {
   float coef_error;
   float coef_error_tmp;
   int cos_max_gap;
+  int cst_max_length;
+  int cst_max_turn2;
+  int cst_min_turn1;
   int curve_dist_threshold;
   int curve_score_min_dist;
   float curve_surface_coef;
@@ -212,6 +215,9 @@ static Params default_params = {
   0.05, // coef_error
   0.05, // coef_error_tmp
   120, // cos_max_gap
+  100, // cst_max_length
+  40, // cst_max_turn2
+  130, // cst_min_turn1
   95, // curve_dist_threshold
   50, // curve_score_min_dist
   20.0, // curve_surface_coef
@@ -390,6 +396,9 @@ void Params::toJson(QJsonObject &json) const {
   json["coef_error"] = coef_error;
   json["coef_error_tmp"] = coef_error_tmp;
   json["cos_max_gap"] = cos_max_gap;
+  json["cst_max_length"] = cst_max_length;
+  json["cst_max_turn2"] = cst_max_turn2;
+  json["cst_min_turn1"] = cst_min_turn1;
   json["curve_dist_threshold"] = curve_dist_threshold;
   json["curve_score_min_dist"] = curve_score_min_dist;
   json["curve_surface_coef"] = curve_surface_coef;
@@ -570,6 +579,9 @@ Params Params::fromJson(const QJsonObject &json) {
   if (json.contains("coef_error")) { p.coef_error = json["coef_error"].toDouble(); }
   if (json.contains("coef_error_tmp")) { p.coef_error_tmp = json["coef_error_tmp"].toDouble(); }
   if (json.contains("cos_max_gap")) { p.cos_max_gap = json["cos_max_gap"].toDouble(); }
+  if (json.contains("cst_max_length")) { p.cst_max_length = json["cst_max_length"].toDouble(); }
+  if (json.contains("cst_max_turn2")) { p.cst_max_turn2 = json["cst_max_turn2"].toDouble(); }
+  if (json.contains("cst_min_turn1")) { p.cst_min_turn1 = json["cst_min_turn1"].toDouble(); }
   if (json.contains("curve_dist_threshold")) { p.curve_dist_threshold = json["curve_dist_threshold"].toDouble(); }
   if (json.contains("curve_score_min_dist")) { p.curve_score_min_dist = json["curve_score_min_dist"].toDouble(); }
   if (json.contains("curve_surface_coef")) { p.curve_surface_coef = json["curve_surface_coef"].toDouble(); }

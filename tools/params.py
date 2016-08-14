@@ -22,6 +22,9 @@ defparams = [
     [ "cat_window", int ],  # no optim, larger is better (and slower)
     [ "cls_distance_max_ratio", float, 0, 2 ],
     [ "cls_enable", int ],
+    [ "cst_max_length", int ],
+    [ "cst_min_turn1", int ],
+    [ "cst_max_turn2", int ],
     [ "coef_distance", float, 0.01, 1 ],
     [ "coef_error", float, 0, 1 ],  # more is better (at the moment ... unless i have better test cases)
     [ "coef_error_tmp", float, 0, 1 ],  # idem

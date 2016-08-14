@@ -1564,6 +1564,7 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
 	}
 	if (typ_exp[j] == 0 && abs(a_expected[j]) > max_angle) {
 	  DBG("  [score turn] *** unmatched expected turn #%d: %.2f", j, a_expected[j]);
+	  bad_turn = true;
 
 	  /*
 	    When there is a quick succession of : turn > 120°, normal turn, turn > 120°
@@ -1591,10 +1592,48 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
 	      DBG("  [score turn] bad turn ignored #%d (\"bonjour\"-like)", j);
 	      if (scores[j].cos_score < 0) { error_count --; }
 	      scores[j].cos_score = 0; // invalidate turn angle score because it's not relevant in this case
-	  } else {
-	    bad_turn = true;
+	    bad_turn = false;
 	  }
 	}
+
+	/*
+	   Another case seen multiple times:
+	   Turn > 120° then small distance, then turn in the opposite direction (< 45°) --> the second turn is often missed
+
+	   [score turn] > "zijn" turn point #1:i 123.56[1] 137.92[1] length=(313,90)
+	   [score turn] > "zijn" turn point #2:j 6.71[1] -16.70[0] length=(90,94)
+	   [score turn] *** unmatched expected turn #2: -16.70
+
+	   [score turn] > "castle" turn point #1:a 114.07[1] 150.18[1] length=(144,27)
+	   [score turn] > "castle" turn point #2:s 2.43[1] -33.69[0] length=(27,162)
+	   [score turn] *** unmatched expected turn #2: -33.69
+
+	*/
+	if (bad_turn && j > 0 && segment_length[j - 1] < params->cst_max_length) {
+	  int turn1 = (int) (a_expected[j - 1]);
+	  int turn2 = (int) (a_expected[j]);
+	  if (abs(turn1) > params->cst_min_turn1 &&
+	      abs(turn2) < params->cst_max_turn2) {
+	    DBG("  [score turn] bad turn ignored #%d (\"castle\"-like)", j);
+	    //if (scores[j].cos_score < 0) { error_count --; }
+	    //scores[j].cos_score = 0; // invalidate turn angle score because it's not relevant in this case
+	    bad_turn = false;
+	  }
+	}
+
+	if (bad_turn) {
+	  current_turn = (turn_count ++);
+	  turn_detail[current_turn].direction = bad_turn;
+	  turn_detail[current_turn].index = j;
+	  turn_detail[current_turn].start_index = j;
+	  turn_detail[current_turn].expected = a_actual[j];
+	  turn_detail[current_turn].actual = a_expected[j];
+	  turn_detail[current_turn].unmatched = true;
+	  current_turn = -1;
+	  current_dir = 0;
+	  continue;
+	}
+
 
 	if (bad_turn) {
 	  current_turn = (turn_count ++);
@@ -3007,7 +3046,7 @@ void Scenario::log_misc(QString name, QString coef_name, float coef_value, float
 
 QList<QPair<unsigned char, Point> > Scenario::get_key_error(void) {
   QList<QPair<unsigned char, Point> > result;
-  
+
   for(int i = 0; i < count; i ++) {
     Point key = keys->get_raw(letter_history[i]);
     Point mp = curve->point(index_history[i]);
