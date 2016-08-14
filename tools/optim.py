@@ -21,6 +21,7 @@ import multiprocessing
 import configparser as ConfigParser
 import params
 import pickle
+import tempfile
 
 CLI = "../cli/build/cli"
 TRE_DIR = "../db"
@@ -88,12 +89,14 @@ def parallel(lst):
 def cleanup_detail(details):
     return " ".join([ "%s=%.2f" % (k, v) for (k, v) in details.items() ])
 
-def dump_txt(txt, id = ""):
-    sep = '--8<----[' + id + ']' + '-' * (65 - len(id))
-    print(sep)
-    print(txt)
-    print(sep)
+def dump_txt(txt, id):
+    dump_file = tempfile.NamedTemporaryFile(delete = False,
+                                            prefix = os.path.join(tempfile.gettempdir(), "optim-%s-" % id),
+                                            suffix = ".txt")
+    dump_file.write(txt.encode('utf-8'))
+    dump_file.close()
     print()
+    print("*** Error Dump [%s] in file %s" % (id, dump_file.name))
 
 def log1(txt):
     if LOG is None: return
@@ -206,11 +209,11 @@ def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, s
     for (word, json_in, lang, test_id) in tests:
         key = test_id
         wordk[key] = word
-        inj[word] = json_in
         log1("# %s (%s)" % (word, lang))
         sys.stdout.flush()
         json_in2 = update_json(json_in, params)
         log1(">>>> " + json_in2)
+        inj[key] = json_in2
         runall.append((key, run1, [json_in2, lang, word, nodebug ]))
         if dump:
             save(os.path.join(dump, "%s.in" % key), json_in2)
@@ -221,15 +224,20 @@ def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, s
         (out, err, code, cmd) = result
         word = wordk[key]
         out, err = out.decode(encoding='UTF-8'), err.decode(encoding='UTF-8')
+        json_in = inj[key]
 
         if dump:
+            save(os.path.join(dump, "%s.json" % key), json_in)
             save(os.path.join(dump, "%s.out" % key), out)
             save(os.path.join(dump, "%s.err" % key), err)
             save(os.path.join(dump, "%s.run" % key), cmd + '\n')
             save(os.path.join(dump, "%s.word" % key), word)
 
         if code != 0:
-            dump_txt(inj[word])
+            print("\n*** Test failed: %s" % cmd)
+            dump_txt(json_in, "in")
+            dump_txt(out, "out")
+            dump_txt(err, "err")
             raise Exception("return code: %s [id=%s, word=%s, lang=%s] command: %s" % (code, key, word, lang, cmd))
         log1("<<<< " + out)
         log1("")
@@ -250,9 +258,10 @@ def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, s
             print("%s (%s): " % (word, lang), "%.3f - " % score, end = "")
         if score <= FAIL_SCORE:
             if fail_on_bad_score:
+                print("\n*** Test failed: %s" % cmd)
+                dump_txt(json_in, "in")
                 dump_txt(out, "out")
                 dump_txt(err, "err")
-                dump_txt(json_in2, "in")
                 raise Exception("negative score in reference test data: %s (type=%s, score=%d)" % (word, typ, score))
             else:
                 bad_count += 1
