@@ -109,7 +109,9 @@ void KeyShift::setDirectory(QString workDir) {
 
 /* load keyboard error file (if needed) and apply to current keyboard */
 void KeyShift::loadAndApply(QHash<unsigned char, Key> &keys) {
-  QString hash = eval_hash(keys);
+  hash = eval_hash(keys);
+  if (! params->key_shift_enable) { return; }
+
   if (hash != current_hash) {
     if (dirty && load_ok) { save(); }
     current_hash = hash;

@@ -25,6 +25,7 @@ class KeyShift {
   bool load_ok;
   bool dirty;
   int lock_fd;
+  QString hash;
 
   void load();
   QString eval_hash(QHash<unsigned char, Key> &keys);
@@ -37,6 +38,7 @@ class KeyShift {
   void update(unsigned char key, int delta_x, int delta_y);
   void save();
   void lock();
+  QString getHash() { return hash; }
 };
 
 #endif /* KEY_SHIFT_H */

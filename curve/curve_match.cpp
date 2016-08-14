@@ -686,7 +686,7 @@ void CurveMatch::addPoint(Point point, int curve_id, int timestamp) {
       // we must apply keyboard biases before feeding the curve
       // in case of incremental processing
       kb_distort(keys, params);
-      if (params.key_shift_enable) { keyShift.loadAndApply(keys); }
+      keyShift.loadAndApply(keys);
 
       if (debug) {
 	DBG("Keys adjustments:");
@@ -1029,6 +1029,7 @@ void CurveMatch::toJson(QJsonObject &json) {
     json_keys.append(json_key);
   }
   json["keys"] = json_keys;
+  json["key_hash"] = keyShift.getHash();
 
   // curve
   QJsonArray json_curve;

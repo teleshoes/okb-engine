@@ -262,7 +262,8 @@ if __name__ == '__main__':
                                                            word if ok else ("%s/%s" % (guess, word)),
                                                            gap, rank))
 
-        manifest.append(';'.join([ str(x) for x in [ id, word, guess, gap, rank, st, lang ] ]))
+        manifest.append(';'.join([ str(x) for x in [ id, word, guess, gap, rank, st,
+                                                     lang, rank if rank >= 0 else 999 ] ]))
 
         # @todo add wiring to learning / backtracking
 
@@ -275,9 +276,10 @@ if __name__ == '__main__':
 
     if lm: lm.close()
 
-    stats = "Total=%d OK=%d rate=%.2f%% found_rate=%.2f%% bad_curve=%.2f%% missing=%d" % (count, ok_count, 100.0 * ok_count / count,
-                                                                                          100.0 * found_count / count, 100.0 * badcurve_count / count,
-                                                                                          missing_count)
+    stats = "Total=%d OK=%d rate=%.2f%% found_rate=%.2f%% bad_curve=%.2f%% missing=%d" % \
+            (count, ok_count, 100.0 * ok_count / count,
+             100.0 * found_count / count, 100.0 * badcurve_count / count,
+             missing_count)
     print(stats)
 
     log_file = os.path.join(os.path.dirname(index_org), "ftest.log")
