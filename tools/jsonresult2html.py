@@ -30,6 +30,14 @@ def fail():
     print(html)
     exit(0)
 
+FLAGS = "L2345678"
+
+def get_flags(v):
+    result = ""
+    for i in range(0, len(FLAGS)):
+        if v & (1 << i): result += FLAGS[i]
+    return result or "-"
+
 js = json.loads(txt)
 input = js['input']
 keys = input['keys']
@@ -362,13 +370,17 @@ for curve in curves:
         for i in range(0, len(curve1)):
             li.td(bgcolor="#E0E0E0").font(str(c), size = "-2")
             c += 1
-        for lbl in ['x', 'y', 't', 'speed', 'turn_angle', 'turn_smooth', 'sharp_turn', 'length', 'd2x', 'd2y', 'lac']:
+        for lbl in ['x', 'y', 't', 'speed', 'turn_angle', 'turn_smooth', 'sharp_turn', 'length', 'd2x', 'd2y', 'lac', 'flags']:
             li = t.tr(align = "center").td.font(lbl, size = "-2", bgcolor="#C0FFC0")
             for pt in curve1:
                 col = ""
                 if pt.get("dummy", 0): col = "#FFC040"
                 if lbl == "sharp_turn" and pt.get("sharp_turn"): col = "#FF8080"
-                li.td(bgcolor=col).font(clean_value(pt.get(lbl, 0)), size = "-2")
+                if lbl == "flags":
+                    value = get_flags(pt.get(lbl, 0))
+                    if value and value != "-": col = "#80C0FF"
+                else: value = clean_value(pt.get(lbl, 0))
+                li.td(bgcolor=col).font(value, size = "-2")
 
 # overview
 if candidates:
