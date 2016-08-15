@@ -18,6 +18,7 @@ DelayedScenario::DelayedScenario(LetterTree *tree, QuickKeys *keys, QuickCurve *
   single_p.reset(new Scenario(tree, keys, curves, params));
 
   this -> params = params;
+  this -> keys = keys;
   curve_count = 0;
 
   MultiScenario::init(); // static context -> bad
@@ -33,6 +34,7 @@ DelayedScenario::DelayedScenario(const DelayedScenario &from) {
   multi_p = from.multi_p;
   single_p = from.single_p;
   params = from.params;
+  keys = from.keys;
   curve_count = from.curve_count;
 }
 
@@ -44,6 +46,7 @@ DelayedScenario::DelayedScenario(const MultiScenario &from) {
   multi_p.reset(new MultiScenario(from));
 
   params = from.params;
+  keys = from.keys;
   curve_count = multi_p.data() -> curve_count;
 }
 
@@ -55,6 +58,7 @@ DelayedScenario::DelayedScenario(const Scenario &from) {
   single_p.reset(new Scenario(from));
 
   params = from.params;
+  keys = from.keys;
   curve_count = 1;
 }
 
@@ -67,6 +71,7 @@ DelayedScenario& DelayedScenario::operator=(const DelayedScenario &from) {
   this->debug = from.debug;
 
   this->params = from.params;
+  this->keys = from.keys;
   this->multi = from.multi;
   this->curve_count = from.curve_count;
 
@@ -160,7 +165,13 @@ void DelayedScenario::updateNextLetters() {
 
   foreach (LetterNode child, getNode().getChilds()) {
     unsigned char letter = child.getChar();
-    next[letter] = NextLetter(child);
+
+    // diacritic keys support
+    unsigned char *ptr = keys->getKeysForLetter(letter);
+    while(* ptr) {
+      next[* ptr] = NextLetter(child);
+      ptr ++;
+    }
   }
 
   nextOk = true;

@@ -37,7 +37,7 @@ CurveKB::~CurveKB()
 #endif /* THREAD */
 }
 
-void CurveKB::learn(QString letters, QString word) 
+void CurveKB::learn(QString letters, QString word)
 {
 #ifdef THREAD
   thread.learn(letters, word);
@@ -55,7 +55,7 @@ void CurveKB::startCurve()
 #endif /* THREAD */
 }
 
-void CurveKB::addPoint(int x, int y, int curve_id) 
+void CurveKB::addPoint(int x, int y, int curve_id)
 {
 #ifdef THREAD
   thread.addPoint(Point(x,y), curve_id);
@@ -81,7 +81,7 @@ void CurveKB::endCurve(int correlation_id)
   curveMatch.endCurve(correlation_id);
 #endif /* THREAD */
 }
- 
+
 void CurveKB::endCurveAsync(int correlation_id)
 {
 #ifdef THREAD
@@ -99,8 +99,8 @@ void CurveKB::resetCurve()
   curveMatch.clearCurve();
 #endif /* THREAD */
 }
- 
-void CurveKB::sendSignal(QList<ScenarioDto> &candidates) 
+
+void CurveKB::sendSignal(QList<ScenarioDto> &candidates)
 {
   emit matchingDone(scenarioList2QVariantList(candidates));
 }
@@ -115,29 +115,30 @@ QVariantList CurveKB::scenarioList2QVariantList(QList<ScenarioDto> &candidates) 
   return ret;
 }
 
-void CurveKB::loadKeys(QVariantList list) 
+void CurveKB::loadKeys(QVariantList list)
 {
   WF_IDLE;
   curveMatch.clearKeys();
-
   QListIterator<QVariant> i(list);
   while (i.hasNext()) {
     QMap<QString, QVariant> key = i.next().toMap();
-    QString caption = key["caption"].toString();
-    int x = key["x"].toInt();
-    int y = key["y"].toInt();
-    int width = key["width"].toInt();
-    int height = key["height"].toInt();
+    QByteArray bytes = key["caption"].toByteArray();
+    if (bytes.data()[0] >= 'A') { // some punctuation signs trigger Q_ASSERT in QT code
+      int x = key["x"].toInt();
+      int y = key["y"].toInt();
+      int width = key["width"].toInt();
+      int height = key["height"].toInt();
+      QString caption = key["caption"].toString();
 
-    char c = caption.at(0).cell();
-    curveMatch.addKey(Key(int(x + width / 2), int(y + height / 2), width, height, c));
+      curveMatch.addKey(Key(int(x + width / 2), int(y + height / 2), width, height, caption));
+    }
   }
 }
 
 bool CurveKB::loadTree(QString fileName)
 {
   // loading will be done in separate thread, but at list check now il file exists
-  QFile file(fileName);  
+  QFile file(fileName);
   if (! file.exists()) {
     return false;
   }
@@ -200,7 +201,7 @@ void CurveExtensionPlugin::initializeEngine(QQmlEngine *, const char *uri)
 void CurveExtensionPlugin::registerTypes(const char *uri)
 {
     Q_ASSERT(QString(CURVE_PLUGIN_ID) == uri);
-     
+
     qmlRegisterType<CurveKB>(uri, 1, 0, CURVE_CLASS_NAME);
 }
 

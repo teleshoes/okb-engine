@@ -2,20 +2,20 @@
 
 #include <math.h>
 
-void kb_distort_cancel(QHash<unsigned char, Key> &keys) {
-  QHash<unsigned char, Key>::iterator it = keys.begin();
+void kb_distort_cancel(QHash<QString, Key> &keys) {
+  QHash<QString, Key>::iterator it = keys.begin();
   for (it = keys.begin(); it != keys.end(); ++ it) {
     it.value().corrected_x = it.value().corrected_y = -1;
   }
 }
 
-void kb_distort(QHash<unsigned char, Key> &keys, Params &params) {
+void kb_distort(QHash<QString, Key> &keys, Params &params) {
   int minx = -1;
   int miny = -1;
   int maxx = -1;
   int maxy = -1;
 
-  QHash<unsigned char, Key>::iterator it = keys.begin();
+  QHash<QString, Key>::iterator it = keys.begin();
   for (it = keys.begin(); it != keys.end(); ++ it) {
     Key key = it.value();
     if (key.x < minx || minx == -1) { minx = key.x; }

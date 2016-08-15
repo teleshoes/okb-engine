@@ -138,7 +138,7 @@ QuickCurve::~QuickCurve() {
   clearCurve();
 }
 
-Point const& QuickCurve::point(int index) const { return points[index]; /* Point(x[index], y[index]);*/ }
+Point const& QuickCurve::point(int index) const { return points[index]; }
 int QuickCurve::getX(int index) { return x[index]; }
 int QuickCurve::getY(int index) { return y[index]; }
 int QuickCurve::getTurn(int index) { return turn[index]; }
@@ -157,36 +157,67 @@ int QuickCurve::getTotalLength() { return (count > 0)?length[count - 1]:0; }
 
 /* optimized keys information */
 QuickKeys::QuickKeys() {
-  points = new Point[256];  // unsigned char won't overflow
-  dim = new Point[256];
-  points_raw = new Point[256];
 }
 
-QuickKeys::QuickKeys(QHash<unsigned char, Key> &keys) {
-  points = new Point[256];
-  dim = new Point[256];
-  points_raw = new Point[256];
+QuickKeys::QuickKeys(QHash<QString, Key> &keys) {
   setKeys(keys);
 }
 
-void QuickKeys::setKeys(QHash<unsigned char, Key> &keys) {
+void QuickKeys::setKeys(QHash<QString, Key> &keys) {
   int count = 0, sum_height = 0, sum_width = 0;
-  foreach(unsigned char letter, keys.keys()) {
-    points_raw[letter].x = keys[letter].x;
-    points_raw[letter].y = keys[letter].y;
-    if (keys[letter].corrected_x == -1) {
-      points[letter].x = keys[letter].x;
-      points[letter].y = keys[letter].y;
+
+  QList<QString> keylist = keys.keys();
+  qSort(keylist.begin(), keylist.end());
+
+  memset(letter2keys, 0, sizeof(letter2keys));
+
+  unsigned char additional_letter = '0';
+
+  foreach(QString label, keylist) {
+    Key key = keys[label];
+
+    unsigned char letter = key.letter;
+    unsigned char internal_letter;
+    if (key.label.at(0).cell() == letter) {
+      // this is the original key without diacritics
+      internal_letter = letter;
     } else {
-      points[letter].x = keys[letter].corrected_x;
-      points[letter].y = keys[letter].corrected_y;
+      // this is a key with diacritics
+      internal_letter = (additional_letter ++);
     }
-    dim[letter].x = keys[letter].height;
-    dim[letter].y = keys[letter].width;
+
+    keys[label].internal_letter = internal_letter; // to be dumped in JSON output for visualization tool
+
+    /* Now we handle keys with diacritics ("ç", "ä" ...)
+       The matching engine does only understand simple letters (as they are stored in word tree)
+       We work around this issue by creating internal (fake) letters
+       E.g. in French keyboard "ç" key will be the letter "0"
+       When we try to match a word containing a "c" we will try "c" and "0" keys
+       (call getKeysForLetter() function to get the list of keys to try)
+       Filtering is done in post-processing: "ç" matches only "ç", but "c" can
+       match "c" and "ç" (because using diacritic keys is optional)
+    */
+    unsigned char* ptr = &(letter2keys[letter * QUICKKEYS_KEYS_PER_LETTER]);
+    if (strlen((const char*) ptr) >= QUICKKEYS_KEYS_PER_LETTER - 1) { continue; }
+    unsigned char tmp[2] = " ";
+    tmp[0] = internal_letter;
+    strcat((char*) ptr, (char*) tmp);
+
+    points_raw[internal_letter].x = keys[label].x;
+    points_raw[internal_letter].y = keys[label].y;
+    if (keys[label].corrected_x == -1) {
+      points[internal_letter].x = keys[label].x;
+      points[internal_letter].y = keys[label].y;
+    } else {
+      points[internal_letter].x = keys[label].corrected_x;
+      points[internal_letter].y = keys[label].corrected_y;
+    }
+    dim[internal_letter].x = keys[label].height;
+    dim[internal_letter].y = keys[label].width;
 
     count ++;
-    sum_height += keys[letter].height;
-    sum_width += keys[letter].width;
+    sum_height += keys[label].height;
+    sum_width  += keys[label].width;
   }
 
   // compute stats
@@ -197,9 +228,12 @@ void QuickKeys::setKeys(QHash<unsigned char, Key> &keys) {
 }
 
 QuickKeys::~QuickKeys() {
-  delete[] points;
-  delete[] dim;
-  delete[] points_raw;
+}
+
+unsigned char* QuickKeys::getKeysForLetter(unsigned char letter) {
+  unsigned char *ptr = &(letter2keys[letter * QUICKKEYS_KEYS_PER_LETTER]);
+  if (! *ptr) return NULL;
+  return ptr;
 }
 
 Point const& QuickKeys::get(unsigned char letter) const {
@@ -308,13 +342,15 @@ CurvePoint CurvePoint::fromJson(const QJsonObject &json) {
 }
 
 /* --- key --- */
-Key::Key(int x, int y, int width, int height, char label) {
+Key::Key(int x, int y, int width, int height, QString label) {
   this -> x = x;
   this -> y = y;
   this -> width = width;
   this -> height = height;
   this -> label = label;
   this -> corrected_x = this -> corrected_y = -1;
+  this -> letter = caption2letter(label);
+  this -> internal_letter = 0;
 }
 
 Key::Key() {
@@ -326,7 +362,11 @@ void Key::toJson(QJsonObject &json) const {
   json["y"] = y;
   json["w"] = width;
   json["h"] = height;
-  json["k"] = QString(label);
+  json["k"] = label;
+  json["l"] = QString(letter);
+  if (internal_letter) {
+    json["i"] = QString(internal_letter); // for visualization tool
+  }
   if (corrected_x != -1) {
     json["corrected_x"] = corrected_x;
     json["corrected_y"] = corrected_y;
@@ -339,8 +379,9 @@ Key Key::fromJson(const QJsonObject &json) {
   key.y = json["y"].toDouble();
   key.width = json["w"].toDouble();
   key.height = json["h"].toDouble();
-  key.label = QSTRING2PCHAR(json["k"].toString())[0];
+  key.label = json["k"].toString();
   key.corrected_x = key.corrected_y = -1;
+  key.letter = caption2letter(key.label);
   return key;
 }
 
@@ -927,8 +968,21 @@ bool Scenario::childScenario(LetterNode &childNode, QList<Scenario> &result, sta
 }
 
 bool Scenario::childScenarioInternal(LetterNode &childNode, QList<Scenario> &result, int &st_fork, bool incremental, bool endScenario) {
-  unsigned char prev_letter = (count > 0)?letter_history[count - 1]:0;
   unsigned char letter = childNode.getChar();
+  unsigned char *ptr = keys->getKeysForLetter(letter);
+
+  // diacritic keys support
+  while(* ptr) {
+    bool status = childScenarioInternalWithLetter(*ptr, childNode, result, st_fork, incremental, endScenario);
+    if (! status) { return false; }
+    ptr ++;
+  }
+  return true;
+}
+
+bool Scenario::childScenarioInternalWithLetter(unsigned char letter, LetterNode &childNode, QList<Scenario> &result,
+					       int &st_fork, bool incremental, bool endScenario) {
+  unsigned char prev_letter = (count > 0)?letter_history[count - 1]:0;
   int index = this -> index;
 
   QList<NextIndex> new_index_list;
@@ -2759,6 +2813,13 @@ void Scenario::toJson(QJsonObject &json) {
   json["good"] = good_count;
   json["words"] = getWordList();
   json["new_dist"] = (int) new_dist;
+
+  QJsonArray json_words_array;
+  QStringList words = getWordListAsList();
+  foreach(QString word, words) {
+    json_words_array.append(word);
+  }
+  json["word_list"] = json_words_array;
 
   QJsonArray json_score_array;
   for(int i = 0; i < count; i ++) {

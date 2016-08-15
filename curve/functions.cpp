@@ -1,6 +1,8 @@
 #include "functions.h"
 
-#include <cmath> 
+#include <QString>
+#include <QRegExp>
+#include <cmath>
 #include <math.h>
 
 /* --- common functions --- */
@@ -41,16 +43,16 @@ float anglep(const Point &p1, const Point &p2) {
 
 float dist_line_point(const Point &p1, const Point &p2, const Point &p) {
   float lp = distancep(p1, p2);
-  
+
   float u = 1.0 * ((p.x - p1.x) * (p2.x - p1.x) + (p.y - p1.y) * (p2.y - p1.y)) / lp / lp;
 
   float projx = p1.x + u * (p2.x - p1.x);
   float projy = p1.y + u * (p2.y - p1.y);
-  
+
   float result = distance(projx, projy, p.x, p.y);
 
   return result;
-}    
+}
 
 
 static float _surf0(const Point &p1, const Point &p2) {
@@ -62,7 +64,7 @@ float surface4(const Point &p1, const Point &p2, const Point &p3, const Point &p
 		   _surf0(p2, p3) +
 		   _surf0(p3, p4) +
 		   _surf0(p4, p1));
-  
+
   return surf;
 }
 
@@ -74,6 +76,17 @@ float response2(float value, float middle) {
 
 float response(float value) {
   if (value <= 0 || value >= 1) { return value; }
-  
+
   return (1 - cos(value * M_PI)) / 2;
+}
+
+// convert a key caption (possibly with diacritics) and return the matching ASCII letter (without diacritics)
+// or return 0 if the String does not correspond to a letter
+unsigned char caption2letter(QString value) {
+  if (value.length() != 1) { return 0; }
+
+  // https://stackoverflow.com/questions/12278448/removing-accents-from-a-qstring
+  QString stringNormalized = value.normalized(QString::NormalizationForm_KD);
+  stringNormalized.remove(QRegExp("[^a-zA-Z]"));
+  return stringNormalized.toLower().at(0).cell();
 }

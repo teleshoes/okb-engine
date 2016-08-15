@@ -191,7 +191,7 @@ def mkimg(scale = 1, xsize = None, scenario = None, base64 = True):
             col = '#FF0000'
             lastx, lasty, lastxc, lastyc = None, None, None, None
             for step in draw_scenario:
-                key = [ k for k in keys if k["k"] == step["letter"] ][0]
+                key = [ k for k in keys if k["i"] == step["letter"] ][0]
                 index = step["index"]
                 (x1, y1, x2, y2) = coord([ key.get('corrected_x', key['x']), key.get('corrected_y', key['y']), curve[index]['x'], curve[index]['y'] ], scale)
                 if lastx is not None:

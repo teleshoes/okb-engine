@@ -35,9 +35,7 @@ def split_old_candidate_list(candidates):
     out = dict()
 
     for c in candidates:
-        name = c["name"]
-        for w in c["words"].split(","):
-            word = name if w == "=" else w
+        for word in c["word_list"]:
             out[word] = c["score"]
 
     return out

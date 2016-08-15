@@ -37,11 +37,11 @@ class DelayedScenario {
   bool multi;
   int curve_count;
   Params *params;
+  QuickKeys *keys;
   QSharedPointer<MultiScenario> multi_p;
   QSharedPointer<Scenario> single_p;
 
  public:
-
   bool dead;
   QHash<unsigned char, NextLetter> next;
   bool nextOk;

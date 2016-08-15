@@ -65,7 +65,7 @@ class EndMarker : public CurvePoint {
 /* just a key */
 class Key {
  public:
-  Key(int x, int y, int width, int height, char label);
+  Key(int x, int y, int width, int height, QString label);
   Key();
   void toJson(QJsonObject &json) const;
   static Key fromJson(const QJsonObject &json);
@@ -73,9 +73,11 @@ class Key {
   int y;
   int width;
   int height;
-  char label;
+  QString label;
   int corrected_x;
   int corrected_y;
+  unsigned char letter;
+  unsigned char internal_letter;
 };
 
 /* quick curve implementation */
@@ -131,19 +133,23 @@ class QuickCurve {
 };
 
 /* quick key information implementation */
+#define QUICKKEYS_KEYS_PER_LETTER 5
+
 class QuickKeys {
  private:
-  Point* points_raw;
-  Point* points;
-  Point* dim;
+  Point points_raw[256];
+  Point points[256];
+  Point dim[256];
+  unsigned char letter2keys[QUICKKEYS_KEYS_PER_LETTER * 256];
  public:
-  QuickKeys(QHash<unsigned char, Key> &keys);
+  QuickKeys(QHash<QString, Key> &keys);
   QuickKeys();
   ~QuickKeys();
-  void setKeys(QHash<unsigned char, Key> &keys);
+  void setKeys(QHash<QString, Key> &keys);
   inline Point const& get(unsigned char letter) const;
   inline Point const& size(unsigned char letter) const;
   inline Point const& get_raw(unsigned char letter) const;
+  unsigned char* getKeysForLetter(unsigned char letter);
 
   // statistics
   int average_width, average_height;
@@ -305,6 +311,8 @@ class Scenario {
   float evalScore();
   void copy_from(const Scenario &from);
   bool childScenarioInternal(LetterNode &child, QList<Scenario> &result, int &st_fork, bool incremental, bool endScenario);
+  bool childScenarioInternalWithLetter(unsigned char letter, LetterNode &child, QList<Scenario> &result,
+				       int &st_fork, bool incremental, bool endScenario);
   int getLocalTurn(int index);
   void turn_transfer(int turn_count, turn_t *turn_detail);
   void calc_straight_score_all(turn_t *turn_detail, int turn_count, float straight_score);

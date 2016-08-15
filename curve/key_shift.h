@@ -17,7 +17,7 @@ typedef struct {
 
 class KeyShift {
  private:
-  QHash<unsigned char, key_info_t> key_info;
+  QHash<QString, key_info_t> key_info;
   QString file_name;
   QString directory;
   QString current_hash;
@@ -28,14 +28,14 @@ class KeyShift {
   QString hash;
 
   void load();
-  QString eval_hash(QHash<unsigned char, Key> &keys);
+  QString eval_hash(QHash<QString, Key> &keys);
 
  public:
   KeyShift(Params *params);
   void setParams(Params *params);
   void setDirectory(QString workDir);
-  void loadAndApply(QHash<unsigned char, Key> &keys);
-  void update(unsigned char key, int delta_x, int delta_y);
+  void loadAndApply(QHash<QString, Key> &keys);
+  void update(QString key, int delta_x, int delta_y);
   void save();
   void lock();
   QString getHash() { return hash; }

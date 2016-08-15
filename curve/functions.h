@@ -18,4 +18,6 @@ float surface4(const Point &p1, const Point &p2, const Point &p3, const Point &p
 float response2(float value, float middle);
 float response(float value);
 
+unsigned char caption2letter(QString value);
+
 #endif /* FUNCTIONS_H */

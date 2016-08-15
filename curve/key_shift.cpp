@@ -50,7 +50,7 @@ void KeyShift::load() {
   if (! in_file.open(QIODevice::ReadOnly | QIODevice::Text)) {
     logdebug(KS_TAG "File not found (normal on first use)");
     return;
-  } 
+  }
   QTextStream in(&in_file);
   while(! in.atEnd()) {
     QString line = in.readLine();
@@ -66,7 +66,7 @@ void KeyShift::load() {
       return;
     }
 
-    unsigned char key = (unsigned char) (columns[0].toLocal8Bit().constData())[0];
+    QString key = columns[0];
     key_info_t info;
     info.count = columns[1].toInt();
     info.avg_x = columns[2].toDouble();
@@ -84,15 +84,15 @@ void KeyShift::load() {
 
 /* make a hash for keyboard description to make sure we use different data
    for different keyboards (languages, orientation or new keyboard version) */
-QString KeyShift::eval_hash(QHash<unsigned char, Key> &keys) {
-  QList<unsigned char> letters = keys.keys();
+QString KeyShift::eval_hash(QHash<QString, Key> &keys) {
+  QList<QString> letters = keys.keys();
   qSort(letters.begin(), letters.end());
 
   QCryptographicHash hash(QCryptographicHash::Md4);
-  foreach(unsigned char letter, letters) {
+  foreach(QString letter, letters) {
     Key key = keys[letter];
     char buf[20];
-    snprintf(buf, sizeof(buf), "(%c %d %d)", (char) letter, key.x, key.y);
+    snprintf(buf, sizeof(buf), "(%s %d %d)", QSTRING2PCHAR(letter), key.x, key.y);
     hash.addData((const char *)buf, strlen(buf));
   }
 
@@ -108,7 +108,7 @@ void KeyShift::setDirectory(QString workDir) {
 }
 
 /* load keyboard error file (if needed) and apply to current keyboard */
-void KeyShift::loadAndApply(QHash<unsigned char, Key> &keys) {
+void KeyShift::loadAndApply(QHash<QString, Key> &keys) {
   hash = eval_hash(keys);
   if (! params->key_shift_enable) { return; }
 
@@ -118,10 +118,10 @@ void KeyShift::loadAndApply(QHash<unsigned char, Key> &keys) {
     file_name = directory + "/key_shift_" + hash + ".ks";
     load();
   }
-  QHashIterator<unsigned char, Key> i(keys);
+  QHashIterator<QString, Key> i(keys);
   while (i.hasNext()) {
     i.next();
-    unsigned char letter = i.key();
+    QString letter = i.key();
 
     if (key_info.contains(letter)) {
       // we already know this key
@@ -130,8 +130,12 @@ void KeyShift::loadAndApply(QHash<unsigned char, Key> &keys) {
 
     } else {
       // new key, keep upstream adjustments
-      key_info[letter].avg_x = (keys[letter].corrected_x - keys[letter].x) / params->key_shift_ratio;
-      key_info[letter].avg_y = (keys[letter].corrected_y - keys[letter].y) / params->key_shift_ratio;
+      if (keys[letter].corrected_x < 0) {
+	key_info[letter].avg_x = key_info[letter].avg_y = 0; // no upstream adjustment
+      } else {
+	key_info[letter].avg_x = (keys[letter].corrected_x - keys[letter].x) / params->key_shift_ratio;
+	key_info[letter].avg_y = (keys[letter].corrected_y - keys[letter].y) / params->key_shift_ratio;
+      }
       key_info[letter].avg_var_x = 0;
       key_info[letter].avg_var_y = 0;
       key_info[letter].count = 1;
@@ -163,9 +167,9 @@ void KeyShift::lock() {
 }
 
 /* update key error statistics based on last user input */
-void KeyShift::update(unsigned char letter, int delta_x, int delta_y) {
+void KeyShift::update(QString letter, int delta_x, int delta_y) {
   if (! key_info.contains(letter)) {
-    logdebug(KS_TAG "unknown key '%c': not updating", letter);
+    logdebug(KS_TAG "unknown key '%s': not updating", QSTRING2PCHAR(letter));
     return;
   }
   key_info_t*  p = &(key_info[letter]);
@@ -193,11 +197,11 @@ void KeyShift::save() {
   }
   QTextStream out(&out_file);
 
-  QList<unsigned char> letters = key_info.keys();
+  QList<QString> letters = key_info.keys();
   qSort(letters.begin(), letters.end());
-  foreach(unsigned char letter, letters) {
+  foreach(QString letter, letters) {
     key_info_t info = key_info[letter];
-    out << (char) letter << " " << info.count << " " << info.avg_x << " " << info.avg_y << " ";
+    out << letter << " " << info.count << " " << info.avg_x << " " << info.avg_y << " ";
     out << info.avg_var_x << " " << info.avg_var_y << endl;
   }
   out << "OK" << endl;

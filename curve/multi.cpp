@@ -451,6 +451,13 @@ void MultiScenario::toJson(QJsonObject &json) {
   json["id"] = getId();
   json["new_dist"] = (int) getNewDistance();
 
+  QJsonArray json_words_array;
+  QStringList words = getWordListAsList();
+  foreach(QString word, words) {
+    json_words_array.append(word);
+  }
+  json["word_list"] = json_words_array;
+
   QJsonArray json_score_array;
   for(int i = 0; i < count; i ++) {
     QJsonObject json_score;

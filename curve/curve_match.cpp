@@ -661,9 +661,10 @@ void CurveMatch::clearKeys() {
 
 void CurveMatch::addKey(Key key) {
   kb_preprocess = true;
-  if (key.label >= 'a' && key.label <= 'z') {
+  if (key.letter) {
     keys[key.label] = key;
-    DBG("Key: '%c' %d,%d %d,%d", key.label, key.x, key.y, key.width, key.height);
+    DBG("Key: '%s' %d,%d %d,%d (letter '%c')",
+	QSTRING2PCHAR(key.label), key.x, key.y, key.width, key.height, key.letter);
   }
 }
 
@@ -681,24 +682,25 @@ void CurveMatch::addPoint(Point point, int curve_id, int timestamp) {
   if (curve_id < 0 || curve_id > MAX_CURVES) { return; }
 
   if (kb_preprocess) {
+    // we must apply keyboard biases before feeding the curve
+    // in case of incremental processing
     kb_preprocess = false;
     if (params.thumb_correction) {
-      // we must apply keyboard biases before feeding the curve
-      // in case of incremental processing
       kb_distort(keys, params);
-      keyShift.loadAndApply(keys);
-
-      if (debug) {
-	DBG("Keys adjustments:");
-	QHashIterator<unsigned char, Key> ki(keys);
-	while (ki.hasNext()) {
-	  ki.next();
-	  Key key = ki.value();
-	  DBG("Key '%c' %d,%d -> %d,%d", key.label, key.x, key.y, key.corrected_x, key.corrected_y);
-	}
-      }
     } else {
       kb_distort_cancel(keys);
+    }
+    keyShift.loadAndApply(keys);
+
+    if (debug) {
+      DBG("Keys adjustments:");
+      QHashIterator<QString, Key> ki(keys);
+      while (ki.hasNext()) {
+	ki.next();
+	Key key = ki.value();
+	DBG("Key '%s' %d,%d -> %d,%d (letter='%c')",
+	    QSTRING2PCHAR(key.label), key.x, key.y, key.corrected_x, key.corrected_y, key.letter);
+      }
     }
   }
 
@@ -1021,7 +1023,7 @@ void CurveMatch::toJson(QJsonObject &json) {
 
   // keys
   QJsonArray json_keys;
-  QHash<unsigned char, Key>::iterator i;
+  QHash<QString, Key>::iterator i;
   for (i = keys.begin(); i != keys.end(); ++i) {
     Key k = i.value();
     QJsonObject json_key;
@@ -1316,8 +1318,9 @@ void CurveMatch::storeKeyPos() {
   /* @TODO */
 }
 
-void CurveMatch::updateKeyPosForTest(QString expected) {
+void CurveMatch::updateKeyPosForTest(QString /* expected */) {
   if (! params.key_shift_enable) { return; }
+  /* broken for now
   DBG(KS_TAG "*test* Update for word %s", QSTRING2PCHAR(expected));
 
   int found = -1;
@@ -1337,6 +1340,7 @@ void CurveMatch::updateKeyPosForTest(QString expected) {
   QList<QPair<unsigned char, Point> > match_points = candidates[found].get_key_error();
 
   for(int i = 0; i < match_points.size(); i ++) {
+    // @TODO find the right key name as QString
     keyShift.update(match_points[i].first,
 		    match_points[i].second.x,
 		    match_points[i].second.y);
@@ -1344,6 +1348,7 @@ void CurveMatch::updateKeyPosForTest(QString expected) {
 
   keyShift.save();
   DBG(KS_TAG "*test* update done !");
+  */
 }
 
 void CurveMatch::saveKeyPos() {

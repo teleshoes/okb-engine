@@ -11,10 +11,11 @@
 #define KB_DISTORT_H
 
 #include <QHash>
+#include <QString>
 
 #include "curve_match.h"
 
-void kb_distort_cancel(QHash<unsigned char, Key> &keys);
-void kb_distort(QHash<unsigned char, Key> &keys, Params &params);
+void kb_distort_cancel(QHash<QString, Key> &keys);
+void kb_distort(QHash<QString, Key> &keys, Params &params);
 
 #endif /* KB_DISTORT_H */

@@ -51,7 +51,7 @@ class CurveMatch {
   QList<ScenarioType> scenarios;
   QList<ScenarioType> candidates;
   QList<CurvePoint> curve;
-  QHash<unsigned char, Key> keys;
+  QHash<QString, Key> keys;
   Params params;
   LetterTree wordtree;
   bool userdict_dirty;

@@ -15,6 +15,7 @@
 #include <QString>
 #include <QFile>
 #include <QTextStream>
+#include <QTextCodec>
 
 #include <iostream>
 using namespace std;
@@ -110,6 +111,7 @@ int main(int argc, char* argv[]) {
   }
 
   QTextStream in(&file);
+  in.setCodec(QTextCodec::codecForName("UTF-8"));
   QString line = in.readLine();
   while (! line.isNull()) {
     input += line;
@@ -223,13 +225,13 @@ int main(int argc, char* argv[]) {
       QList<ScenarioType> candidates = cm->getCandidates();
       foreach(ScenarioType s, candidates) {
 	foreach(QString word, s.getWordListAsList()) {
-	  cout << word.toLocal8Bit().constData() << " " << s.getScore() << endl;
+	  cout << word.toUtf8().constData() << " " << s.getScore() << endl;
 	}
       }
     } else {
       cerr << "==> Match: " << (cm->getCandidates().size()) << endl;
       QString result = cm->resultToString();
-      cout << "Result: " << result.toLocal8Bit().constData() << endl;
+      cout << "Result: " << result.toUtf8().constData() << endl;
     }
   }
 
