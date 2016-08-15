@@ -1167,14 +1167,28 @@ QString Scenario::getWordList() {
 }
 
 QStringList Scenario::getWordListAsList() {
+  int flags[count];
+  for(int i = 0; i < count; i ++) {
+    flags[i] = curve->getFlags(index_history[i]);
+  }
   QString list_str = getWordList();
   QStringList list = list_str.split(",");
-  for(int i = 0; i < list.size(); i ++) {
-    if (list[i] == "=") {
-      list[i] = getNameRealLetters();
+  QStringList result;
+  foreach(QString word, list) {
+    if (word == "=") {
+      word = getNameRealLetters();
+    }
+    int check = Scenario::checkHints(word,
+				     letter_history,
+				     flags,
+				     count);
+    if (check) {
+      DBG("Word filtered by hint rule #%d: %s [%s]", check, QSTRING2PCHAR(word), getNameCharPtr());
+    } else {
+      result.append(word);
     }
   }
-  return list;
+  return result;
 }
 
 float Scenario::getScore() const {
@@ -3139,5 +3153,53 @@ QList<QPair<unsigned char, Point> > Scenario::get_key_error(void) {
 
     result.append(QPair<unsigned char, Point>(letter, delta));
   }
+  return result;
+}
+
+/* check rules related to hints or diacritics keys */
+int Scenario::checkHints(QString word,
+			 unsigned char* keys,
+			 int* /* flags */,
+			 int /* count */) {
+  int result = 0;
+
+  int pos = 0;
+  int index = 0;
+  unsigned char current_letter = 255;
+  int letter_count = 0;
+
+  while(pos < word.length()) {
+    unsigned char letter = word[pos].isLetter()?caption2letter(QString(word[pos])):0;
+    if (letter && (letter != current_letter || pos == word.length() - 1)) {
+      unsigned char key = keys[index];
+
+      if (current_letter != 255) {
+	// <hint rules>
+	if (key >= '0' && key <= '9') { // key with diacritic sign
+	  bool ok = false;
+	  for(int j = 0; j < letter_count; j ++) { // checking all letters may be useful for Finnish language :-)
+	    if (word[pos - j - 1].cell() != current_letter) { ok = true; } // @TODO handle mixed case !
+	  }
+
+	  if (! ok) {
+	    result = 1; // rule 1: a key with diacritic sign can not match a candidate that contains only the plain version of the letter
+	  }
+	}
+	// </hint rules>
+
+	index ++;
+      }
+
+      current_letter = letter;
+      letter_count = 1;
+    } else if (letter) {
+      letter_count ++;
+    } else {
+      // ignore punctuation such as hyphens
+    }
+
+    pos ++;
+  }
+
   return result;
 }

@@ -335,14 +335,28 @@ QString MultiScenario::getWordList() {
 }
 
 QStringList MultiScenario::getWordListAsList() {
+  int flags[count];
+  for(int i = 0; i < count; i ++) {
+    flags[i] = S(history[i].curve_id)->curve->getFlags(history[i].curve_index);
+  }
   QString list_str = getWordList();
   QStringList list = list_str.split(",");
-  for(int i = 0; i < list.size(); i ++) {
-    if (list[i] == "=") {
-      list[i] = getNameRealLetters();
+  QStringList result;
+  foreach(QString word, list) {
+    if (word == "=") {
+      word = getNameRealLetters();
+    }
+    int check = Scenario::checkHints(word,
+				     letter_history,
+				     flags,
+				     count);
+    if (check) {
+      DBG("Word filtered by hint rule #%d: %s [%s]", check, QSTRING2PCHAR(word), getNameCharPtr());
+    } else {
+      result.append(word);
     }
   }
-  return list;
+  return result;
 }
 
 float MultiScenario::getScore() const {

@@ -120,7 +120,7 @@ class QuickCurve {
   inline int getCurveId(int index);
   inline int size();
   inline int getTimestamp(int index);
-  inline int getFlags(int index);
+  int getFlags(int index);
   /* inline is probably useless nowadays */
 
   bool finished;
@@ -379,6 +379,8 @@ class Scenario {
   void deepDive(QList<Scenario> &result, float min_score = 0.);
 
   QList<QPair<unsigned char, Point> > get_key_error(void);
+
+  static int checkHints(QString, unsigned char*, int*, int);
 };
 
 
