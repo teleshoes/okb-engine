@@ -3178,7 +3178,8 @@ int Scenario::checkHints(QString word,
 	if (key >= '0' && key <= '9') { // key with diacritic sign
 	  bool ok = false;
 	  for(int j = 0; j < letter_count; j ++) { // checking all letters may be useful for Finnish language :-)
-	    if (word[pos - j - 1].cell() != current_letter) { ok = true; } // @TODO handle mixed case !
+	    if (word[pos - j - 1] != QChar(current_letter) &&
+		word[pos - j - 1] != QChar(current_letter - 32)) { ok = true; }
 	  }
 
 	  if (! ok) {
