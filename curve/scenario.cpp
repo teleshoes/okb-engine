@@ -236,6 +236,16 @@ unsigned char* QuickKeys::getKeysForLetter(unsigned char letter) {
   return ptr;
 }
 
+unsigned char QuickKeys::getLetterFromKey(unsigned char key) {
+  if (key >= 'a' && key <= 'z') { return key; }
+  for(char k = 'a'; k <= 'z'; k ++) {
+    if (strchr((char*) (& letter2keys[k * QUICKKEYS_KEYS_PER_LETTER]), (char) key) != NULL) {
+      return k;
+    }
+  }
+  return 'X'; // this should not happen
+}
+
 Point const& QuickKeys::get(unsigned char letter) const {
   return points[letter];
 }
@@ -1161,7 +1171,7 @@ QStringList Scenario::getWordListAsList() {
   QStringList list = list_str.split(",");
   for(int i = 0; i < list.size(); i ++) {
     if (list[i] == "=") {
-      list[i] = getName();
+      list[i] = getNameRealLetters();
     }
   }
   return list;
@@ -1184,6 +1194,15 @@ QString Scenario::getName() const {
   QString ret;
   ret.append((char*) getNameCharPtr());
   return ret;
+}
+
+QString Scenario::getNameRealLetters() const {
+  unsigned char name[count + 1];
+  for(int i = 0; i < count; i ++) {
+    name[i] = keys->getLetterFromKey(letter_history[i]);
+  }
+  name[count] = '\0';
+  return QString((char*) name);
 }
 
 unsigned char* Scenario::getNameCharPtr() const {
@@ -2800,7 +2819,8 @@ static void scoreToJson(QJsonObject &json_obj, score_t &score) {
 }
 
 void Scenario::toJson(QJsonObject &json) {
-  json["name"] = getName();
+  json["name"] = getNameRealLetters();
+  json["internal_name"] = getName();
   json["finished"] = finished;
   json["score"] = getScore();
   json["score_std"] = -1;

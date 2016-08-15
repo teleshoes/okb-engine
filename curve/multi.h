@@ -79,6 +79,7 @@ class MultiScenario {
   QList<LetterNode> getNextKeys();
 
   QString getName() const;
+  QString getNameRealLetters() const;
   void setCurveCount(int count) { this -> curve_count = count; }
   void setDebug(bool debug) { this -> debug = debug; }
   bool operator<(const MultiScenario &other) const;

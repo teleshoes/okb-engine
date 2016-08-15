@@ -812,7 +812,8 @@ QList<ScenarioType> CurveMatch::getCandidates() {
 QList<ScenarioDto> CurveMatch::getCandidatesDto() {
   QList<ScenarioDto> result;
   foreach(ScenarioType s, candidates) {
-    ScenarioDto dto(s.getName(), s.getWordList(), s.getScore(), s.getClass(), s.getStar());
+    ScenarioDto dto(s.getNameRealLetters(), s.getWordListAsList().join(QString(",")),
+		    s.getScore(), s.getClass(), s.getStar());
     result.append(dto);
   }
   return result;

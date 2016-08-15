@@ -150,6 +150,7 @@ class QuickKeys {
   inline Point const& size(unsigned char letter) const;
   inline Point const& get_raw(unsigned char letter) const;
   unsigned char* getKeysForLetter(unsigned char letter);
+  unsigned char getLetterFromKey(unsigned char key);
 
   // statistics
   int average_width, average_height;
@@ -336,6 +337,7 @@ class Scenario {
   bool operator<(const Scenario &other) const;
   bool isFinished() { return finished; };
   QString getName() const;
+  QString getNameRealLetters() const;
   unsigned char* getNameCharPtr() const;
   QString getWordList();
   QStringList getWordListAsList();

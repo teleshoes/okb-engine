@@ -316,6 +316,15 @@ QString MultiScenario::getName() {
   return ret;
 }
 
+QString MultiScenario::getNameRealLetters() const {
+  unsigned char name[count + 1];
+  for(int i = 0; i < count; i ++) {
+    name[i] = keys->getLetterFromKey(letter_history[i]);
+  }
+  name[count] = '\0';
+  return QString((char*) name);
+}
+
 unsigned char* MultiScenario::getNameCharPtr() const {
   return letter_history;
 }
@@ -330,7 +339,7 @@ QStringList MultiScenario::getWordListAsList() {
   QStringList list = list_str.split(",");
   for(int i = 0; i < list.size(); i ++) {
     if (list[i] == "=") {
-      list[i] = getName();
+      list[i] = getNameRealLetters();
     }
   }
   return list;
@@ -438,7 +447,8 @@ float MultiScenario::getNewDistance() {
 }
 
 void MultiScenario::toJson(QJsonObject &json) {
-  json["name"] = getName();
+  json["name"] = getNameRealLetters();
+  json["internal_name"] = getName();
   json["finished"] = finished;
   json["score"] = getScore();
   json["score_v1"] = getScoreV1();
