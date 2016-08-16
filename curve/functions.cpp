@@ -4,6 +4,7 @@
 #include <QRegExp>
 #include <cmath>
 #include <math.h>
+#include "log.h"
 
 /* --- common functions --- */
 // NIH all over the place
@@ -88,5 +89,7 @@ unsigned char caption2letter(QString value) {
   // https://stackoverflow.com/questions/12278448/removing-accents-from-a-qstring
   QString stringNormalized = value.normalized(QString::NormalizationForm_KD);
   stringNormalized.remove(QRegExp("[^a-zA-Z]"));
-  return stringNormalized.toLower().at(0).cell();
+  stringNormalized = stringNormalized.toLower();
+  if (stringNormalized.length() != 1) { return 0; }
+  return stringNormalized.at(0).cell();
 }

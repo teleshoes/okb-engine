@@ -123,15 +123,14 @@ void CurveKB::loadKeys(QVariantList list)
   while (i.hasNext()) {
     QMap<QString, QVariant> key = i.next().toMap();
     QByteArray bytes = key["caption"].toByteArray();
-    if (bytes.data()[0] >= 'A') { // some punctuation signs trigger Q_ASSERT in QT code (@TODO check, this is probably bad)
-      int x = key["x"].toInt();
-      int y = key["y"].toInt();
-      int width = key["width"].toInt();
-      int height = key["height"].toInt();
-      QString caption = key["caption"].toString();
 
-      curveMatch.addKey(Key(int(x + width / 2), int(y + height / 2), width, height, caption));
-    }
+    int x = key["x"].toInt();
+    int y = key["y"].toInt();
+    int width = key["width"].toInt();
+    int height = key["height"].toInt();
+    QString caption = key["caption"].toString();
+
+    curveMatch.addKey(Key(int(x + width / 2), int(y + height / 2), width, height, caption));
   }
 }
 
