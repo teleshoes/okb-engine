@@ -61,6 +61,12 @@ defparams = [
     [ "flat_max_angle", int, 5, 25 ],
     [ "flat_max_deviation", int, 10, 100 ],
     [ "flat_score", float, 0, 1 ],
+    [ "hint_o_max_radius", int, 20, 100 ],
+    [ "hint_o_turn_min", int, 5, 30 ],
+    [ "hint_o_total_min", int, 180, 270 ],
+    [ "hint_v_maxgap", int, 1, 5 ],
+    [ "hint_v_minturn", int, 10, 70 ],
+    [ "hint_v_range", int, 3, 10 ],
     [ "incr_retry", int ],  # no optim => performance only
     [ "incremental_index_gap", int ],
     [ "incremental_length_lag", int ],  # no optimization

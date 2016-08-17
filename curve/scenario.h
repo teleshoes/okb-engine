@@ -36,6 +36,9 @@ class Point {
   Point const operator*(const float &other) const;
 };
 
+#define FLAG_HINT_O (1<<0)
+#define FLAG_HINT_V (1<<1)
+
 class CurvePoint : public Point {
  public:
   CurvePoint(Point p, int curve_id, int msec, int length = 0, bool dummy = false);

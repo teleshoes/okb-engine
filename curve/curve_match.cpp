@@ -588,7 +588,85 @@ void CurveMatch::curvePreprocess1(int curve_id) {
       }
     }
 
+    // detect loop hints
+    {
+      int i0 = 0;
+      int total = 0;
+      for(int i = 0; i < l; i ++) {
+	int turn = oneCurve[i].turn_smooth;
+	if (abs(turn) > params.hint_o_turn_min) {
+	  if ((! i0) || (i0 && oneCurve[i0].turn_smooth * turn < 0)) { i0 = i; total = 0; }
+	  total += turn;
+	} else if (i0) {
+	  int i1 = i - 1;
+	  if (abs(total) > params.hint_o_total_min) {
+	    int xavg = 0, yavg = 0;
+	    for(int j = i0; j <= i1; j ++) {
+	      xavg += oneCurve[j].x;
+	      yavg += oneCurve[j].y;
+	    }
+	    xavg /= (i1 - i0 + 1);
+	    yavg /= (i1 - i0 + 1);
+	    int found = -1;
+	    int min_dist = 0;
+	    for(int j = i0; j <= i1; j ++) {
+	      oneCurve[j].sharp_turn = 0;
+	      int dist = distance(xavg, yavg, oneCurve[j].x, oneCurve[j].y);
+	      if (dist < min_dist || ! min_dist) {
+		min_dist = dist;
+		found = j;
+	      }
+	      if (dist > params.hint_o_max_radius) {
+		min_dist = -1;
+	      }
+	    }
+	    if (min_dist >= 0) {
+	      oneCurve[found].sharp_turn = 2;
+	      oneCurve[found].flags |= FLAG_HINT_O;
+	      DBG("[Hint-O] Loop detected at curve index %d (error=%d, total_turn=%d, indexes=[%d:%d])", found, min_dist, total, i0, i1);
+	    }
+	  }
+	  i0 = 0;
+	}
+      }
+    }
+
+    // detect potential "small hop" patterns (useful for horizontal stokes which are very hard to discriminate)
+    {
+      int range = params.hint_v_range;
+      int maxgap = params.hint_v_maxgap;
+      for(int i = range; i < l - range; i ++) {
+	if (! oneCurve[i].sharp_turn) { continue; }
+	if (oneCurve[i].flags) { continue; }
+	int found = 0;
+
+	if ((oneCurve[i + range].x - oneCurve[i].x) * (oneCurve[i - range].x - oneCurve[i].x) >= 0) { continue; }
+
+	for(int j = i - range; j <= i + range; j ++) {
+	  if (oneCurve[j].flags) { found = 0; break; }
+	  if (! found || oneCurve[j].y > oneCurve[found].y) {
+	    found = j;
+	  }
+	}
+
+	int turn = 0;
+	int turn0 = oneCurve[i].turn_smooth;
+	for(int j = i - maxgap; j <= i + maxgap; j ++) {
+	  if (oneCurve[j].turn_smooth * turn0 > 0) {
+	    turn += oneCurve[j].turn_smooth;
+	  }
+	}
+
+	if (found && abs(found - i) <= maxgap && abs(turn) >= params.hint_v_minturn) {
+	  oneCurve[found].flags |= FLAG_HINT_V;
+	  DBG("[Hint-V] Possible candidate at curve index %d (gap=%d, turn=%d)", found, abs(found -i), turn);
+	  // note: we can not move the position of the special point because this is just a candidate
+	}
+      }
+    }
+
   }
+
 
   if (end_flag) {
     oneCurve << EndMarker(curve_id);

@@ -30,7 +30,7 @@ def fail():
     print(html)
     exit(0)
 
-FLAGS = "L2345678"
+FLAGS = "Ov345678"
 
 def get_flags(v):
     result = ""
@@ -173,6 +173,11 @@ def mkimg(scale = 1, xsize = None, scenario = None, base64 = True):
                         draw.line((x, y, x + int(0.5 * pt['normalx'] * scale), y + int(0.5 * pt['normaly'] * scale)), fill="#008000", width = int(2 * scale))
                     draw.line((x - s, y, x + s, y), fill="#C00000", width = int(2 * scale))
                     draw.line((x, y - s, x, y + s), fill="#C00000", width = int(2 * scale))
+                if 'flags' in pt and not scenario:
+                    s = int(10 * scale)
+                    for i in range(0, int(4 * scale)):
+                        draw.ellipse((x - s, y - s, x + s, y + s), outline="#0080F0")
+                        s += 0.5
 
                 if c % 10 == 0 and not scenario:
                     rs = int(5 * scale)

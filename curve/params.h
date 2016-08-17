@@ -63,6 +63,12 @@ class Params {
   int flat_max_angle;
   int flat_max_deviation;
   float flat_score;
+  int hint_o_max_radius;
+  int hint_o_total_min;
+  int hint_o_turn_min;
+  int hint_v_maxgap;
+  int hint_v_minturn;
+  int hint_v_range;
   int incr_retry;
   int incremental_index_gap;
   int incremental_length_lag;
@@ -250,6 +256,12 @@ static Params default_params = {
   24, // flat_max_angle
   29, // flat_max_deviation
   0.06, // flat_score
+  70, // hint_o_max_radius
+  270, // hint_o_total_min
+  20, // hint_o_turn_min
+  2, // hint_v_maxgap
+  35, // hint_v_minturn
+  4, // hint_v_range
   50, // incr_retry
   5, // incremental_index_gap
   100, // incremental_length_lag
@@ -431,6 +443,12 @@ void Params::toJson(QJsonObject &json) const {
   json["flat_max_angle"] = flat_max_angle;
   json["flat_max_deviation"] = flat_max_deviation;
   json["flat_score"] = flat_score;
+  json["hint_o_max_radius"] = hint_o_max_radius;
+  json["hint_o_total_min"] = hint_o_total_min;
+  json["hint_o_turn_min"] = hint_o_turn_min;
+  json["hint_v_maxgap"] = hint_v_maxgap;
+  json["hint_v_minturn"] = hint_v_minturn;
+  json["hint_v_range"] = hint_v_range;
   json["incr_retry"] = incr_retry;
   json["incremental_index_gap"] = incremental_index_gap;
   json["incremental_length_lag"] = incremental_length_lag;
@@ -614,6 +632,12 @@ Params Params::fromJson(const QJsonObject &json) {
   if (json.contains("flat_max_angle")) { p.flat_max_angle = json["flat_max_angle"].toDouble(); }
   if (json.contains("flat_max_deviation")) { p.flat_max_deviation = json["flat_max_deviation"].toDouble(); }
   if (json.contains("flat_score")) { p.flat_score = json["flat_score"].toDouble(); }
+  if (json.contains("hint_o_max_radius")) { p.hint_o_max_radius = json["hint_o_max_radius"].toDouble(); }
+  if (json.contains("hint_o_total_min")) { p.hint_o_total_min = json["hint_o_total_min"].toDouble(); }
+  if (json.contains("hint_o_turn_min")) { p.hint_o_turn_min = json["hint_o_turn_min"].toDouble(); }
+  if (json.contains("hint_v_maxgap")) { p.hint_v_maxgap = json["hint_v_maxgap"].toDouble(); }
+  if (json.contains("hint_v_minturn")) { p.hint_v_minturn = json["hint_v_minturn"].toDouble(); }
+  if (json.contains("hint_v_range")) { p.hint_v_range = json["hint_v_range"].toDouble(); }
   if (json.contains("incr_retry")) { p.incr_retry = json["incr_retry"].toDouble(); }
   if (json.contains("incremental_index_gap")) { p.incremental_index_gap = json["incremental_index_gap"].toDouble(); }
   if (json.contains("incremental_length_lag")) { p.incremental_length_lag = json["incremental_length_lag"].toDouble(); }
