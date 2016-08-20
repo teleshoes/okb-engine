@@ -152,8 +152,10 @@ int QuickCurve::getNormalY(int index) { return normaly[index]; }
 int QuickCurve::getSpeed(int index) { return speed[index]; }
 int QuickCurve::getLength(int index) { return length[index]; }
 int QuickCurve::getTimestamp(int index) { return timestamp[index]; }
-int QuickCurve::getFlags(int index) { return flags[index]; }
 int QuickCurve::getTotalLength() { return (count > 0)?length[count - 1]:0; }
+
+int QuickCurve::getFlags(int index) { return flags[index]; }
+bool QuickCurve::hasFlags(int index, int mask) { return ((flags[index] & mask) != 0); }
 
 /* optimized keys information */
 QuickKeys::QuickKeys() {
@@ -1646,8 +1648,15 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
 	}
 	bool bad_turn = false;
 	if (typ_act[j] == 0 && abs(a_actual[j]) > max_angle) {
-	  DBG("  [score turn] *** unmatched actual turn #%d: %.2f", j, a_actual[j]);
-	  bad_turn = true;
+	  if (curve->hasFlags(index_history[j], FLAG_HINT_V) && abs(a_actual[j]) < 30) {
+	    a_actual[j] = 0;
+	    DBG("  [Hint-V] ignoring unmatched actual turn #%d: %.2f", j, a_actual[j]);
+	    /* due to vertical lack of precision when drawing small hops */
+
+	  } else {
+	    DBG("  [score turn] *** unmatched actual turn #%d: %.2f", j, a_actual[j]);
+	    bad_turn = true;
+	  }
 	}
 	if (typ_exp[j] == 0 && abs(a_expected[j]) > max_angle) {
 	  DBG("  [score turn] *** unmatched expected turn #%d: %.2f", j, a_expected[j]);
@@ -2045,6 +2054,14 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
 	(i == count - 2 || IS_FLAT(a_expected[i + 1]))) {
       int i1 = index_history[i];
       int i2 = index_history[i + 1];
+      if (curve->hasFlags(i1, FLAG_HINT_ANY) ||
+	  curve->hasFlags(i2, FLAG_HINT_ANY) ||
+	  (i > 0 && curve->hasFlags(index_history[i - 1], FLAG_HINT_ANY)) ||
+	  (i < count - 2 && curve->hasFlags(index_history[i + 2], FLAG_HINT_ANY))) {
+  	  /* hints */ DBG("[Hint-*] segment[%d,%d] ignored", i1, i2)
+	  continue;
+      }
+
       Point pt1 = curve->point(i1);
       Point pt2 = curve->point(i2);
       float max_dist = 0;
@@ -2110,9 +2127,42 @@ typedef struct part {
   part(int s, int e, int t) : start(s), end(e), type(t) {};
 } part_t;
 
-void Scenario::check_reverse_turn(int index1, int index2, int direction1, int direction2) {
+void Scenario::check_reverse_turn(int index1, int index2, int direction1, int direction2, bool check_hints) {
   if (direction1 == RT_DIRECTION_UNKNOWN ||
       direction2 == RT_DIRECTION_UNKNOWN) { return; /* case not handled */ }
+
+  /* hints */
+  if (check_hints) {
+    for(int i = index1; i <= index2; i ++) {
+      if (curve->hasFlags(index_history[i], FLAG_HINT_V)) {
+	/* bad idea? @todo check or remove
+	if (i == index1 || i == index2) {
+	  DBG("[Hint-V] index=%d: ignored because it matches an expected turn", index_history[i]);
+	  continue;
+	}
+	*/
+	Point p1 = keys->get_raw(letter_history[i - 1]);
+	Point p2 = keys->get_raw(letter_history[i]);
+	Point p3 = keys->get_raw(letter_history[i + 1]);
+	if (abs(p2.y - p1.y) >= params->hint_v_max_slope * distancep(p1, p2) ||
+	    abs(p3.y - p2.y) >= params->hint_v_max_slope * distancep(p2, p3)) {
+	  DBG("[Hint-V] index=%d: ignored because it does not match an horizontal expected stroke", index_history[i]);
+	  continue;
+	}
+
+	// @TODO recursively call check_reverse_turn with each part around "hints" (wich check_hints = false)
+	DBG("[Hint-V] index=%d: *OK* -> disabling check_reverse_turn()", index_history[i]);
+	return;
+
+      } else if (curve->hasFlags(index_history[i], FLAG_HINT_O)) {
+
+	// @TODO recursively call check_reverse_turn with each part around "hints" (wich check_hints = false)
+	DBG("[Hint-O] index=%d: *OK* -> disabling check_reverse_turn()", index_history[i]);
+	return;
+
+      }
+    }
+  }
 
   int i1 = index_history[index1];
   int i2 = index_history[index2];
@@ -2361,9 +2411,11 @@ float Scenario::calc_score_misc(int i) {
     if (i == 0) {
       tg_act = curve->point(2) - curve->point(0);
       tg_exp = keys->get(letter_history[1]) - keys->get(letter_history[0]);
+      /* hints */ if (count > 2 && curve->hasFlags(index_history[1], FLAG_HINT_ANY)) { proceed = false; }
     } else if (i == count - 1) {
       tg_act = curve->point(cl - 1) - curve->point(cl - 3);
       tg_exp = keys->get(letter_history[count - 1]) - keys->get(letter_history[count - 2]);
+      /* hints */ if (count > 2 && curve->hasFlags(index_history[count - 2], FLAG_HINT_ANY)) { proceed = false; }
     } else {
       proceed = false;
     }
@@ -2425,6 +2477,9 @@ void Scenario::calc_straight_score_all(turn_t *turn_detail, int turn_count, floa
 
   } else if (straight_score > params->straight_threshold_high) {
     /* other curve: penalty for straight candidates (geometrically speaking) */
+    for (int i = 0; i < count; i ++) {
+      /* hints */ if (curve->hasFlags(index_history[i], FLAG_HINT_ANY)) { return; }
+    }
     if (! real_turn_count) {
       float coef = min(1, straight_score - 1);
       result = - params->straight_score2 * coef;
@@ -2445,6 +2500,8 @@ void Scenario::calc_loop_score_all(turn_t *turn_detail, int turn_count) {
     turn_t *d = &(turn_detail[i]);
 
     for(int j = d->start_index; j <= d->index; j++) {
+      /* hints */ if (curve->hasFlags(index_history[j], FLAG_HINT_O)) { break; }
+
       if (get_turn_kind(j) == -1) {
 	int exp = d->expected;
 	int exp1 = -1, exp2 = -1;
@@ -2511,6 +2568,9 @@ int Scenario::calc_flat2_get_height(int i1, int i2) {
 }
 
 void Scenario::calc_flat2_score_part(int i1, int i2) {
+  for(int j = i1; j <= i2; j ++) {
+    /* hints */ if (curve->hasFlags(index_history[j], FLAG_HINT_ANY)) { return; }
+  }
   int height = calc_flat2_get_height(i1, i2);
   DBG("flat2_max [%s]: [%d:%d] height=%d max=%d", getNameCharPtr(), i1, i2, height, params -> flat2_max_height);
   if (height > params -> flat2_max_height) {
@@ -2574,10 +2634,17 @@ void Scenario::newDistance() {
     int speed = curve->getSpeed(index_history[i]);
     float dist;
 
-    // @todo retry my good old "anisotropic distance"
-    // /* score ignored */ calc_distance_score(letter_history[i], index_history[i], (i == count - 1)?-1:i, &dist);
-
     int st = curve->getSpecialPoint(index_history[i]);
+
+    if (curve->hasFlags(index_history[i], FLAG_HINT_ANY)) {
+      /* in case of hint-V, adjust position of matching point to the let tip */
+      int range = params -> hint_v_maxgap;
+      for(int j = index_history[i] - range; j <= index_history[i] + range; j ++) {
+	if (j < 0 || j > curve->size()) { continue; }
+	Point cur_pt = curve->point(j);
+	if (cur_pt.y > pt.y) { pt = cur_pt; }
+      }
+    }
 
     if ((st == 5 || st == 6) && i > 0 && i < count - 1) {
       Point v1 = curve->point(index_history[i + 1]) - curve->point(index_history[i - 1]);
@@ -2590,8 +2657,12 @@ void Scenario::newDistance() {
     int st2 = (i == 0 || i == count - 1)?9:st; /* tip */
 
     float c = coef[st2] / (1. + params->newdist_speed * speed / 1000.);
-    ctotal += c;
 
+    /* hints */
+    if (curve->hasFlags(index_history[i], FLAG_HINT_V)) { c *= params->hint_v_dist_coef; }
+    if (curve->hasFlags(index_history[i], FLAG_HINT_O)) { c *= params->hint_o_dist_coef; }
+
+    ctotal += c;
     dist_exp += c * pow(dist, exposant);
 
     qs << "#" << i << "[" << (char) letter_history[i] << "," << st2 << "," << speed << "]=" << int(dist) << " ";

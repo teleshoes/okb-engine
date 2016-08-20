@@ -38,6 +38,7 @@ class Point {
 
 #define FLAG_HINT_O (1<<0)
 #define FLAG_HINT_V (1<<1)
+#define FLAG_HINT_ANY (FLAG_HINT_O | FLAG_HINT_V)
 
 class CurvePoint : public Point {
  public:
@@ -124,6 +125,7 @@ class QuickCurve {
   inline int size();
   inline int getTimestamp(int index);
   int getFlags(int index);
+  bool hasFlags(int index, int mask);
   /* inline is probably useless nowadays */
 
   bool finished;
@@ -305,7 +307,7 @@ class Scenario {
   float calc_curve_score(unsigned char prev_letter, unsigned char letter, int index, int new_index);
   void calc_turn_score_all(turn_t *turn_detail, int *turn_count_return);
   int get_turn_kind(int index);
-  void check_reverse_turn(int index1, int index2, int direction1, int direction2);
+  void check_reverse_turn(int index1, int index2, int direction1, int direction2, bool check_hints = true);
   float calc_score_misc(int i);
   float begin_end_angle_score(bool end);
   float score_inflection(int index, bool st1, bool st2);

@@ -588,8 +588,8 @@ void CurveMatch::curvePreprocess1(int curve_id) {
       }
     }
 
-    // detect loop hints
-    {
+    /* detect loop hints */
+    if (params.hints_master_switch) {
       int i0 = 0;
       int total = 0;
       for(int i = 0; i < l; i ++) {
@@ -610,7 +610,6 @@ void CurveMatch::curvePreprocess1(int curve_id) {
 	    int found = -1;
 	    int min_dist = 0;
 	    for(int j = i0; j <= i1; j ++) {
-	      oneCurve[j].sharp_turn = 0;
 	      int dist = distance(xavg, yavg, oneCurve[j].x, oneCurve[j].y);
 	      if (dist < min_dist || ! min_dist) {
 		min_dist = dist;
@@ -620,6 +619,15 @@ void CurveMatch::curvePreprocess1(int curve_id) {
 		min_dist = -1;
 	      }
 	    }
+
+	    for(int j = i0; j <= i1; j ++) {
+	      if (oneCurve[j].sharp_turn != 2 ||
+		  oneCurve[j].turn_angle < params.hint_o_spare_st2_angle ||
+		  abs(j - found) <= params.hint_o_spare_st2_gap) { // <- if this test is not discriminant enough, replace turns by ST=5
+		oneCurve[j].sharp_turn = 0;
+	      }
+	    }
+
 	    if (min_dist >= 0) {
 	      oneCurve[found].sharp_turn = 2;
 	      oneCurve[found].flags |= FLAG_HINT_O;
@@ -629,43 +637,54 @@ void CurveMatch::curvePreprocess1(int curve_id) {
 	  i0 = 0;
 	}
       }
-    }
+    } /* loop hint */
 
-    // detect potential "small hop" patterns (useful for horizontal stokes which are very hard to discriminate)
-    {
+    /* detect potential "small hop" patterns (useful for horizontal stokes which are very hard to discriminate) */
+    if (params.hints_master_switch) {
       int range = params.hint_v_range;
       int maxgap = params.hint_v_maxgap;
-      for(int i = range; i < l - range; i ++) {
+      for(int i = maxgap; i < l - maxgap; i ++) {
 	if (! oneCurve[i].sharp_turn) { continue; }
 	if (oneCurve[i].flags) { continue; }
-	int found = 0;
 
-	if ((oneCurve[i + range].x - oneCurve[i].x) * (oneCurve[i - range].x - oneCurve[i].x) >= 0) { continue; }
+	// @todo remove this test:
+	if ((oneCurve[i + maxgap].x - oneCurve[i].x) * (oneCurve[i - maxgap].x - oneCurve[i].x) >= 0) { continue; }
 
-	for(int j = i - range; j <= i + range; j ++) {
-	  if (oneCurve[j].flags) { found = 0; break; }
-	  if (! found || oneCurve[j].y > oneCurve[found].y) {
-	    found = j;
-	  }
-	}
+	if (oneCurve[i + maxgap].y > oneCurve[i].y || oneCurve[i - maxgap].y > oneCurve[i].y) { continue; }
 
-	int turn = 0;
 	int turn0 = oneCurve[i].turn_smooth;
-	for(int j = i - maxgap; j <= i + maxgap; j ++) {
-	  if (oneCurve[j].turn_smooth * turn0 > 0) {
-	    turn += oneCurve[j].turn_smooth;
+	int turn[] = { 0, turn0, 0 };
+	int failed = false;
+	for(int dir = -1; dir <= 1; dir += 2) {
+	  int k = i + dir;
+	  bool changed = false;
+	  while(k > 0 && k < l - 1 && abs(k - i) <= range) {
+	    if (oneCurve[k].flags) { failed = true; }
+	    int this_turn = oneCurve[k].turn_smooth;
+	    if (this_turn * turn0 > 0 && ! changed) {
+	      turn[1] += this_turn;
+	    } else {
+		turn[dir + 1] += this_turn;
+		changed = true;
+	    }
+	    k += dir;
 	  }
 	}
 
-	if (found && abs(found - i) <= maxgap && abs(turn) >= params.hint_v_minturn) {
-	  oneCurve[found].flags |= FLAG_HINT_V;
-	  DBG("[Hint-V] Possible candidate at curve index %d (gap=%d, turn=%d)", found, abs(found -i), turn);
+	bool ok = (abs(turn[0]) > params.hint_v_minturn2 &&
+		   abs(turn[1]) > params.hint_v_minturn &&
+		   abs(turn[2]) > params.hint_v_minturn2 &&
+		   ! failed);
+	DBG("[Hint-V] Possible candidate at curve index %d (turn=[%d:%d:%d] other_hint=%d) -> %s",
+	    i, turn[0], turn[1], turn[2], failed, ok?"*OK*":"(ignored)");
+	if (ok) {
 	  // note: we can not move the position of the special point because this is just a candidate
+	  oneCurve[i].flags |= FLAG_HINT_V;
 	}
       }
-    }
+    } /* hint: small hop */
 
-  }
+  } /* l >= 8 */
 
 
   if (end_flag) {

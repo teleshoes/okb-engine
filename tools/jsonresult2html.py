@@ -326,6 +326,8 @@ html.head.title(title)
 body = html.body
 
 body.h3(title)
+if expected and len([ s for s in candidates if s["name"] == expected ]) > 0:
+    body.p("Expected word: ", font_size = "-2").a(expected, href = "#" + expected)
 body.meta(charset = "UTF-8")
 body.img(src = mkimg(xsize = 1280), border = '0')
 body.p()
@@ -445,7 +447,9 @@ for scenario in candidates:
 
     t0 = body.table(border = "0").tr
 
-    t0.td.img(src = mkimg(xsize = 640, scenario = scenario), border = '0')
+    t0.td.img(src = mkimg(xsize = 640, scenario = scenario),
+              border = '5' if expected and scenario["name"] == expected else '0',
+              style = "border-color: #00E080")
 
     first = True
     td = t0.td

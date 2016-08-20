@@ -63,12 +63,19 @@ class Params {
   int flat_max_angle;
   int flat_max_deviation;
   float flat_score;
+  float hint_o_dist_coef;
   int hint_o_max_radius;
+  int hint_o_spare_st2_angle;
+  int hint_o_spare_st2_gap;
   int hint_o_total_min;
   int hint_o_turn_min;
+  float hint_v_dist_coef;
+  float hint_v_max_slope;
   int hint_v_maxgap;
   int hint_v_minturn;
+  int hint_v_minturn2;
   int hint_v_range;
+  int hints_master_switch;
   int incr_retry;
   int incremental_index_gap;
   int incremental_length_lag;
@@ -256,12 +263,19 @@ static Params default_params = {
   24, // flat_max_angle
   29, // flat_max_deviation
   0.06, // flat_score
+  1.0, // hint_o_dist_coef
   70, // hint_o_max_radius
+  120, // hint_o_spare_st2_angle
+  2, // hint_o_spare_st2_gap
   270, // hint_o_total_min
   20, // hint_o_turn_min
+  1.5, // hint_v_dist_coef
+  0.15, // hint_v_max_slope
   2, // hint_v_maxgap
   35, // hint_v_minturn
-  4, // hint_v_range
+  16, // hint_v_minturn2
+  7, // hint_v_range
+  1, // hints_master_switch
   50, // incr_retry
   5, // incremental_index_gap
   100, // incremental_length_lag
@@ -443,12 +457,19 @@ void Params::toJson(QJsonObject &json) const {
   json["flat_max_angle"] = flat_max_angle;
   json["flat_max_deviation"] = flat_max_deviation;
   json["flat_score"] = flat_score;
+  json["hint_o_dist_coef"] = hint_o_dist_coef;
   json["hint_o_max_radius"] = hint_o_max_radius;
+  json["hint_o_spare_st2_angle"] = hint_o_spare_st2_angle;
+  json["hint_o_spare_st2_gap"] = hint_o_spare_st2_gap;
   json["hint_o_total_min"] = hint_o_total_min;
   json["hint_o_turn_min"] = hint_o_turn_min;
+  json["hint_v_dist_coef"] = hint_v_dist_coef;
+  json["hint_v_max_slope"] = hint_v_max_slope;
   json["hint_v_maxgap"] = hint_v_maxgap;
   json["hint_v_minturn"] = hint_v_minturn;
+  json["hint_v_minturn2"] = hint_v_minturn2;
   json["hint_v_range"] = hint_v_range;
+  json["hints_master_switch"] = hints_master_switch;
   json["incr_retry"] = incr_retry;
   json["incremental_index_gap"] = incremental_index_gap;
   json["incremental_length_lag"] = incremental_length_lag;
@@ -632,12 +653,19 @@ Params Params::fromJson(const QJsonObject &json) {
   if (json.contains("flat_max_angle")) { p.flat_max_angle = json["flat_max_angle"].toDouble(); }
   if (json.contains("flat_max_deviation")) { p.flat_max_deviation = json["flat_max_deviation"].toDouble(); }
   if (json.contains("flat_score")) { p.flat_score = json["flat_score"].toDouble(); }
+  if (json.contains("hint_o_dist_coef")) { p.hint_o_dist_coef = json["hint_o_dist_coef"].toDouble(); }
   if (json.contains("hint_o_max_radius")) { p.hint_o_max_radius = json["hint_o_max_radius"].toDouble(); }
+  if (json.contains("hint_o_spare_st2_angle")) { p.hint_o_spare_st2_angle = json["hint_o_spare_st2_angle"].toDouble(); }
+  if (json.contains("hint_o_spare_st2_gap")) { p.hint_o_spare_st2_gap = json["hint_o_spare_st2_gap"].toDouble(); }
   if (json.contains("hint_o_total_min")) { p.hint_o_total_min = json["hint_o_total_min"].toDouble(); }
   if (json.contains("hint_o_turn_min")) { p.hint_o_turn_min = json["hint_o_turn_min"].toDouble(); }
+  if (json.contains("hint_v_dist_coef")) { p.hint_v_dist_coef = json["hint_v_dist_coef"].toDouble(); }
+  if (json.contains("hint_v_max_slope")) { p.hint_v_max_slope = json["hint_v_max_slope"].toDouble(); }
   if (json.contains("hint_v_maxgap")) { p.hint_v_maxgap = json["hint_v_maxgap"].toDouble(); }
   if (json.contains("hint_v_minturn")) { p.hint_v_minturn = json["hint_v_minturn"].toDouble(); }
+  if (json.contains("hint_v_minturn2")) { p.hint_v_minturn2 = json["hint_v_minturn2"].toDouble(); }
   if (json.contains("hint_v_range")) { p.hint_v_range = json["hint_v_range"].toDouble(); }
+  if (json.contains("hints_master_switch")) { p.hints_master_switch = json["hints_master_switch"].toDouble(); }
   if (json.contains("incr_retry")) { p.incr_retry = json["incr_retry"].toDouble(); }
   if (json.contains("incremental_index_gap")) { p.incremental_index_gap = json["incremental_index_gap"].toDouble(); }
   if (json.contains("incremental_length_lag")) { p.incremental_length_lag = json["incremental_length_lag"].toDouble(); }
