@@ -157,6 +157,28 @@ int QuickCurve::getTotalLength() { return (count > 0)?length[count - 1]:0; }
 int QuickCurve::getFlags(int index) { return flags[index]; }
 bool QuickCurve::hasFlags(int index, int mask) { return ((flags[index] & mask) != 0); }
 
+int QuickCurve::getHintOIndex(int index0, bool incremental) {
+  int index = index0;
+  int found = -1;
+
+  while(index < count && flags[index] & FLAG_HINT_o) {
+    if (flags[index] & FLAG_HINT_O) { found = index; }
+    index ++;
+  }
+  if (incremental) {
+    while (index < count - 4 && flags[index] & FLAG_HINT_o) { index ++; }
+    if (index >= count - 4) { return -1; /* incremental mode: unfinished loop */ }
+  }
+  if (found >= 0) { return found; }
+
+  index = index0 - 1;
+  while(index >= 0 && flags[index] & FLAG_HINT_o) {
+    if (flags[index] & FLAG_HINT_O) { return index; }
+    index --;
+  }
+  return -1;
+}
+
 /* optimized keys information */
 QuickKeys::QuickKeys() {
 }
@@ -737,9 +759,11 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<NextIn
 
   int start_st = curve->getSharpTurn(start_index);
 
+  bool ignore_hint_o = curve->hasFlags(start_index, FLAG_HINT_O | FLAG_HINT_o);
+
   int step = 1;
   while(1) {
-    if (index >= curve->size() - 4 && incremental) { overflow = true; break; }
+    if (index >= curve->size() - 4 && incremental) { overflow = true; return 0; }
     /* the magic value "4" is because the curvePreprocess1 (which find special points)
        does not work near the end of the curve, so this may be an issue in
        incremental mode */
@@ -769,6 +793,14 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<NextIn
     // look for sharp turns
     int st = curve->getSpecialPoint(index);
 
+    if (curve->hasFlags(index, FLAG_HINT_o) && ! ignore_hint_o) {
+      st = 2; // So we will just exit now
+      index = curve->getHintOIndex(index, incremental);
+      if ((index >= curve->size() - 4 || index < 0) && incremental) { overflow = true; return 0; }
+      if (index < 0) { failed = 30; break; }
+    }
+
+
     if (st && ! MANDATORY_TURN(st) && last_turn_point) { st = 0; } // handle slow-down point and other types with less priority (type = 3)
 
     if (st > 0 && index > start_index) {
@@ -783,17 +815,18 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<NextIn
 	//  (this is the only case of a moveable & mandatory point)
       } else {
 
-	last_turn_point = index;
-	last_turn_score = score;
-
 	if (st == 2) {
 	  new_index_list.clear();
 	  if (score > 0) { new_index_list << NextIndex(index, score); }
 	  if (max_score_index < index && max_score > 0) { new_index_list << NextIndex(max_score_index, max_score); }
+	  if (last_turn_point && last_turn_score > 0) { new_index_list << NextIndex(last_turn_point, last_turn_score); }
 	  if (new_index_list.size() == 0) { failed = 1; }
 	  finished = true;
 	  break;
 	}
+
+	last_turn_point = index;
+	last_turn_score = score;
       }
     }
 
@@ -3089,6 +3122,13 @@ bool Scenario::nextLength(unsigned char next_letter, int curve_id, int &min_leng
 
   max_length = last_length  + (1.0 + (float)dist / params->dist_max_next / 20) * (params->incremental_length_lag + dist);
   min_length = last_length + max(0, dist - params->incremental_length_lag / 2);
+
+  /* @todo optimize retries & hint-O
+  if (curve->hasFlags(index_history[count - 1], FLAG_HINT_O)) {
+    max_length += something;
+    min_length += something;
+  }
+  */
 
   return true;
 }

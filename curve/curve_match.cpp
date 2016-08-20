@@ -631,8 +631,12 @@ void CurveMatch::curvePreprocess1(int curve_id) {
 	    }
 
 	    if (min_dist >= 0) {
+	      for(int j = i0; j <= i1; j ++) {
+		oneCurve[j].flags |= FLAG_HINT_o;
+	      }
 	      oneCurve[found].sharp_turn = 2;
 	      oneCurve[found].flags |= FLAG_HINT_O;
+
 	      DBG("[Hint-O] Loop detected at curve index %d (error=%d, total_turn=%d, indexes=[%d:%d])", found, min_dist, total, i0, i1);
 	    }
 	  }

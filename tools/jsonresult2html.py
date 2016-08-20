@@ -30,7 +30,8 @@ def fail():
     print(html)
     exit(0)
 
-FLAGS = "Ov345678"
+FLAGS = "Ovo45678"
+FLAGS_MASK = 0xFB
 
 def get_flags(v):
     result = ""
@@ -173,7 +174,7 @@ def mkimg(scale = 1, xsize = None, scenario = None, base64 = True):
                         draw.line((x, y, x + int(0.5 * pt['normalx'] * scale), y + int(0.5 * pt['normaly'] * scale)), fill="#008000", width = int(2 * scale))
                     draw.line((x - s, y, x + s, y), fill="#C00000", width = int(2 * scale))
                     draw.line((x, y - s, x, y + s), fill="#C00000", width = int(2 * scale))
-                if 'flags' in pt and not scenario:
+                if "flags" in pt and not scenario and pt["flags"] & FLAGS_MASK:
                     s = int(10 * scale)
                     for i in range(0, int(4 * scale)):
                         draw.ellipse((x - s, y - s, x + s, y + s), outline="#0080F0")
@@ -384,8 +385,8 @@ for curve in curves:
                 if pt.get("dummy", 0): col = "#FFC040"
                 if lbl == "sharp_turn" and pt.get("sharp_turn"): col = "#FF8080"
                 if lbl == "flags":
-                    value = get_flags(pt.get(lbl, 0))
-                    if value and value != "-": col = "#80C0FF"
+                    value = get_flags(pt.get("flags", 0))
+                    if value and value != "-": col = "#80C0FF" if pt["flags"] & FLAGS_MASK else "#D0F0FF"
                 else: value = clean_value(pt.get(lbl, 0))
                 li.td(bgcolor=col).font(value, size = "-2")
 
