@@ -123,6 +123,7 @@ void CurveMatch::curvePreprocess1(int curve_id) {
 
   for(int i = 0 ; i < l; i ++) {
     oneCurve[i].sharp_turn = 0;
+    oneCurve[i].flags = 0;
   }
 
   if (l >= 8) { // do not process small curves, probably a simple 2-letter words
