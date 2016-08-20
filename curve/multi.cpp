@@ -159,8 +159,8 @@ QString MultiScenario::getId() const {
   if (! count) { ts << "[root"; }
   ts << "]";
   if (zombie) { ts << " (Z)"; }
-  ts << " \"";
-  ts << (char*) letter_history << "\"";
+  ts << " ";
+  ts << (char*) letter_history;
 
   return ret;
 }

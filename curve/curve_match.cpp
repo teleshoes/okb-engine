@@ -599,7 +599,8 @@ void CurveMatch::curvePreprocess1(int curve_id) {
 	  total += turn;
 	} else if (i0) {
 	  int i1 = i - 1;
-	  if (abs(total) > params.hint_o_total_min) {
+	  if (abs(total) > params.hint_o_total_min &&
+	      (i1 - i0) >= params.hint_o_min_segments) {
 	    int xavg = 0, yavg = 0;
 	    for(int j = i0; j <= i1; j ++) {
 	      xavg += oneCurve[j].x;
