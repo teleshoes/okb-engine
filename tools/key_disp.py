@@ -8,6 +8,7 @@ import base64
 import io
 import numpy as np
 import math
+from matplotlib.patches import Ellipse
 
 db = pickle.load(open(sys.argv[1], "rb"))
 
@@ -46,8 +47,15 @@ for k in sorted(keys):
     ky = - kpos[k][1]
     ax = np.average(X)
     ay = np.average(Y)
+    sx = np.std(X)
+    sy = np.std(Y)
 
     plt.plot([kx, ax], [ky, ay], color='blue', linestyle='-', linewidth=5)
+
+    gca = plt.gca()
+    ellipse = Ellipse(xy = (ax, ay), width = 5 * sx, height = 5 * sy, edgecolor = 'g', fc = 'None', lw = 4)
+    gca.add_patch(ellipse)
+
 
     plt.tight_layout()
     plt.grid(True)
