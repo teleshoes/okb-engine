@@ -783,7 +783,7 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<NextIn
     if (new_score > score) {
       retry = 0;
     } else {
-      retry += step;
+      if (! curve->hasFlags(index, FLAG_HINT_o)) { retry += step; }
       if (retry > params->match_wait && count > params->match_wait) { break; }
     }
     score = new_score;
@@ -793,11 +793,17 @@ float Scenario::get_next_key_match(unsigned char letter, int index, QList<NextIn
     // look for sharp turns
     int st = curve->getSpecialPoint(index);
 
-    if (curve->hasFlags(index, FLAG_HINT_o) && ! ignore_hint_o) {
-      st = 2; // So we will just exit now
-      index = curve->getHintOIndex(index, incremental);
-      if ((index >= curve->size() - 4 || index < 0) && incremental) { overflow = true; return 0; }
-      if (index < 0) { failed = 30; break; }
+    if (curve->hasFlags(index, FLAG_HINT_o)) {
+      if (curve->hasFlags(index, FLAG_HINT_O) && ignore_hint_o) {
+	st = 0;
+      } else if (! ignore_hint_o) {
+	st = 2; // So we will just exit now
+	index = curve->getHintOIndex(index, incremental);
+	if ((index >= curve->size() - 4 || index < 0) && incremental) { overflow = true; return 0; }
+	if (index < 0) { failed = 30; break; }
+      }
+    } else {
+      ignore_hint_o = false; // get ready for the next hint
     }
 
 
@@ -1044,9 +1050,20 @@ bool Scenario::childScenarioInternalWithLetter(unsigned char letter, LetterNode 
 
       bool st_found = false;
       int new_index = curve->size() - 1;
-      for(int i = index + 1; i <= new_index; i ++) {
-	int st = curve->getSpecialPoint(i);
-	st_found |= MANDATORY_TURN(st) && (st != 6 || i > index + params->max_turn_index_gap);
+
+      int index0 = index;
+      while (curve->hasFlags(index0, FLAG_HINT_o) && index0 < curve->size()) { index0 ++; } // hint-O loop at the start of the curve
+
+      bool in_loop = false;
+      for(int i = index0 + 1; i <= new_index; i ++) {
+	bool last_in_loop = in_loop;
+	in_loop = curve->hasFlags(i, FLAG_HINT_o);
+	if (! in_loop) {
+	  if (last_in_loop) { st_found = true; } // match a hint-O loop at the end of the curve (but not in the middle)
+
+	  int st = curve->getSpecialPoint(i);
+	  st_found |= MANDATORY_TURN(st) && (st != 6 || i > index + params->max_turn_index_gap);
+	}
       }
       if (st_found) {
 	DBG("debug [%s:%c] * =FAIL= sharp turn found before end", getNameCharPtr(), letter);
@@ -1216,7 +1233,8 @@ QStringList Scenario::getWordListAsList() {
     int check = Scenario::checkHints(word,
 				     letter_history,
 				     flags,
-				     count);
+				     count,
+				     debug);
     if (check) {
       DBG("Word filtered by hint rule #%d: %s [%s]", check, QSTRING2PCHAR(word), getNameCharPtr());
     } else {
@@ -2187,7 +2205,7 @@ void Scenario::check_reverse_turn(int index1, int index2, int direction1, int di
 	DBG("[Hint-V] index=%d: *OK* -> disabling check_reverse_turn()", index_history[i]);
 	return;
 
-      } else if (curve->hasFlags(index_history[i], FLAG_HINT_O)) {
+      } else if (curve->hasFlags(index_history[i], FLAG_HINT_o)) {
 
 	// @TODO recursively call check_reverse_turn with each part around "hints" (wich check_hints = false)
 	DBG("[Hint-O] index=%d: *OK* -> disabling check_reverse_turn()", index_history[i]);
@@ -3270,34 +3288,49 @@ QList<QPair<unsigned char, Point> > Scenario::get_key_error(void) {
 /* check rules related to hints or diacritics keys */
 int Scenario::checkHints(QString word,
 			 unsigned char* keys,
-			 int* /* flags */,
-			 int /* count */) {
+			 int* flags,
+			 int count,
+			 bool debug_rules) {
   int result = 0;
 
   int pos = 0;
   int index = 0;
   unsigned char current_letter = 255;
   int letter_count = 0;
+  int len = word.length();
 
-  while(pos < word.length()) {
-    unsigned char letter = word[pos].isLetter()?caption2letter(QString(word[pos])):0;
-    if (letter && (letter != current_letter || pos == word.length() - 1)) {
+  while(pos <= len) {
+    unsigned char letter = 255;
+    if (pos < len) { letter = word[pos].isLetter()?caption2letter(QString(word[pos])):0; }
+
+    if (letter && letter != current_letter) {
       unsigned char key = keys[index];
 
       if (current_letter != 255) {
-	// <hint rules>
-	if (key >= '0' && key <= '9') { // key with diacritic sign
-	  bool ok = false;
-	  for(int j = 0; j < letter_count; j ++) { // checking all letters may be useful for Finnish language :-)
-	    if (word[pos - j - 1] != QChar(current_letter) &&
-		word[pos - j - 1] != QChar(current_letter - 32)) { ok = true; }
-	  }
-
-	  if (! ok) {
-	    result = 1; // rule 1: a key with diacritic sign can not match a candidate that contains only the plain version of the letter
-	  }
+	bool has_diacritic = false;
+	for(int j = 0; j < letter_count; j ++) { // checking all letters may be useful for Finnish language :-)
+	  if (word[pos - j - 1] != QChar(current_letter) &&
+	      word[pos - j - 1] != QChar(current_letter - 32)) { has_diacritic = true; }
 	}
-	// </hint rules>
+
+	/* --- hint rules --- */
+	if (debug_rules) { logdebug("  |Rules| index=%d key='%c' letter='%2s:%c' count=%d flags=%d has_diacritic=%d",
+				    index, key, QSTRING2PCHAR(word.mid(pos - letter_count, letter_count)),
+				    current_letter, letter_count, flags[index], has_diacritic); }
+
+	// rule 1: a key with a diacritic sign can not match a candidate that contains only the plain version of the letter
+	if (key >= '0' && key <= '9') { // key with diacritic sign
+	  if (! has_diacritic) { result = 1; }
+	}
+
+	// rule 2: hint-O (small loop) must match a dual letter or a letter with diacritic mark
+	int match_flag_hint_o = (index == 0 || index == count -1)?FLAG_HINT_o:FLAG_HINT_O;
+	// ^^ on curve tips, the "O-point" and match point (always the tip) do not match
+	if (flags[index] & match_flag_hint_o) {
+	  if (letter_count == 1 && ! has_diacritic) { result = 2; }
+	}
+
+	/* --- hint rules --- */
 
 	index ++;
       }
@@ -3311,6 +3344,20 @@ int Scenario::checkHints(QString word,
     }
 
     pos ++;
+  }
+
+  if (debug_rules) {
+    int l = strlen((char*) keys);
+    char flags_str[l + 1];
+    flags_str[l] = '\0';
+    for(int i = 0; i < l; i ++) {
+      flags_str[i] = '.';
+      for (int j = strlen(FLAG_STR) - 1; j >= 0; j --) {
+	if (flags[i] & (1<<j)) { flags_str[i] = FLAG_STR[j]; }
+      }
+    }
+    logdebug("  |Rules| %s [%s] [%s] --> %d",
+	     QSTRING2PCHAR(word), keys, flags_str, result)
   }
 
   return result;

@@ -414,6 +414,10 @@ void IncrementalMatch::incrementalMatchUpdate(bool finished, float aggressive) {
   bool proceed = false;
   for(int i = 0; i < curve_count; i ++) {
     current_length[i] = quickCurves[i].getTotalLength();
+
+    if (quickCurves[i].hasFlags(quickCurves[i].size() - 1, FLAG_HINT_o) && ! quickCurves[i].finished) {
+      continue; // it is no use retrying while user is drawing a hint loop
+    }
     if (current_length[i] >= next_iteration_length[i]) { proceed = true; }
   }
 

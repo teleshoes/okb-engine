@@ -38,8 +38,10 @@ class Point {
 
 #define FLAG_HINT_O (1<<0)
 #define FLAG_HINT_V (1<<1)
-#define FLAG_HINT_ANY (FLAG_HINT_O | FLAG_HINT_V)
 #define FLAG_HINT_o (1<<2)
+#define FLAG_HINT_ANY (FLAG_HINT_O | FLAG_HINT_V | FLAG_HINT_o)
+
+#define FLAG_STR "OVo"
 
 class CurvePoint : public Point {
  public:
@@ -123,10 +125,10 @@ class QuickCurve {
   inline int getNormalY(int index);
   inline int getSpeed(int index);
   inline int getCurveId(int index);
-  inline int size();
   inline int getTimestamp(int index);
   /* inline is probably useless nowadays */
 
+  int size();
   int getFlags(int index);
   bool hasFlags(int index, int mask);
   int getHintOIndex(int index0, bool incremental = false);
@@ -388,7 +390,7 @@ class Scenario {
 
   QList<QPair<unsigned char, Point> > get_key_error(void);
 
-  static int checkHints(QString, unsigned char*, int*, int);
+  static int checkHints(QString, unsigned char*, int*, int, bool debug_rules = false);
 };
 
 

@@ -349,7 +349,8 @@ QStringList MultiScenario::getWordListAsList() {
     int check = Scenario::checkHints(word,
 				     letter_history,
 				     flags,
-				     count);
+				     count,
+				     debug);
     if (check) {
       DBG("Word filtered by hint rule #%d: %s [%s]", check, QSTRING2PCHAR(word), getNameCharPtr());
     } else {

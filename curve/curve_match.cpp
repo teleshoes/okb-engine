@@ -600,6 +600,23 @@ void CurveMatch::curvePreprocess1(int curve_id) {
 	  total += turn;
 	} else if (i0) {
 	  int i1 = i - 1;
+
+	  // is the loop matching the beginning of the curve ?
+	  bool start_ok = true;
+	  for(int j = 1; j < i0 ; j++) {
+	    if (abs(oneCurve[j].turn_smooth) < params.hint_o_turn_min / 2 ||
+		oneCurve[j].turn_smooth * oneCurve[i0].turn_smooth < 0) { start_ok = false; }
+	  }
+	  if (start_ok) { i0 = 0; }
+
+	  // is the loop matching the tail of the curve ?
+	  bool end_ok = true;
+	  for(int j = i1 + 1; j < l - 1 ; j++) {
+	    if (abs(oneCurve[j].turn_smooth) < params.hint_o_turn_min / 2 ||
+		oneCurve[j].turn_smooth * oneCurve[i0].turn_smooth < 0) { end_ok = false; }
+	  }
+	  if (end_ok) { i1 = l - 1; }
+
 	  if (abs(total) > params.hint_o_total_min &&
 	      (i1 - i0) >= params.hint_o_min_segments) {
 	    int xavg = 0, yavg = 0;
