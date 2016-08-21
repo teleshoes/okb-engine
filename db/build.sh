@@ -55,22 +55,8 @@ fi
 cd `dirname "$0"`
 mydir=`pwd`
 
-# build python modules
-pushd ../ngrams
-python3 setup-cdb.py build
-python3 setup-fslm.py build
-popd
-
-# build clustering tool
-pushd ../cluster
-if [ ! -f "Makefile" ] ; then
-    qmake=${QMAKE:-qmake}
-    $qmake -query QT_VERSION | grep '^5.' >/dev/null || die "QT5 + qmake is required"
-    mkdir -p build
-    $qmake
-fi
-make
-popd
+# build all
+$mydir/../build_all.sh
 
 . $mydir/../tools/env.sh
 
