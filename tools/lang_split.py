@@ -11,7 +11,7 @@ for langf in sys.argv[1:]:
     with open(langf, encoding = "utf-8") as f:
         langs[os.path.basename(langf)] = set(f.read().lower().split('\n'))
 
-for line in sys.stdin.readlines():
+for line in sys.stdin:
     line = line.strip()
     l_line = line.lower()
     total = dict()
