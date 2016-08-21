@@ -777,7 +777,7 @@ bool Clustering::move(Word *word, Cluster *to, MoveType mode) {
 
   if (test_mode) { perplexity_check(); /* slow */ }
 
-  if (isnan(perplexity)) { throw QString("Perplexity is nan !"); }
+  if (::isnan(perplexity)) { throw QString("Perplexity is nan !"); }
 
  get_out:
   // purge unused cluster N-grams
@@ -1032,7 +1032,7 @@ void Clustering::eval_full() {
 }
 
 void Clustering::perplexity_check() {
-  if (isnan(perplexity)) { throw QString("Perplexity is nan !"); }
+  if (::isnan(perplexity)) { throw QString("Perplexity is nan !"); }
 
   double save_perplexity = perplexity;
   eval_full();
@@ -1042,7 +1042,7 @@ void Clustering::perplexity_check() {
     throw err;
   }
 
-  if (isnan(perplexity)) { throw QString("Perplexity is nan !"); }
+  if (::isnan(perplexity)) { throw QString("Perplexity is nan !"); }
 }
 
 void Clustering::reserve(int n) {
