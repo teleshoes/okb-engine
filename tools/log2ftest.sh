@@ -74,69 +74,88 @@ rescan=
 selected=
 [ -f "$FT_FILE" ] && selected="$(egrep ' \[X\] ' $FT_FILE | awk '{ print $3 }')"
 
+procs=$(( $(getconf _NPROCESSORS_ONLN) + 1 ))
+
 if [ -n "$rescan" ] ; then
+    tmpdir=$(mktemp -d /tmp/log2ftest.XXXXXX)
+
     getlogs | egrep '^(==WORD==|OUT:)' | (
-	n=0
+	cd "$tmpdir"
+	awk -v procs="$procs" '{ a ++ ; outf = int((a-1)/2) % procs ".lst"; print $0 >> outf }'
+    )
 
-	tmpjson=`mktemp /tmp/log2ftest.XXXXXX`
-	while read prefix id word suffix ; do
-	    read -r prefix js  # -r does not interpret backslash as an escape character
-	    [ "$prefix" = "OUT:" ]
+    for i in $(seq 0 $(( $procs - 1 )) ) ; do
+	cat "$tmpdir/$i.lst" | (
+	    touch "$tmpdir/$i.err"
+	    n=0
 
-	    n=`expr "$n" + 1`
-	    word=`echo "$word" | sed -r "s/^'(.*)'$/\1/"`
+	    tmpjson="$tmpdir/$i.pck"
 
-	    pre="$work_dir/$id"
+	    while read prefix id word suffix ; do
+		read -r prefix js  # -r does not interpret backslash as an escape character
+		[ "$prefix" = "OUT:" ]
 
-	    if [ -n "$only_selected" ] && [ -n "$selected" ] && ! echo "$selected" | grep '^'"$id"'$' >/dev/null ; then
-		echo "Skipping $id (not selected)" >&2
-		continue
-	    fi
+		n=`expr "$n" + 1`
+		word=`echo "$word" | sed -r "s/^'(.*)'$/\1/"`
 
-	    if [ -n "$quick" ] ; then
-		# quick mode when we need the result quickly
-		if [ ! -f "$pre.txt" -o -n "$reset" ] ; then
-		    lang=$(echo "$js" | head -n 1 | sed 's/^.*treefile[^\}]*\///' | less | cut -c 1-2)
+		pre="$work_dir/$id"
 
-		    in="$pre.in.json"
-		    echo "$js" > $in
-		    quote_word=$(tools/quoteshell.py "$word")
-		    cmd="tools/json-recover-keys.py \"$tmpjson\" < $in | "
-		    cmd="${cmd} cli/build/cli ${CLI_OPTS} -e ${quote_word} -g -s -d db/${lang}.tre > $pre.txt 2> $pre.err"
-		    echo "[$n] $id $word ($lang) --> $cmd" >&2
-		    echo "$cmd"
+		if [ -n "$only_selected" ] && [ -n "$selected" ] && ! echo "$selected" | grep '^'"$id"'$' >/dev/null ; then
+		    echo "Skipping $id (not selected)" >&2
+		    continue
 		fi
 
-	    else
-		# traditional mode with all fancy reporting & logging
-		if [ ! -f "$pre.png" -o -n "$reset" ] ; then
-		    js=$(echo "$js" | tools/json-recover-keys.py "$tmpjson")
+		if [ -n "$quick" ] ; then
+		    # quick mode when we need the result quickly
+		    if [ ! -f "$pre.txt" -o -n "$reset" ] ; then
+			lang=$(echo "$js" | head -n 1 | sed 's/^.*treefile[^\}]*\///' | less | cut -c 1-2)
 
-		    lang=$(echo "$js" | head -n 1 | sed 's/^.*treefile[^\}]*\///' | less | cut -c 1-2)
+			in="$pre.in.json"
+			echo "$js" > $in
+			quote_word=$(tools/quoteshell.py "$word")
+			#cmd="tools/json-recover-keys.py \"$tmpjson\" < $in | "
+			echo "[$i:$n] $id $word ($lang)"
+			cli/build/cli ${CLI_OPTS} -e "${quote_word}" -g -s -d "db/${lang}.tre" "$in" > $pre.txt 2> $pre.err
+		    fi
 
-		    in="$pre.in.json"
-		    log="$pre.log"
-		    json="$pre.json"
-		    html="$pre.html"
-		    png="$pre.png"
+		else
+		    # traditional mode with all fancy reporting & logging
+		    if [ ! -f "$pre.png" -o -n "$reset" ] ; then
+			js=$(echo "$js" | tools/json-recover-keys.py "$tmpjson")
 
-		    echo "$js" > $in
-		    cmd="cli/build/cli ${CLI_OPTS} -e \"${word}\" -d db/${lang}.tre \"$in\" > $log 2>&1 && "
-		    cmd="${cmd} cat $log | grep -i '^Result:' | tail -n 1 | sed 's/^Result:\ *//' > $json && "
-		    cmd="${cmd} cat $json | tools/jsonresult2html.py \"$word\" > $html.tmp && mv -f $html.tmp $html && "
-		    cmd="${cmd} cat $json | tools/jsonresult2html.py --image \"$png\""
+			lang=$(echo "$js" | head -n 1 | sed 's/^.*treefile[^\}]*\///' | less | cut -c 1-2)
 
-		    rm -f "$work_dir/$id.wt.log"
+			in="$pre.in.json"
+			log="$pre.log"
+			json="$pre.json"
+			html="$pre.html"
+			png="$pre.png"
 
-		    echo "[$n] $id $word ($lang) --> $cmd" >&2
-		    echo "$cmd"
+			echo "$js" > $in
+			echo "[$i:$n] $id $word ($lang)"
+
+			cli/build/cli ${CLI_OPTS} -e "${word}" -d db/${lang}.tre "$in" > $log 2>&1 && \
+			cat $log | grep -i '^Result:' | tail -n 1 | sed 's/^Result:\ *//' > $json && \
+			cat $json | tools/jsonresult2html.py "$word" > $html.tmp && mv -f $html.tmp $html && \
+			cat $json | tools/jsonresult2html.py --image "$png"
+
+			rm -f "$work_dir/$id.wt.log"
+
+		    fi
 		fi
-	    fi
+	    done
+	    rm -f "$tmpdir/$i.err"
+	) &
+    done
+    wait
+    if find "$tmpdir/" -name "*.err" | grep '^' ; then
+	echo "Some error occurred !"
+	exit 1
+    fi
+    rm -f "$tmpdir/"*
+    rmdir "$tmpdir"
 
-	done
-	touch "$ts"
-	rm -f "$tmpjson"
-    ) | parallel
+    touch "$ts"
 
 fi
 
