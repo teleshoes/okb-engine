@@ -92,7 +92,7 @@ clusters-%.txt: grams-%-learn.csv.bz2
 	$(eval lang=$*)
 	@echo "Computing clusters for language $(lang). Please make some coffee ..."
 	@echo " (logs can be found in clusters-$(lang).log)"
-	set -o pipefail ; lbzip2 -d < $< | sort -rn | sed -n "1,13500000 p" \
+	set -o pipefail ; lbzip2 -d < $< | sort -rn \
 	 | $(TOOLS_DIR)/cluster -n 10 -o clusters-$(lang).tmp > clusters-$(lang).log 2>&1
 	mv -f clusters-$(lang).tmp $@
 
