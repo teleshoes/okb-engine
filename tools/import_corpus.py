@@ -169,7 +169,7 @@ class CorpusImporter:
         # this is the right place for deduplication because upstream processes
         # have no notion of matched word
         dedupe = False
-        error_count = len([ x for x in sentence if x == '#ERR'])
+        error_count = sentence.count('#ERR')
         if error_count > len(sentence) / 2: dedupe = True
         # @todo handle other cases
         if dedupe:
