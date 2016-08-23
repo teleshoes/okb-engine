@@ -476,7 +476,7 @@ class LanguageModel:
 
 
         curve_max_gap = self.cf("p2_curve_max", 0.002, float)
-        curve_ratio = self.cf("p2_curve_ratio", 0.536, float)
+        curve_ratio = self.cf("p2_curve_ratio", 0.544, float)
         ratio = self.cf("p2_ratio", 100.0, float)
         fishout = self.cf("p2_fishout", 0.996, float)
 
