@@ -108,7 +108,7 @@ class CorpusImporter:
 
             # capitalized word at the beginning of a sentence
             if word.lower() in self.words and not self.sentence and word[0].isupper() and word[1:].islower():
-                self.add_word(word.lower())
+                self.add_word.append(word.lower())
                 continue
 
             # unchanged word
@@ -156,10 +156,10 @@ class CorpusImporter:
             if flag not in self.flags: self.flags[flag] = 0
             self.flags[flag] += 1
 
-        if isinstance(word, (list, tuple)):
-            self.sentence.extend(list(word))
-        else:
+        if isinstance(word, basestring):
             self.sentence.append(word)
+        else:
+            self.sentence.extend(word)
 
     def next_sentence(self):
         if not self.sentence: return
