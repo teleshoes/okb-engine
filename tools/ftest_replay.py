@@ -39,7 +39,7 @@ class Tools:
 
         if key in self.params:
             value = cast(self.params[key]) if cast else self.params[key]
-        elif not default_value or not cast:
+        elif default_value is None or not cast:
             raise Exception("No default value or type %s" % key)
         else:
             value = self.params[key] = cast(default_value)
@@ -60,6 +60,9 @@ def play_all(records, tools, backtrack = False, verbose = True, mock_time = Fals
 
     print("# %d records - %d langs" % (len(records), len(all_langs)))
     for lang in sorted(all_langs):
+        lang_filter = tools.cf("lang", "", str)
+        if lang_filter and lang != lang_filter: continue
+
         db_file = os.path.join(db_path, "predict-%s.db" % lang)
         db = backend.FslmCdbBackend(db_file)
         if db_reset: db.factory_reset()
