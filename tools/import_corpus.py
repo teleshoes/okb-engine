@@ -11,6 +11,8 @@ import time
 import gzip
 import re
 import getopt
+import unicodedata
+
 
 debug = clean = False
 opts, args =  getopt.getopt(sys.argv[1:], 'cd')
@@ -38,14 +40,17 @@ class CorpusImporter:
     def __init__(self, debug = False, clean = False):
         self.grams = dict()
         self.sentence = []
+        self.flags = dict()
         self.word_used = set()
         self.size = 0
         self.debug = debug
         self.clean = clean
+        self.dedupe = set()
 
     def load_words(self, words):
         self.words = set()
         self.islower = dict()
+        self.noaccents = dict()
         for word in words:
             word = word.strip()  # .decode('utf-8')
             if not word: continue  # skip blank lines
@@ -54,6 +59,11 @@ class CorpusImporter:
             self.words.add(word)
             if word.lower() != word:
                 self.islower[word.lower()] = word
+
+            noaccents = ''.join(c for c in unicodedata.normalize('NFD', word) if unicodedata.category(c) != 'Mn')
+            if noaccents != word:
+                self.noaccents[noaccents] = word
+
 
     def parse_line(self, line):
         if self.debug: print(line)
@@ -87,8 +97,7 @@ class CorpusImporter:
             if mo:
                 line = line[mo.end(0):]
                 if re.match(r'^[A-Z]\b', line): line = line[1:]  # last letter without "."
-                self.next_sentence()
-                self.sentence.append('#ERR')
+                self.add_word('#ERR')
                 continue
 
             # read next word
@@ -99,59 +108,78 @@ class CorpusImporter:
 
             # capitalized word at the beginning of a sentence
             if word.lower() in self.words and not self.sentence and word[0].isupper() and word[1:].islower():
-                self.sentence.append(word.lower())
+                self.add_word(word.lower())
                 continue
 
             # unchanged word
             if word in self.words:
-                self.sentence.append(word)
+                self.add_word(word)
                 continue
 
             # other capitalized
             if word.lower() in self.words:
-                self.sentence.append(word.lower())
+                self.add_word(word.lower())
                 continue
 
             # lowercase version of a proper noun
             if word in self.islower:
-                self.sentence.append(self.islower[word])
+                self.add_word(self.islower[word])
                 continue
 
-            # english "'s"
+            # english "'s" (@TODO remove when compound words are implemented)
             mo1 = re.match(r'^([a-zA-Z]+)\'[a-z]$', word)
             if mo1 and mo1.group(1) in self.words:
-                self.sentence.append(mo1.group(1))
+                self.add_word(mo1.group(1))
+                continue
+
+            # word with forgotten diacritics (occurs sometime in my French corpus file)
+            if word in self.noaccents:
+                self.add_word(self.noaccents[word])
                 continue
 
             # in word hyphen
             # @todo: we should find a way to "auto-hyphen" when typing (n-grams tagging?)
+            # (@TODO remove when compound words are implemented)
             l = re.split(r'[\'\-]', word)
             if not [ w for w in l if w not in self.words ]:
-                self.sentence.extend(l)
+                self.add_word(l)
                 continue
             if not [ w for w in l if w.lower() not in self.words ]:
-                self.sentence.extend([w.lower() for w in l])
+                self.add_word([w.lower() for w in l])
                 continue
 
             # unknown word
-            self.next_sentence()
-            self.sentence.append('#ERR')
+            self.add_word('#ERR')
+
+    def add_word(self, word, flags = dict()):
+        for flag in flags:
+            if flag not in self.flags: self.flags[flag] = 0
+            self.flags[flag] += 1
+
+        if isinstance(word, (list, tuple)):
+            self.sentence.extend(list(word))
+        else:
+            self.sentence.append(word)
 
     def next_sentence(self):
         if not self.sentence: return
         sentence = self.sentence
-        txt = ' '.join(sentence)
-        if self.clean and sentence != [ '#ERR' ]: print(txt)
-        self.sentence = [ ]
+        if self.clean: print(' '.join(sentence))
+
+        # this is the right place for deduplication because upstream processes
+        # have no notion of matched word
+        dedupe = False
+        error_count = sentence.count('#ERR')
+        if error_count > len(sentence) / 2: dedupe = True
+        # @todo handle other cases
+        if dedupe:
+            key = ' '.join(sentence)
+            if key in self.dedupe: return
+            self.dedupe.add(key)
+
 
         if self.debug: print("WORDS:", sentence)
-
         roll = [ '#START' ] * 3
-        if sentence[0] == '#ERR':
-            sentence.pop(0)
-            roll = [ '#ERR' ] * 3
-
-        # if len(sentence) < 2: return  # one-word sentences are suspicious :-) -> not at all!
 
         for word in sentence:
             self.word_used.add(word)
@@ -173,6 +201,7 @@ class CorpusImporter:
             self.count([roll[2]])
 
         self.sentence = [ ]
+        self.flags = dict()
 
     def count(self, elts):
         elts = elts[:]
