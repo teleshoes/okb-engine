@@ -157,6 +157,8 @@ cdb_get_words(PyObject *self, PyObject *args)
     if (PyTuple_SetItem(tuple, 1, item)) { return NULL; }
 
     if (PyDict_SetItem(dict, wkey, tuple)) { return NULL; }
+    Py_DECREF(tuple);
+    Py_DECREF(wkey);
   }
 
   return dict;
@@ -194,7 +196,7 @@ cdb_get_word_by_id(PyObject *self, PyObject *args)
 	    if (! strcmp(wptr, "=")) { wptr = key; }
 	    return PyUnicode_FromString(wptr);
 	  }
-	}       
+	}
       }
     }
   }
@@ -219,7 +221,9 @@ cdb_set_words(PyObject *self, PyObject *args)
     char *wkeytxt;
     if (!PyArg_ParseTuple(wvalue, "ii", &id, &cluster_id)) { return NULL; }
     // deprecated: if (PyUnicode_AsStringAndSize(wkey, &wkeytxt, &len)) { return NULL; }
-    wkeytxt = PyBytes_AsString(PyUnicode_AsUTF8String(wkey));
+    PyObject *bytes = PyUnicode_AsUTF8String(wkey);
+    wkeytxt = PyBytes_AsString(bytes);
+    Py_DECREF(bytes);
     if (! wkeytxt) { return NULL; }
 
     if (!strcmp(wkeytxt, key)) { wkeytxt = "="; }
@@ -304,6 +308,7 @@ cdb_get_keys(PyObject *self, PyObject *args)
       PyObject* key = PyUnicode_FromString(data);
       if (! key) { return NULL; }
       if (PyList_Append(list, key)) { return NULL; }
+      Py_DECREF(key);
     }
   }
 
