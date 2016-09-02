@@ -209,7 +209,7 @@ cdb_set_words(PyObject *self, PyObject *args)
 {
   PyObject *dict;
   char *key;
-  PyObject *wkey, *wvalue;
+  PyObject *wkey, *wvalue, *bytes;
   Py_ssize_t pos = 0;
   char* ptr = buf;
 
@@ -221,7 +221,7 @@ cdb_set_words(PyObject *self, PyObject *args)
     char *wkeytxt;
     if (!PyArg_ParseTuple(wvalue, "ii", &id, &cluster_id)) { return NULL; }
     // deprecated: if (PyUnicode_AsStringAndSize(wkey, &wkeytxt, &len)) { return NULL; }
-    PyObject *bytes = PyUnicode_AsUTF8String(wkey);
+    bytes = PyUnicode_AsUTF8String(wkey);
     wkeytxt = PyBytes_AsString(bytes);
     Py_DECREF(bytes);
     if (! wkeytxt) { return NULL; }
