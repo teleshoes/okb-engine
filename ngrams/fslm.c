@@ -230,7 +230,7 @@ int search(db_t *db, int wids[], int count) {
   for(i = 0; i < count; i ++) {
     int new_context = 0;
     result = lookup_table(db, i, wids[i], context, &new_context);
-    if (count == -1) { return -1; }
+    if (result == -1) { return -1; }
     context = new_context;
   }
 

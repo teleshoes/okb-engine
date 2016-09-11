@@ -1176,8 +1176,6 @@ int main(int argc, char* argv[]) {
 
       if (full_dump) { cl.dump(); }
       cl.print_stats();
-
-      if (((c++) % 500) == 0) { cl.perplexity_check(); } // lame hack is back: maybe avoid some out-of-memory crashes on my 32bit PC :-(
     }
 
     // final optimization
