@@ -68,3 +68,4 @@ for target in $tgt_list ; do
 done
 
 rsync -av *.tre *.db *.ng *.rpt.bz2 clusters-*.txt *.id $mydir/
+for db in $mydir/*.db ; do cp -f "$db" "$db.orig"; done

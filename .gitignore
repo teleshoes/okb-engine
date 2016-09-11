@@ -28,3 +28,4 @@ clusters-*.txt
 badcurve
 key_shift_*.ks
 *.lock
+*.db.orig

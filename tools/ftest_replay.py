@@ -39,7 +39,7 @@ class Tools:
 
         if key in self.params:
             value = cast(self.params[key]) if cast else self.params[key]
-        elif not default_value or not cast:
+        elif default_value is None or not cast:
             raise Exception("No default value or type %s" % key)
         else:
             value = self.params[key] = cast(default_value)
@@ -60,12 +60,16 @@ def play_all(records, tools, backtrack = False, verbose = True, mock_time = Fals
 
     print("# %d records - %d langs" % (len(records), len(all_langs)))
     for lang in sorted(all_langs):
+        lang_filter = tools.cf("lang", "", str)
+        if lang_filter and lang != lang_filter: continue
+
         db_file = os.path.join(db_path, "predict-%s.db" % lang)
         db = backend.FslmCdbBackend(db_file)
         if db_reset: db.factory_reset()
-        lm = language_model.LanguageModel(db, tools = tools, debug = verbose, dummy = False)
+        lm = language_model.LanguageModel(db, tools = tools, debug = False, dummy = False)
 
-        last_expected = last_guess = None
+        guessed_context = []
+        hist = []
 
         for t in records:
             if t["lang"] != lang: continue
@@ -77,12 +81,9 @@ def play_all(records, tools, backtrack = False, verbose = True, mock_time = Fals
             details = dict()
             context = list(t["context"])
             learn_context = list(context)
-            if backtrack and context and last_guess and context[-1] == last_expected:
-                context_bak = context
-                # in order to test backtracking, we need the previous wrong guesses in the context
-                # otherwise, the backtracking function consistency check will abort
-                context[-1] = last_guess
-                tools.log("Updating context for backtracking", context_bak[-4:], "->", context[-4:])
+
+            if not context or context[-1] == "#START":
+                guessed_context = []
 
             guesses = lm.guess(context, t["candidates"],
                                correlation_id = t["id"], speed = t["speed"],
@@ -92,6 +93,8 @@ def play_all(records, tools, backtrack = False, verbose = True, mock_time = Fals
             avg = lambda l: sum(l) / len(l)
             score_curve = lambda w: avg(details[w]["curve"])
             exp = t["expected"]
+
+            hist = [ (exp, guesses[0] if guesses else None) ] + hist[:10]
 
             if exp not in guesses:
                 fields = [ "NOT_FOUND", -1, -1 ]
@@ -137,6 +140,9 @@ def play_all(records, tools, backtrack = False, verbose = True, mock_time = Fals
             tools.log("[*] Guess %s \"%s\" (expected \"%s\"): %s" %
                       (t["context"], guesses[0] if guesses else "?", t["expected"], ("=OK=" if ok else "*FAIL*")))
 
+            if guesses: guessed_context.append(guesses[0])
+            else: guessed_context =  []
+
             if learn:
                 # @todo use right "replace" value when backtracking is active
                 replaces = guesses[0] if not ok and guesses and learn_replace else None
@@ -147,25 +153,24 @@ def play_all(records, tools, backtrack = False, verbose = True, mock_time = Fals
 
             if backtrack:
                 tools.log("")
-                rst = lm.backtrack(verbose = True)
+                rst = lm.backtrack(' '.join(guessed_context), verbose = verbose, testing = True)
                 if rst:
-                    (w1, w0, w1_old, w0_old, dum1, dum2) = rst
                     bt_count += 1
-                    ok1 = (w1 == last_expected and w0 == t["expected"])
-                    if ok1: bt_ok += 1
-                    tools.log("[*] Backtracking %s" % ("=BT-OK=" if ok1 else "*BT-FAIL*"),
-                              "Expected:", [ last_expected, t["expected"] ], "Actual:", [w1, w0])
-                    tools.log()
+                    index, old, new, id = rst
+                    if hist[index][1] != old: raise Exception("boum: " + hist[index][1] + "," + old)  # sanity check
+                    old_ok = (hist[index][1] == hist[index][0])
+                    new_ok = (new == hist[index][0])
 
-                    # update counts
-                    if last_guess == last_expected: count_ok -= 1
-                    if ok: count_ok -= 1
-                    if w1 == last_expected: count_ok += 1
-                    if w0 == exp: count_ok += 1
-
-
-            last_expected = t["expected"]
-            last_guess = guesses[0] if guesses else None
+                    if new_ok:
+                        bt_ok += 1
+                        st = "=BT-OK="
+                        count_ok += 1
+                    elif old_ok:
+                        st = "*BT-FAIL*"
+                        count_ok -= 1
+                    else: st = "*BT-FAIL*"
+                    tools.log("[*] Backtracking %s %s -> %s %s" % (guessed_context, old, new, st))
+                    # @todo learn
 
         if learn: lm.cleanup(force_flush = True)
         lm.close()
@@ -173,7 +178,7 @@ def play_all(records, tools, backtrack = False, verbose = True, mock_time = Fals
 
     if display_stats:
         print("Summary: total=%d OK=(%.2f%%) bad=(%.2f%%)" % (count, 100.0 * count_ok / count, 100.0 * count_bad / count))
-        if bt_count: print("Summary: backtrack=%d OK=(%.2f%%)" % (bt_count, 100.0 * bt_ok / bt_count))
+        if bt_count: print("Summary: backtrack=%d OK=%d (%.2f%%)" % (bt_count, bt_ok, 100.0 * bt_ok / bt_count))
 
     return 100.0 * count_ok / count
 

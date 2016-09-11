@@ -7,7 +7,7 @@ import time
 import re
 import unicodedata
 import math
-
+import os
 
 def word2letters(word):
     letters = ''.join(c for c in unicodedata.normalize('NFD', word.lower()) if unicodedata.category(c) != 'Mn')
@@ -84,6 +84,8 @@ class LanguageModel:
         self._debug = debug
 
         if dummy: self._dummy_request()
+
+        if os.getenv('LM_DEBUG', None): self._debug = True
 
     def mock_time(self, time):
         self._mock_time = time
@@ -400,7 +402,7 @@ class LanguageModel:
 
         return candidates
 
-    def _get_words(self, candidates, context = None, get_count = False):
+    def _get_words(self, candidates, context = None, get_count = False, uncapitalized = True):
         """ convert candidates (single or lists of words) to a list of WordInfo instances
             input: dict: candidate id => word or list of words
             output: dict: candidate id => WordInfo list
@@ -421,7 +423,8 @@ class LanguageModel:
             wi_list_candidate = list()
             for w in c:
                 wi_list = self._add_wi_context(w, wi_context_candidate, get_count = get_count,
-                                               uncapitalized = True)  # <- candidates are uncapitalized words from curve plugin dictionary
+                                               uncapitalized = uncapitalized)
+                #                              ^^^ candidates are uncapitalized words from curve plugin dictionary
                 if not wi_list:
                     wi_list_candidate = []
                     break
@@ -467,21 +470,21 @@ class LanguageModel:
         curve_max_gap2 = self.cf("p2_curve_max2", 0.011, float)
 
         # filter candidates with bad curve (coarse setting)
-        if curve_score1 > curve_score2 + curve_max_gap2: return -1
-        if curve_score2 > curve_score1 + curve_max_gap2: return 1
+        if curve_score1 > curve_score2 + curve_max_gap2: return -1, "curve"
+        if curve_score2 > curve_score1 + curve_max_gap2: return 1, "curve"
 
-        if not coefs1 and not coefs2: return 0
-        if not coefs1: return 1
-        if not coefs2: return -1
+        if not coefs1 and not coefs2: return 0, "none"
+        if not coefs1: return 1, "no coef 1"
+        if not coefs2: return -1, "no coef 2"
 
 
         curve_max_gap = self.cf("p2_curve_max", 0.002, float)
-        curve_ratio = self.cf("p2_curve_ratio", 0.544, float)
-        ratio = self.cf("p2_ratio", 100.0, float)
-        fishout = self.cf("p2_fishout", 0.996, float)
+        curve_ratio = self.cf("p2_curve_ratio", 0.7, float)
+        ratio = self.cf("p2_ratio", 112.8, float)
+        default = self.cf("p2_default", 1.397, float)
 
         # score evaluation: linear combination of log probability ratios
-        if not curve_max_gap: return 0  # optimizer dirty workaround
+        if not curve_max_gap: return 0, "parms_max_gap"  # optimizer dirty workaround
         curve_coef = 10. ** (curve_ratio * (curve_score2 - curve_score1) / curve_max_gap)  # [0.1, 10], <1 if first word wins
 
         score_ratio = dict()
@@ -489,17 +492,17 @@ class LanguageModel:
             c1, c2 = coefs1.get(s_id, 0), coefs2.get(s_id, 0)
 
             if c1 == 0 and c2 == 0: s = 0
-            elif c1 == 0: s = 1
-            elif c2 == 0: s = -1
+            elif c1 == 0: s = default
+            elif c2 == 0: s = -default
             else: s = math.log10(curve_coef * c2 / c1) / math.log10(ratio)
 
             score_ratio[s_id] = s
 
         lst = [ (1, score_ratio["s1"]),
-                (self.cf("p2_coef_s2", 1, float), score_ratio["s2"]),
-                (self.cf("p2_coef_s3", 1, float), score_ratio["s3"]),
-                (self.cf("p2_coef_c2", 1, float), score_ratio["c2"]),
-                (self.cf("p2_coef_c3", 1, float), score_ratio["c3"]) ]
+                (self.cf("p2_coef_s2", 2.256, float), score_ratio["s2"]),
+                (self.cf("p2_coef_s3", 3.931, float), score_ratio["s3"]),
+                (self.cf("p2_coef_c2", 2.064, float), score_ratio["c2"]),
+                (self.cf("p2_coef_c3", 3.463, float), score_ratio["c3"]) ]
 
         total = total_coef = 0.0
         for (coef, sc) in lst:
@@ -507,14 +510,19 @@ class LanguageModel:
                 total += coef * sc
                 total_coef += coef
 
-        score = self.cf("p2_master_coef", 1.887, float) * total / total_coef if total_coef else 0
+        score = self.cf("p2_master_coef", 1.939, float) * total / total_coef if total_coef else 0
 
-        # filter candidates with bad curve (fine setting but with exception for obvious winners)
-        if curve_score1 > curve_score2 + curve_max_gap and score < fishout: return -1
-        if curve_score2 > curve_score1 + curve_max_gap and score > -fishout: return 1
+        return score, "std:%.3f %s" % (score,
+                                       ", ".join([ "%s=%.2e" % (cn, cs)
+                                                   for (cn, cs) in score_ratio.items() ]) if self._debug else "-")
 
-        return score
-
+    def _compare_coefs_debug(self, coefs1, curve_score1, coefs2, curve_score2, word1, word2):
+        result = self._compare_coefs(coefs1, curve_score1, coefs2, curve_score2)
+        if not self._debug: return result[0]
+        tr = lambda coefs: ", ".join([ "%s=%.5f" % (x, y) for (x, y) in coefs.items() ])
+        self.debug("%s[%.3f : %s] <=> %s[%.3f : %s] : compare=%.3f [%s]" %
+                   (word1, curve_score1, tr(coefs1), word2, curve_score2, tr(coefs2), result[0], result[1]))
+        return result[0]
 
     def _eval_score(self, candidates, verbose = False, expected_test = None):
         """ Evaluate overall score (curve + predict)
@@ -523,6 +531,7 @@ class LanguageModel:
 
         if not candidates: return dict()
 
+        p2_default_coef = 10 ** (- 10 * self.cf("p2_default_coef_log", 1., float))
         current_day = int(self._now() / 86400)
 
         # --- data preparation ---
@@ -543,7 +552,7 @@ class LanguageModel:
                         coef1 = ((wi.count["coef_wc"] if score_id[0] == 'c' else 1.0) *
                                   wi.count[score_id].count / wi.count[score_id].total_count)
                         found = True
-                    else: coef1 = 1E-6  # arbitrary (small) value
+                    else: coef1 = p2_default_coef  # arbitrary (small) value
                     coef *= coef1
                 if not found: coef = 0
                 if coef > 0:
@@ -558,31 +567,38 @@ class LanguageModel:
 
         # remove candidate with "coarse comparison failed" and keep others in a "green-list"
         green_list = set()
-        for c in all_coefs.keys():
+        for c in sorted(all_coefs.keys()):  # sort for repeatable results
             if not green_list:
                 green_list.add(c)
+                self.debug("green list += %s (first)" % c)
                 continue
 
             remove = False
             for c0 in list(green_list):
-                compare = self._compare_coefs(all_coefs[c0], curve_scores.get(c0, 0),
-                                              all_coefs[c], curve_scores.get(c, 0))
+                compare = self._compare_coefs_debug(all_coefs[c0], curve_scores.get(c0, 0),
+                                                    all_coefs[c], curve_scores.get(c, 0), c0, c)
 
                 if compare >= 1:  # new candidate evict another candidate from reference list
                     green_list.remove(c0)
+                    self.debug("green list -= %s (%.3f)" % (c0, compare))
+
                 elif compare <= -1:  # new candidate is eliminated by another one in reference list
                     remove = True
 
-            if not remove: green_list.add(c)
+            if not remove:
+                green_list.add(c)
+                self.debug("green list += %s" % c)
+
 
         # ordering fine tuning for candidates still in the green-list
         last_c0 = None
         green_list = list(green_list)
         adj_f = lambda x: -0.0001 if x[0].isupper() else 0
+        p2_fine_threshold = self.cf("p2_fine_threshold", 0.288, float)
         if green_list:
-            for _ in range(2):
+            for _ in range(3):
                 green_list.sort(key = lambda x:  (score_f(x), x), reverse = True)  # the tuple ensures repeatable results
-                p2_score_fine = self.cf("p2_score_fine", 0.003, float)
+                p2_score_fine = self.cf("p2_score_fine", 0.002, float)
                 self.debug("green list", str(green_list))
                 c0 = green_list[0]
                 if c0 == last_c0: break
@@ -590,20 +606,27 @@ class LanguageModel:
 
                 predict_scores[c0] = (adj_f(c0), "reference")
                 for c in green_list[1:]:
-                    compare = self._compare_coefs(all_coefs[c0], curve_scores.get(c0, 0),
-                                                  all_coefs[c], curve_scores.get(c, 0))
+                    compare = self._compare_coefs_debug(all_coefs[c0], curve_scores.get(c0, 0),
+                                                        all_coefs[c], curve_scores.get(c, 0), c0, c)
 
                     if compare:
+                        if abs(compare) < p2_fine_threshold: compare = 0
                         predict_scores[c] = (compare * p2_score_fine + adj_f(c),
                                              "fine:%.4f" % compare)
+                        self.debug("fine[%.4f]: '%s'" % (compare, c))
                     else:
                         predict_scores[c] = (adj_f(c), "ex-aequo")
+                        self.debug("ex-aequo: '%s'" % c)
 
         for c in candidates:
             if c not in all_coefs:
                 predict_scores[c] = (- self.cf("p2_score_unknown", 0.008, float), "unknown")
+                self.debug("unknown: '%s'" % c)
             elif c not in predict_scores:
-                predict_scores[c] = (- self.cf("p2_score_coarse", 0.015, float), "coarse")
+                compare = self._compare_coefs_debug(all_coefs[c0], curve_scores.get(c0, 0),
+                                                    all_coefs[c], curve_scores.get(c, 0), c0, c)
+                predict_scores[c] = (compare * self.cf("p2_score_coarse", 0.015, float), "coarse:%.2f" % compare)
+                self.debug("coarse[%.4f]: '%s'" % (compare, c))
 
         # --- prediction score evaluation (user) ---
         user_stats = dict()
@@ -690,13 +713,13 @@ class LanguageModel:
                 col3 = [ ]
 
                 for wi in wi_list or []:
-                    li = "  "
+                    li = " %-8s" % wi.word[:8]
                     # stock counts
                     for score_id in LanguageModel.ALL_SCORES:
                         if score_id in wi.count and wi.count[score_id].count > 0:
-                            c = wi.count[score_id]
-                            txt = score_id + ": " + smallify_number(c.count) \
-                                + '/' + smallify_number(c.total_count) + "  "
+                            cc = wi.count[score_id]
+                            txt = score_id + ": " + smallify_number(cc.count) \
+                                + '/' + smallify_number(cc.total_count) + "  "
                         else:
                             txt = " " * 15
                         li += txt
@@ -713,16 +736,27 @@ class LanguageModel:
                     li = "U>"
                     for score_id in LanguageModel.ALL_SCORES:
                         if score_id in wi.count and wi.count[score_id].user_count > 0:
-                            c = wi.count[score_id]
-                            txt = score_id + ":" + smallify_number_3(c.user_count) \
-                                + ":" + smallify_number_3(c.user_replace) \
-                                + '/' + smallify_number_3(c.total_user_count) + " "
+                            cc = wi.count[score_id]
+                            txt = score_id + ":" + smallify_number_3(cc.user_count) \
+                                + ":" + smallify_number_3(cc.user_replace) \
+                                + '/' + smallify_number_3(cc.total_user_count) + " "
                             found = True
                         else:
                             txt = " " * 15
                         li += txt
 
                     if found: col3.append(li)
+
+                if c in all_coefs:
+                    li = " ------- "
+                    for score_id in LanguageModel.ALL_SCORES:
+                        cc = all_coefs[c].get(score_id, None)
+                        if cc: li += "%s: [%.2e] " % (score_id, cc)
+                        else: li += " " * 15
+                    col3.append(li)
+
+                if not col3: col3.append(" (unknown)")
+
 
                 while col2 or col3:
                     txtout.append(head
@@ -736,36 +770,62 @@ class LanguageModel:
 
 
     def guess(self, context, candidates, correlation_id = -1, speed = None,
-              verbose = False, expected_test = None, details_out = None):
+              verbose = False, expected_test = None, details_out = None,
+              uncapitalized = True, history = True):
         """ Main entry point for guessing a word
-            input = candidates as a dict (word => curve score)
-            ouput = ordered list (most likely word first)
+            input:
+             - candidates as any of the following as a dict
+                 key (string) = word or list of word as a whitespace separated list
+                 value (float or list of floats) = curve matching score(s)
+             - context as a list of string
+             - uncapitalized (bool)
+                 True if words are supposed to be properly capitalized
+                      (e.g. words read from surrounding text)
+                 False if words are uncapitalized
+                       (e.g. candidates from curve matching plugin)
+            output:
+             - ordered list (most likely word first)
+             - updated detail_out dict if provided (with all calculation details)
             if context does not include #START tag it will be considered
             as incomplete """
 
-        self.log("ID: %s - Speed: %d - Context: %s (reversed)" %
-                 (correlation_id, speed or -1, list(reversed(context))))
+        self.log("ID: %s - Speed: %d - Context: %s (reversed) - DB: %s" %
+                 (correlation_id, speed or -1, list(reversed(context)),
+                  self._db.dbfile))
         # ^^ context is reversed in logs (for compatibility with older logs)
 
-        self.log("Candidates: " + ', '.join([ '%s[%.2f]' % (c, candidates[c])
-                                              for c in sorted(candidates.keys(),
+        if not candidates:
+            self.log("no candidate")
+            return []
+
+        candidates_tmp = dict()
+        for words, score_curve in candidates.items():
+            if isinstance(score_curve, (list, tuple)):
+                score_curve = sum(score_curve) / len(score_curve) if score_curve else 1
+            word_list = [ w for w in re.split(r'[^\w\'\-]+', words) if w ]
+            candidates_tmp[words] = (word_list, score_curve)
+
+        self.log("Candidates: " + ', '.join([ '%s[%.2f]' % (c, candidates_tmp[c][1])
+                                              for c in sorted(candidates_tmp.keys(),
                                                               key = lambda x: candidates[x],
                                                               reverse = True) ]))
 
-        max_score = max(list(candidates.values()) + [ 0 ])
+        sorted_candidates = sorted(candidates_tmp.keys(), key = lambda x: candidates_tmp[x][1], reverse = True)
 
+        max_score = candidates_tmp[sorted_candidates[0]][1]
         max_count = self.cf("p2_max_candidates", 50, int)
-        if len(candidates) > max_count:
-            filt = max_score - sorted(list(candidates.values()), reverse = True)[max_count]
+        if len(sorted_candidates) > max_count:
+            filt = max_score - candidates_tmp[sorted_candidates[max_count]][1]
         else:
             filt = self.cf("p2_filter", 0.025, float)
 
-        candidates = dict([ (w, s) for w, s in candidates.items()
-                            if s >= max_score - filt ])
+        candidates = dict([ (w, v) for w, v in candidates_tmp.items()
+                            if v[1] >= max_score - filt ])
 
-        wi_lists = self._get_words(dict([ (x, x) for x in candidates.keys() ]), context, get_count = True)
+        wi_lists = self._get_words(dict([ (x, candidates[x][0]) for x in candidates.keys() ]), context,
+                                   get_count = True, uncapitalized = uncapitalized)
 
-        scores = self._eval_score(dict([ (x, ([ candidates[x] ], wi_lists.get(x, None))) for x in candidates ]),
+        scores = self._eval_score(dict([ (x, ([ candidates[x][1] ], wi_lists.get(x, None))) for x in candidates ]),
                                   verbose = verbose, expected_test = expected_test)
 
         if details_out is not None: details_out.update(scores)
@@ -775,108 +835,120 @@ class LanguageModel:
                         reverse = True)
 
         # keep guess history for later backtracking
-        self._history = [ dict(result = result,
-                               candidates = candidates,
-                               guess = result[0] if result else None,
-                               correlation_id = correlation_id,
-                               expected_test = expected_test,
-                               context = context) ] + self._history[:2]
+        if history:
+            self._history = [ dict(result = list(result),
+                                   candidates = candidates,
+                                   guess = result[0] if result else None,
+                                   correlation_id = correlation_id,
+                                   expected_test = expected_test,
+                                   context = context,
+                                   scores = scores,
+                                   ts = time.time()) ] + self._history[:5]
 
         if result: self.log("Selected word: %s" % result[0])  # keep compatibility with log parser
 
         return result
 
-    def backtrack(self, correlation_id = -1, verbose = False):
+    def backtrack(self, context, correlation_id = -1, verbose = False, testing = False):
         """ suggest backtracking solution for last two (at the moment) guesses
-            return value (tuple): new word1, new word2,
-                                  expected word1 (capitalized), expected word2 (capitalized), correlation_id,
-                                  capitalize 1st word (bool) """
+            return value (tuple): (start position, old content, new content, correlation_id) """
 
-        if len(self._history) < 2: return
-        self.debug("backtrack: context[0]", self._history[0])
-        self.debug("backtrack: context[1]", self._history[1])
-
-        h0, h1 = self._history[0], self._history[1]
-        if not h0["guess"] or not h1["guess"]: return
-
-        ctx0 = h0["context"][-3:]
-        ctx1 = (h1["context"] + [ h1["guess"] ])[-3:]
-        self.debug("backtrack: context match check", ctx0, ctx1)
-        if ' '.join(ctx0).lower() != ' ' .join(ctx1).lower(): return
-
+        timeout = self.cf("backtrack_timeout", 3, int)
         max_count = self.cf("backtrack_max", 5, int)
-        context = h1["context"]
+        score_threshold = self.cf("backtrack_score_threshold", 0.01, float)
 
-        expected_test = None
-        lc0 = set(sorted(h0["candidates"], key = lambda x: h0["candidates"][x], reverse = True)[:max_count] + [ h0["guess"] ])
-        lc1 = set(sorted(h1["candidates"], key = lambda x: h1["candidates"][x], reverse = True)[:max_count] + [ h1["guess"] ])
-        reference_id = None
+        min_s3 = 10 ** (- 10 * self.cf("backtrack_min_s3_log", 0.6, float))
 
-        self.log("Backtrack: ID=[%s] %s %s + %s" % (correlation_id, context, lc1, lc0))
+        words = []
+        pattern = re.compile("[\w\'\-]+")
+        for match in pattern.finditer(context):
+            words.append((match.start(), match.group()))
 
-        candidates = dict()
-        curve_scores = dict()
-        for c0 in lc0:
-            for c1 in lc1:
-                id = "%s %s" % (c1, c0)
+        pos = 0
+        now = time.time()
+        while pos < len(words) and pos < 4:
+            # @TODO handle non-swiped words
+            if words[-1 - pos][1].lower() != self._history[pos]["guess"].lower(): break
+            if self._history[pos]["ts"] < now - 1 - pos * timeout and not testing: break  # ignore timing aspect in replay
 
-                if h1["expected_test"] and h0["expected_test"] \
-                   and c1 == h1["expected_test"] and c0 == h0["expected_test"]:
-                    expected_test = id
+            if testing:
+                # ignore correction done by user at recording time (allow to test more cases)
+                if pos > 0 and self._history[pos - 1]["context"][-1].lower() not in [ x.lower() for x in self._history[pos]["result"] ]: break
+            else:
+                # if user has done a manual correction, backtracking will be disabled
+                if pos > 0 and self._history[pos - 1]["context"][-1].lower() != self._history[pos]["guess"].lower(): break
+            pos += 1
 
-                curve_scores[id] = [ h1["candidates"].get(c1, 0), h0["candidates"].get(c0, 0) ]
+        self.log("*** Backtrack: [%s]" % context, "ID:", correlation_id, "Words:", words,
+                 "History:", list(reversed([ h["guess"] for h in self._history ])), "matches:", pos)
 
-                if c0 == h0["guess"] and c1 == h1["guess"]: reference_id = id
-                elif c1 == h1["guess"]: continue  # keeping the same N-1 word would be redundant
+        if pos < 2: return
 
-                candidates[id] = [c1, c0]
+        result = None
+        result_score = 0
 
-        lc1.remove(h1["guess"])
+        index = 0
+        while index < pos - 1 and index < 3:
+            index += 1
+            h = self._history[index]
+            candidate_words = h["result"][:max_count]
+            if len(candidate_words) < 2: continue
 
-        wi_lists = self._get_words(candidates, context, get_count = True)
-        if not len(wi_lists): return
+            candidates = []
+            expected_test = guessed = None
+            for c in candidate_words:
+                new_candidate = dict(words = c,
+                                     guessed = (c == h["guess"]),
+                                     expected_test = (c == h["expected_test"]),
+                                     score_curve = [ h["candidates"][c][1] ])
+                if new_candidate["expected_test"]: expected_test = new_candidate
+                if new_candidate["guessed"]: guessed = new_candidate
+                candidates.append(new_candidate)
 
-        scores = self._eval_score(dict([ (x, (curve_scores[x], wi_lists.get(x, None))) for x in candidates ]),
-                                  verbose = verbose, expected_test = expected_test)
+            if not guessed: continue
 
-        result = sorted(candidates.keys(),
-                        key = lambda x: (scores[x]["score"], x) if x in scores else 0,  # repeatable result
-                        reverse = True)
+            index1 = index - 1
+            while index1 >= 0:
+                h1 = self._history[index1]
+                for c in candidates:
+                    c["words"] += " " + h1["guess"]
+                    c["score_curve"].append(h1["candidates"][h1["guess"]][1])
+                index1 -= 1
 
-        guess = result[0]
+            candidates = dict([ (c["words"], c["score_curve"]) for c in candidates ])
+            details = dict()
+            btguess = self.guess(self._history[index]["context"], candidates, correlation_id = correlation_id,
+                                 verbose = verbose, expected_test = expected_test, uncapitalized = True,
+                                 details_out = details, history = False)
+            if not btguess: continue
 
-        w1_new = candidates[guess][0]
-        w0_new = candidates[guess][1]
-        w1_old = h1["guess"]
-        w0_old = h0["guess"]
+            wordguess = btguess[0].split(" ")[0]
 
-        predict_score_new = scores[guess]["predict"]
-        predict_score_old = scores[reference_id]["predict"]
+            # do not replace with a word without S3 n-gram
+            s3 = details[btguess[0]]["coefs"].get("s3", 0)
+            if s3 < min_s3:
+                self.debug("s3 too small (%f / %f)" % (s3, min_s3))
+                continue
 
-        if guess == reference_id:
-            self.log("No backtracking candidate")
-        else:
-            et_message = ""
-            if expected_test: et_message = "<%s>" % ("GOOD" if guess == expected_test else "BAD")
-            self.log("Backtracking candidate: %s {%s %s:%.3f:%.3f}=>{%s %s:%.3f:%.3f} %s"
-                     % (context,
-                        w1_old, w0_old, scores[reference_id]["score"], predict_score_old,
-                        w1_new, w0_new, scores[guess]["score"], predict_score_new,
-                        et_message))
+            score = details[btguess[0]]["score"] - details[guessed["words"]]["score"]
+            ok = ""
+            if score >= score_threshold and score > result_score:
+                result_score = score
+                result = (words[-1 - index][0] if not testing else index,  # start pos
+                          self._history[index]["guess"],  # old content
+                          wordguess,  # new content
+                          correlation_id)
+                ok = " *OK*"
+            self.log("--> Backtracking candidate: Guessed=[%s] - Backtrack=[%s] - Expected=[%s] - Score=%.3f%s" %
+                     (guessed["words"], btguess[0], expected_test["words"] if expected_test else 'None',
+                      score, ok))
 
-        if scores[guess]["score"] <= scores[reference_id]["score"] + self.cf("backtrack_threshold", 0.001, float) \
-           or predict_score_new <= predict_score_old + self.cf("backtrack_threshold_predict", 0.0001, float): return
+        # @todo learning update
 
-        coefs_after = scores[guess]["coefs"]
-        if not coefs_after.get("s2", 0): return
+        if result: self.log("*Backtracking success* return value = %s" % str(result))
+        self.log("")
 
-        # @todo update learning
-        # @todo store undo information
-
-        self._history = []
-        self.log("==> Backtracking activated: %s {%s %s}=>{%s %s}" % (context, w1_old, w0_old, w1_new, w0_new))
-
-        return (w1_new, w0_new, w0_old, w1_old, correlation_id, None)
+        return result
 
 
     def cleanup(self, force_flush = False):

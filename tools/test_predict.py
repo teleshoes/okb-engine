@@ -35,48 +35,54 @@ if not db_file: db_file = os.path.join(mydir, "../db/predict-%s.db" % lang)
 db = backend.FslmCdbBackend(db_file)
 lm = language_model.LanguageModel(db, debug = True, dummy = False)
 
-def run(words):
+def run(context, candidates):
     global p
 
-    words = list(words)  # copy
-
-    print("==> Words:", words)
-
-    last_word_choices = words.pop(-1).split('+')  # allow wordA+wordB for last word
+    print("==> Context:", context, "Words:", candidates)
 
     all_details = dict()
-    result = lm.guess(words, dict([ (w, 1) for w in last_word_choices ]), verbose = True, expected_test = last_word_choices[0],
+    result = lm.guess(['#START'] + context,
+                      dict([ (' '.join(c) if isinstance(c, (list, tuple)) else c, 1.) for c in candidates ]),
+                      verbose = True,
                       details_out = all_details)
-
-    print("Result: %s/%s" % (result[0], last_word_choices[0]))
-
-    for word in last_word_choices:
-        details = all_details[word]
-        score = details["score"]
-        print("%15s :" % word, score, re.sub(r'(\d\.0*\d\d)\d+', lambda m: m.group(1), str(details)))
+    print("Result: %s" % result[0])
 
     if learn:
-        lm.learn(True, last_word_choices[0], list(reversed(words)))  # learn first word if multiple choices
+        candidate = candidates[0]  # learn first word if multiple choices
+        if not isinstance(candidate, (list, tuple)): candidate = [ candidate ]
+        for word in candidate:
+            lm.learn(True, word, list(reversed(context)))
+            context = context + [ word ]
         # @todo handle replace
 
     print()
 
+context = []
 if args:
     line = ' '.join(args)
     words = re.split(r'[^\w\-\'\+]+', line)
     words = [ x for x in words if len(x) > 0 ]
+    candidates = None
 
-    if all:
-        words2 = []
-        for w in words:
-            words2.append(w)
-            run(words2)
-    else:
-        run(words)
+    while words:
+        word = words.pop(0)
+        if word.find("+") >= 0:
+            if candidates: raise Exception("only one multiple choice supported (with '+')")
+            candidates = [ [ x ] for x in word.split('+') ]
+            continue
+
+        if candidates:
+            for c in candidates: c.append(word)
+
+        else:
+            if all or not words: run(context, [ word ])
+            context.append(word)
+
+    if candidates:
+        run(context, candidates)
 
 else:
     print("Reading text from stdin ...")
-    words = []
     for line in sys.stdin.readlines():
         line = line.strip()
         if not line:
@@ -95,8 +101,8 @@ else:
             word = mo.group(0)
             line = line[mo.end(0):]
 
-            words.append(word)
-            run(words)
+            run(context, [ word ])
+            context.append(word)
 
 if learn or replace:
     print("Learn history:", lm._learn_history)

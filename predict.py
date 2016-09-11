@@ -89,6 +89,7 @@ class Predict:
     def update_preedit(self, preedit):
         """ update own copy of preedit (from maliit) """
         self.preedit = preedit
+        if self.debug_surrounding: self.log("Preedit: [%s]" % preedit)
 
     def _learn(self, add, word, context, replaces = None, silent = False):
         if not self.lm: return
@@ -295,7 +296,17 @@ class Predict:
 
         if not self.db: return
         if not self.cf("backtrack", 1, int): return
-        self.lm.backtrack(correlation_id, verbose)
+
+        context = self.surrounding_text
+        if not context: return
+        pos = self.cursor_pos
+        context = context[:pos]
+        if not context: return
+        if self.preedit:
+            if not re.match(r'\s', context[-1]): context += " "
+            context += self.preedit
+
+        return self.lm.backtrack(context, correlation_id = correlation_id, verbose = verbose)
 
 
     def cleanup(self, force_flush = False):

@@ -28,12 +28,12 @@ class FslmCdbBackend:
              '#CTOTAL': (-4, -4) }
 
 
-    def __init__(self, dbfile):
+    def __init__(self, dbfile, readonly = False):
         self.loaded = False
         self.dirty = False
-        self.readonly = False  # for testing
+        self.readonly = readonly
 
-        self.dbfile = dbfile
+        self.dbfile = os.path.realpath(dbfile)
         fslm_file = dbfile
         if fslm_file[-3:] == '.db': fslm_file = fslm_file[:-3]
         fslm_file += '.ng'
@@ -60,7 +60,7 @@ class FslmCdbBackend:
 
     def save(self):
         """ save database to disk storage """
-        if self.dirty and self.loaded: cdb.save()
+        if self.dirty and self.loaded and not self.readonly: cdb.save()
         self.dirty = False
 
     def clear(self):
@@ -153,6 +153,11 @@ class FslmCdbBackend:
 
         return result
 
+    def get_word(self, word):
+        """ returns word information (word_id, cluster_id) """
+        words = self.get_words(word.lower())
+        if not words or word not in words: return None
+        return words[word]
 
     def get_cluster_by_id(self, id):
         """ get cluster information for a given cluster id """
@@ -198,4 +203,23 @@ class FslmCdbBackend:
                 else:
                     cdb.rm(key)
 
-        if update: cdb.save()
+        if update and not self.readonly: cdb.save()
+
+    def get_all_words(self):
+        """ get all known words (no efficient, only for tests) """
+        self._load()
+
+        result = dict()
+
+        lst = cdb.get_keys()
+        for key in lst:
+            if key.startswith("param_"): continue
+            if key.startswith("cluster-"): continue
+            if re.match(r'^[0-9\-]+:[0-9\-]+:[0-9\-]+$', key): continue
+            if not re.match(r'^[\w\-\']+$', key): continue
+
+            words = cdb.get_words(key)
+            for word, info in list(words.items()):
+                result[word] = info
+
+        return result
