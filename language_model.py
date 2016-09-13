@@ -849,7 +849,7 @@ class LanguageModel:
 
         return result
 
-    def backtrack(self, context, correlation_id = -1, verbose = False, testing = False):
+    def backtrack(self, correlation_id = -1, verbose = False, testing = False, learn = True):
         """ suggest backtracking solution for last two (at the moment) guesses
             return value (tuple): (start position, old content, new content, correlation_id) """
 
@@ -859,27 +859,24 @@ class LanguageModel:
 
         min_s3 = 10 ** (- 10 * self.cf("backtrack_min_s3_log", 0.6, float))
 
-        words = []
-        pattern = re.compile("[\w\'\-]+")
-        for match in pattern.finditer(context):
-            words.append((match.start(), match.group()))
-
         pos = 0
         now = time.time()
-        while pos < len(words) and pos < 4:
+        while pos < 4 and pos < len(self._history):
             # @TODO handle non-swiped words
-            if words[-1 - pos][1].lower() != self._history[pos]["guess"].lower(): break
             if self._history[pos]["ts"] < now - 1 - pos * timeout and not testing: break  # ignore timing aspect in replay
+
+            new_match_context = self._history[pos - 1]["context"]
+            last_word_match = new_match_context[-1].lower() if new_match_context else None
 
             if testing:
                 # ignore correction done by user at recording time (allow to test more cases)
-                if pos > 0 and self._history[pos - 1]["context"][-1].lower() not in [ x.lower() for x in self._history[pos]["result"] ]: break
+                if pos > 0 and last_word_match not in [ x.lower() for x in self._history[pos]["result"] ]: break
             else:
                 # if user has done a manual correction, backtracking will be disabled
-                if pos > 0 and self._history[pos - 1]["context"][-1].lower() != self._history[pos]["guess"].lower(): break
+                if pos > 0 and last_word_match != self._history[pos]["guess"].lower(): break
             pos += 1
 
-        self.log("*** Backtrack: [%s]" % context, "ID:", correlation_id, "Words:", words,
+        self.log("*** Backtrack - ID:", correlation_id,
                  "History:", list(reversed([ h["guess"] for h in self._history ])), "matches:", pos)
 
         if pos < 2: return
@@ -891,7 +888,7 @@ class LanguageModel:
         while index < pos - 1 and index < 3:
             index += 1
             h = self._history[index]
-            candidate_words = h["result"][:max_count]
+            candidate_words = [ w for w in h["result"] if "s3" in h["scores"][w]["coefs"] ][:max_count]
             if len(candidate_words) < 2: continue
 
             candidates = []
@@ -934,7 +931,7 @@ class LanguageModel:
             ok = ""
             if score >= score_threshold and score > result_score:
                 result_score = score
-                result = (words[-1 - index][0] if not testing else index,  # start pos
+                result = (index,  # start pos
                           self._history[index]["guess"],  # old content
                           wordguess,  # new content
                           correlation_id)
@@ -943,7 +940,14 @@ class LanguageModel:
                      (guessed["words"], btguess[0], expected_test["words"] if expected_test else 'None',
                       score, ok))
 
-        # @todo learning update
+        # learning update
+        if result:
+            index, old, new, id = result
+            h = self._history[index]
+            self.learn(False, old, h["context"])
+            self.learn(True,  new, h["context"])
+
+        # @TODO store information for user undo
 
         if result: self.log("*Backtracking success* return value = %s" % str(result))
         self.log("")

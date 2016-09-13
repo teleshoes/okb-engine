@@ -25,6 +25,7 @@ class Predict:
         self.curve_learn_info_hist = [ ]
         self._mock_time = None
         self.first_word = None
+        self.verbose = True  # @TODO only when logs are on
 
         self.debug_surrounding = os.environ.get('OKB_DEBUG_SURROUNDING', None)
 
@@ -273,7 +274,7 @@ class Predict:
 
         guesses = self.lm.guess(list(reversed(self.last_words)), words,
                                 correlation_id = correlation_id, speed = speed,
-                                verbose = True)
+                                verbose = self.verbose)
 
         self.predict_list = guesses[0:self.cf('max_predict', 30, int)]
 
@@ -286,7 +287,7 @@ class Predict:
         return word
 
 
-    def backtrack(self, correlation_id = -1, verbose = False):
+    def backtrack(self, correlation_id = -1):
         """ After a word guess, try to correct previous words
             This is intended to be called asynchronously after a simple guess
             (see above)
@@ -306,7 +307,21 @@ class Predict:
             if not re.match(r'\s', context[-1]): context += " "
             context += self.preedit
 
-        return self.lm.backtrack(context, correlation_id = correlation_id, verbose = verbose)
+        words = []
+        pattern = re.compile(r'[\w\'\-]+')
+        for match in pattern.finditer(context):
+            words.append(match.group())  # match.start() ?
+        words.reverse()
+
+        hist = [ h["guess"] for h in self.lm._history ]
+
+        self.log("Backtracking check - words:", words[:4], "hist:", hist[:4])
+
+        # due to race conditions, the preedit & surrounding_text may not be up-to-date
+        # (i.e. may have missed the last typed word)
+        if (words[0].lower() == hist[0].lower() or words[0].lower() == hist[1].lower()) and \
+           (words[1].lower() == hist[1].lower() or words[1].lower() == hist[2].lower()):
+            return self.lm.backtrack(correlation_id = correlation_id, verbose = self.verbose)
 
 
     def cleanup(self, force_flush = False):

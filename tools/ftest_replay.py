@@ -153,7 +153,7 @@ def play_all(records, tools, backtrack = False, verbose = True, mock_time = Fals
 
             if backtrack:
                 tools.log("")
-                rst = lm.backtrack(' '.join(guessed_context), verbose = verbose, testing = True)
+                rst = lm.backtrack(verbose = verbose, testing = True, learn = False) # or learn = learn ??
                 if rst:
                     bt_count += 1
                     index, old, new, id = rst
