@@ -310,7 +310,7 @@ class Predict:
         words = []
         pattern = re.compile(r'[\w\'\-]+')
         for match in pattern.finditer(context):
-            words.append(match.group())  # match.start() ?
+            words.append((match.group(), match.start()))
         words.reverse()
 
         hist = [ h["guess"] for h in self.lm._history ]
@@ -319,10 +319,15 @@ class Predict:
 
         # due to race conditions, the preedit & surrounding_text may not be up-to-date
         # (i.e. may have missed the last typed word)
-        if (words[0].lower() == hist[0].lower() or words[0].lower() == hist[1].lower()) and \
-           (words[1].lower() == hist[1].lower() or words[1].lower() == hist[2].lower()):
-            return self.lm.backtrack(correlation_id = correlation_id, verbose = self.verbose)
-
+        if (words[0][0].lower() == hist[0].lower() or words[0][0].lower() == hist[1].lower()) and \
+           (words[1][0].lower() == hist[1].lower() or words[1][0].lower() == hist[2].lower()):
+            btresult = self.lm.backtrack(correlation_id = correlation_id, verbose = self.verbose)
+            if btresult and btresult[0] > 0:
+                (index, old, new, _) = btresult
+                for i in [ index - 1, index ]:
+                    if words[i][0].lower() == old.lower():
+                        ret = [ words[i][1], old, new, correlation_id ]
+                        return ret
 
     def cleanup(self, force_flush = False):
         """ periodic tasks: cache purge, DB flush to disc ... """

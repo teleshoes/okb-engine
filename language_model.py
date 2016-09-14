@@ -888,6 +888,11 @@ class LanguageModel:
         while index < pos - 1 and index < 3:
             index += 1
             h = self._history[index]
+
+            if h["guess"] == "lapin":  # hardcoded test @TODO remove this ASAP when done playing with this :-)
+                self.log("*backtracking harcoded trigger*")
+                return (index, "lapin", "canard", correlation_id)
+
             candidate_words = [ w for w in h["result"] if "s3" in h["scores"][w]["coefs"] ][:max_count]
             if len(candidate_words) < 2: continue
 
