@@ -13,14 +13,16 @@ import re
 import getopt
 import unicodedata
 
-
+affixes_file = None
 debug = clean = False
-opts, args =  getopt.getopt(sys.argv[1:], 'cd')
+opts, args =  getopt.getopt(sys.argv[1:], 'cda:')
 for o, a in opts:
     if o == "-d":
         debug = True
     elif o == "-c":
         clean = True
+    elif o == "-a":
+        affixes_file = a
     else:
         print("Bad option: %s", o)
         exit(1)
@@ -30,8 +32,10 @@ if len(args) < 1:
     print(" corpus data is read from stdin (normal text file)")
     print(" words not included in dictionary file are ignored (text file, one word per line)")
     print(" result is written as semicolon separated CSV to stdout")
-    print(" option -d only outputs cleaned sentences (for debug)")
-    print(" option -c outputs cleaned sentences (one per lines)")
+    print(" options:")
+    print(" -d : only outputs cleaned sentences (for debug)")
+    print(" -c : outputs cleaned sentences (one per lines)")
+    print(" -a <file> : load affixes from file (only prefix/suffix separated by punctuation sign atm)")
     exit(255)
 
 dictfile = args[0]
@@ -46,6 +50,7 @@ class CorpusImporter:
         self.debug = debug
         self.clean = clean
         self.dedupe = set()
+        self.affixes = set()
 
     def load_words(self, words):
         self.words = set()
@@ -64,6 +69,8 @@ class CorpusImporter:
             if noaccents != word:
                 self.noaccents[noaccents] = word
 
+    def load_affixes(self, fname):
+        self.affixes = [ w for w in re.split('\s+', open(affixes_file, 'r').read()) if w ]
 
     def parse_line(self, line):
         if self.debug: print(line)
@@ -106,50 +113,70 @@ class CorpusImporter:
             word = mo.group(0)
             line = line[mo.end(0):]
 
-            # capitalized word at the beginning of a sentence
-            if word.lower() in self.words and not self.sentence and word[0].isupper() and word[1:].islower():
-                self.add_word(word.lower())
-                continue
+            tokens = self.get_words(word, first = not self.sentence)
+            if tokens:
+                if "c'est" in tokens: raise Exception("plop")
+                for token in tokens: self.add_word(token)
+            else:
+                # unknown word
+                self.add_word('#ERR')
 
-            # unchanged word
-            if word in self.words:
-                self.add_word(word)
-                continue
+    def get_words(self, word, first = False):
+        word = re.sub(r"^[-']+", '', word)
+        word = re.sub(r"[-']+$", '', word)
+        if not word: return []  # just noise
 
-            # other capitalized
-            if word.lower() in self.words:
-                self.add_word(word.lower())
-                continue
+        # find compound word
+        if word.find("'") > -1 or word.find("-") > -1:
 
-            # lowercase version of a proper noun
-            if word in self.islower:
-                self.add_word(self.islower[word])
-                continue
+            # prefixes
+            mo = re.match(r'^([^\-\']+[\-\'])(.+)$', word)
+            if mo:
+                prefix, rest = mo.group(1), mo.group(2)
+                if first and prefix.lower() in self.affixes and prefix[0].isupper() and (prefix[1:].islower() or len(prefix) <= 2):
+                    prefix = prefix.lower()  # uncapitalize prefix at the beginning of a sentence
+                elif prefix.lower() in self.affixes and prefix not in self.affixes:
+                    prefix = prefix.lower()  # fall back mode for bad capitalization (@TODO insert a #ERR tag ?)
 
-            # english "'s" (@TODO remove when compound words are implemented)
-            mo1 = re.match(r'^([a-zA-Z]+)\'[a-z]$', word)
-            if mo1 and mo1.group(1) in self.words:
-                self.add_word(mo1.group(1))
-                continue
+                if prefix in self.affixes:
+                    tokens = self.get_words(rest, first = False)
+                    if tokens: return [ prefix ] + tokens
+                    self.words.add(rest)
+                    return [ prefix, rest ]
 
-            # word with forgotten diacritics (occurs sometime in my French corpus file)
-            if word in self.noaccents:
-                self.add_word(self.noaccents[word])
-                continue
+            # suffixes
+            mo = re.match(r'^(.+)([\-\'][^\-\']+)$', word)
+            if mo:
+                rest, suffix = mo.group(1), mo.group(2)
+                if suffix in self.affixes:
+                    tokens = self.get_words(rest, first = first)
+                    if tokens: return tokens + [ suffix ]
+                    if first and rest[0].isupper() and rest[1:].islower(): rest = rest.lower()
+                    self.words.add(rest)
+                    return [ rest, suffix ]
 
-            # in word hyphen
-            # @todo: we should find a way to "auto-hyphen" when typing (n-grams tagging?)
-            # (@TODO remove when compound words are implemented)
-            l = re.split(r'[\'\-]', word)
-            if not [ w for w in l if w not in self.words ]:
-                self.add_word(l)
-                continue
-            if not [ w for w in l if w.lower() not in self.words ]:
-                self.add_word([w.lower() for w in l])
-                continue
+        # capitalized word at the beginning of a sentence
+        if word.lower() in self.words and first and word[0].isupper() and word[1:].islower():
+            return [ word.lower() ]
 
-            # unknown word
-            self.add_word('#ERR')
+        # unchanged word
+        if word in self.words:
+            return [ word ]
+
+        # other capitalized
+        if word.lower() in self.words:
+            return [ word.lower() ]
+
+        # lowercase version of a proper noun
+        if word in self.islower:
+            return [ self.islower[word] ]
+
+        # word with forgotten diacritics (occurs sometime in my French corpus file)
+        if word in self.noaccents:
+            return [ self.noaccents[word] ]
+
+        # no match
+        return None
 
     def add_word(self, word, flags = dict()):
         for flag in flags:
@@ -230,6 +257,9 @@ ci = CorpusImporter(debug = debug, clean = clean)
 if dictfile[-3:] == '.gz': f = gzip.open(dictfile)
 else: f = open(dictfile)
 ci.load_words(f.readlines())
+
+# 1.5) load affixesif affixes_file:
+if affixes_file: ci.load_affixes(affixes_file)
 
 # 2) import corpus (in-memory, not meant to be efficient)
 line = sys.stdin.readline()
