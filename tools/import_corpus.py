@@ -115,19 +115,18 @@ class CorpusImporter:
 
             tokens = self.get_words(word, first = not self.sentence)
             if tokens:
-                if "c'est" in tokens: raise Exception("plop")
                 for token in tokens: self.add_word(token)
             else:
                 # unknown word
                 self.add_word('#ERR')
 
-    def get_words(self, word, first = False):
+    def get_words(self, word, first = False, compound = True):
         word = re.sub(r"^[-']+", '', word)
         word = re.sub(r"[-']+$", '', word)
         if not word: return []  # just noise
 
         # find compound word
-        if word.find("'") > -1 or word.find("-") > -1:
+        if compound and (word.find("'") > -1 or word.find("-") > -1):
 
             # prefixes
             mo = re.match(r'^([^\-\']+[\-\'])(.+)$', word)
@@ -141,8 +140,12 @@ class CorpusImporter:
                 if prefix in self.affixes:
                     tokens = self.get_words(rest, first = False)
                     if tokens: return [ prefix ] + tokens
-                    self.words.add(rest)
-                    return [ prefix, rest ]
+
+                    tokens = self.get_words(word, first = first, compound = False)
+                    if tokens:
+                        return tokens  # @todo maybe create missing part of word instead on registering the full word ?
+                    else:
+                        return None
 
             # suffixes
             mo = re.match(r'^(.+)([\-\'][^\-\']+)$', word)
@@ -151,9 +154,13 @@ class CorpusImporter:
                 if suffix in self.affixes:
                     tokens = self.get_words(rest, first = first)
                     if tokens: return tokens + [ suffix ]
-                    if first and rest[0].isupper() and rest[1:].islower(): rest = rest.lower()
-                    self.words.add(rest)
-                    return [ rest, suffix ]
+
+                    tokens = self.get_words(word, first = first, compound = False)
+                    if tokens:
+                        return tokens  # @todo maybe create missing part of word instead on registering the full word ?
+                    else:
+                        return None
+
 
         # capitalized word at the beginning of a sentence
         if word.lower() in self.words and first and word[0].isupper() and word[1:].islower():
