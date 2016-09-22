@@ -137,8 +137,8 @@ def play_all(records, tools, backtrack = False, verbose = True, mock_time = Fals
             ok = guesses and guesses[0] == exp
             count += 1
             if ok: count_ok += 1
-            tools.log("[*] Guess %s \"%s\" (expected \"%s\"): %s" %
-                      (t["context"], guesses[0] if guesses else "?", t["expected"], ("=OK=" if ok else "*FAIL*")))
+            tools.log("[*] Guess %s %s \"%s\" (expected \"%s\"): %s" %
+                      (t["id"], t["context"], guesses[0] if guesses else "?", t["expected"], ("=OK=" if ok else "*FAIL*")))
 
             if guesses: guessed_context.append(guesses[0])
             else: guessed_context =  []
@@ -146,7 +146,7 @@ def play_all(records, tools, backtrack = False, verbose = True, mock_time = Fals
             if learn:
                 # @todo use right "replace" value when backtracking is active
                 replaces = guesses[0] if not ok and guesses and learn_replace else None
-                tools.log("[*] Learn:", learn_context, exp, ("{%s}" % replaces) if replaces else "")
+                tools.log("[*] Learn %s:" % t["id"], learn_context, exp, ("{%s}" % replaces) if replaces else "")
                 lm.learn(True, exp, list(reversed(learn_context)),
                          replaces = replaces)
                 if count % 50 == 0: lm.cleanup(force_flush = True)
@@ -169,7 +169,7 @@ def play_all(records, tools, backtrack = False, verbose = True, mock_time = Fals
                         st = "*BT-FAIL*"
                         count_ok -= 1
                     else: st = "*BT-FAIL*"
-                    tools.log("[*] Backtracking %s %s -> %s %s" % (guessed_context, old, new, st))
+                    tools.log("[*] Backtracking %s %s %s -> %s %s" % (t["id"], guessed_context, old, new, st))
                     # @todo learn
 
         if learn: lm.cleanup(force_flush = True)
