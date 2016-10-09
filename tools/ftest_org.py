@@ -13,6 +13,8 @@ sys.path.insert(0, libdir)
 
 import language_model, backend
 
+from dev_tools import Tools
+
 def obj2dict(o):
     d = dict()
     for a in dir(o):
@@ -22,21 +24,6 @@ def obj2dict(o):
 
 def remove_quotes(word):
     return  re.sub(r'^([\'\"])(.*)\1$', r'\2', word)
-
-class Tools:
-    def __init__(self, params = dict(), verbose = True):
-        self.messages = []
-        self.params = params
-        self.verbose = verbose
-
-    def log(self, *args, **kwargs):
-        if not args: return
-        message = ' '.join(map(str, args))
-        if self.verbose: print(message)
-        self.messages.append(message)
-
-    def cf(self, key, default_value, cast):
-        return cast(self.params.get(key, default_value))
 
 def ftest_load(index_org, work_dir, params = dict()):
     current = None

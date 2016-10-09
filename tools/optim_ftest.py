@@ -5,6 +5,8 @@ import ftest_replay as fr
 import re
 import pickle
 
+from dev_tools import Tools
+
 EPS = 0.0001
 
 def optim(records, tools):
@@ -91,7 +93,12 @@ def optim(records, tools):
                     try: tools.params = pickle.dump(tools.params, f)
                     except: pass
 
-tools = fr.Tools()
+    updated = False
+    for p in params0.keys():
+        if tools.params[p] != params0[p]: updated = True
+    if updated: tools.save(suffix = ".updated")
+
+tools = Tools(verbose = False)
 records = fr.cli_params(sys.argv[1:], tools)
 optim(records, tools)
 print(tools.params)

@@ -77,15 +77,23 @@ class LanguageModel:
         self._mock_time = None
         self._cache = dict()
         self._learn_history = dict()
-        self._last_purge = self._db.get_param("last_purge", 0, int)
 
-        self._half_life = self.cf('learning_half_life', 20, int)
         self._history = []
         self._debug = debug
 
+        if os.getenv('LM_DEBUG', None): self._debug = True
+
+        if not self._tools:
+            # development tools
+            import tools.dev_tools as dev_tools
+            self._tools = dev_tools.Tools(cfvalues)
+            self._tools.set_db(db)  # for language specific parameters
+
+        self._last_purge = self._db.get_param("last_purge", 0, int)
+        self._half_life = self.cf('learning_half_life', cast = int)
+
         if dummy: self._dummy_request()
 
-        if os.getenv('LM_DEBUG', None): self._debug = True
 
     def mock_time(self, time):
         self._mock_time = time
@@ -94,25 +102,10 @@ class LanguageModel:
         return self._mock_time or int(time.time())
 
     def cf(self, key, default_value = None, cast = None):
-        """ "mockable" configuration """
-        if self._db and self._db.get_param(key):
-            ret = self._db.get_param(key)  # per language DB parameter values
-        elif self._tools:
-            ret = self._tools.cf(key, default_value, cast)
-        elif self._cfvalues:
-            ret = self._cfvalues.get(key, default_value)
-        else:
-            ret = default_value
-
-        if cast: ret = cast(ret)
-        return ret
+        return self._tools.cf(key, default_value, cast)
 
     def log(self, *args, **kwargs):
-        """ log with default simple implementation """
-        if self._tools:
-            self._tools.log(*args, **kwargs)
-        else:
-            print(' '.join(map(str, args)))
+        self._tools.log(*args, **kwargs)
 
     def debug(self, *args, **kwargs):
         if self._debug:
@@ -136,7 +129,7 @@ class LanguageModel:
             learn = self._learn_history.keys()
         else:
             now = int(time.time())
-            delay = self.cf('commit_delay', 20, int)
+            delay = self.cf('commit_delay', cast = int)
             learn = [ key for key, item in self._learn_history.items() if item[2] < now - delay ]
 
         if not learn: return
@@ -467,7 +460,7 @@ class LanguageModel:
             >= 1  = second word wins
             x (in ]-1, 1[)  = ex-aequo (x is positive if second word is slightly better) """
 
-        curve_max_gap2 = self.cf("p2_curve_max2", 0.011, float)
+        curve_max_gap2 = self.cf("p2_curve_max2", cast = float)
 
         # filter candidates with bad curve (coarse setting)
         if curve_score1 > curve_score2 + curve_max_gap2: return -1, "curve"
@@ -478,10 +471,10 @@ class LanguageModel:
         if not coefs2: return -1, "no coef 2"
 
 
-        curve_max_gap = self.cf("p2_curve_max", 0.002, float)
-        curve_ratio = self.cf("p2_curve_ratio", 0.7, float)
-        ratio = self.cf("p2_ratio", 112.8, float)
-        default = self.cf("p2_default", 1.397, float)
+        curve_max_gap = self.cf("p2_curve_max", cast = float)
+        curve_ratio = self.cf("p2_curve_ratio", cast = float)
+        ratio = self.cf("p2_ratio", cast = float)
+        default = self.cf("p2_default", cast = float)
 
         # score evaluation: linear combination of log probability ratios
         if not curve_max_gap: return 0, "parms_max_gap"  # optimizer dirty workaround
@@ -499,10 +492,10 @@ class LanguageModel:
             score_ratio[s_id] = s
 
         lst = [ (1, score_ratio["s1"]),
-                (self.cf("p2_coef_s2", 2.256, float), score_ratio["s2"]),
-                (self.cf("p2_coef_s3", 3.931, float), score_ratio["s3"]),
-                (self.cf("p2_coef_c2", 2.064, float), score_ratio["c2"]),
-                (self.cf("p2_coef_c3", 3.463, float), score_ratio["c3"]) ]
+                (self.cf("p2_coef_s2", cast = float), score_ratio["s2"]),
+                (self.cf("p2_coef_s3", cast = float), score_ratio["s3"]),
+                (self.cf("p2_coef_c2", cast = float), score_ratio["c2"]),
+                (self.cf("p2_coef_c3", cast = float), score_ratio["c3"]) ]
 
         total = total_coef = 0.0
         for (coef, sc) in lst:
@@ -510,7 +503,7 @@ class LanguageModel:
                 total += coef * sc
                 total_coef += coef
 
-        score = self.cf("p2_master_coef", 1.939, float) * total / total_coef if total_coef else 0
+        score = self.cf("p2_master_coef", cast = float) * total / total_coef if total_coef else 0
 
         return score, "std:%.3f %s" % (score,
                                        ", ".join([ "%s=%.2e" % (cn, cs)
@@ -531,7 +524,7 @@ class LanguageModel:
 
         if not candidates: return dict()
 
-        p2_default_coef = 10 ** (- 10 * self.cf("p2_default_coef_log", 1., float))
+        p2_default_coef = 10 ** (- 10 * self.cf("p2_default_coef_log", cast = float))
         current_day = int(self._now() / 86400)
 
         # --- data preparation ---
@@ -594,11 +587,11 @@ class LanguageModel:
         last_c0 = None
         green_list = list(green_list)
         adj_f = lambda x: -0.0001 if x[0].isupper() else 0
-        p2_fine_threshold = self.cf("p2_fine_threshold", 0.288, float)
+        p2_fine_threshold = self.cf("p2_fine_threshold", cast = float)
         if green_list:
             for _ in range(3):
                 green_list.sort(key = lambda x:  (score_f(x), x), reverse = True)  # the tuple ensures repeatable results
-                p2_score_fine = self.cf("p2_score_fine", 0.002, float)
+                p2_score_fine = self.cf("p2_score_fine", cast = float)
                 self.debug("green list", str(green_list))
                 c0 = green_list[0]
                 if c0 == last_c0: break
@@ -620,12 +613,12 @@ class LanguageModel:
 
         for c in candidates:
             if c not in all_coefs:
-                predict_scores[c] = (- self.cf("p2_score_unknown", 0.008, float), "unknown")
+                predict_scores[c] = (- self.cf("p2_score_unknown", cast = float), "unknown")
                 self.debug("unknown: '%s'" % c)
             elif c not in predict_scores:
                 compare = self._compare_coefs_debug(all_coefs[c0], curve_scores.get(c0, 0),
                                                     all_coefs[c], curve_scores.get(c, 0), c0, c)
-                predict_scores[c] = (compare * self.cf("p2_score_coarse", 0.015, float), "coarse:%.2f" % compare)
+                predict_scores[c] = (compare * self.cf("p2_score_coarse", cast = float), "coarse:%.2f" % compare)
                 self.debug("coarse[%.4f]: '%s'" % (compare, c))
 
         # --- prediction score evaluation (user) ---
@@ -648,10 +641,10 @@ class LanguageModel:
 
                 if user_replace > user_count and user_replace > 0.5:
                     # negative learning
-                    predict_scores[c] = (predict_scores[c][0] - self.cf("p2_learn_negative", 0.01, float), "learn-:%s" % s_id)
+                    predict_scores[c] = (predict_scores[c][0] - self.cf("learn_negative", cast = float), "learn-:%s" % s_id)
                     break
 
-                if current_day - last_time > self.cf("p2_forget", 90, int): continue
+                if current_day - last_time > self.cf("learn_forget", cast = int): continue
                 if user_count < 0.5: continue
 
                 if s_id > max_score_id:
@@ -670,13 +663,13 @@ class LanguageModel:
             for c in user_stats:
                 (user_count, user_replace) = user_stats[c]
                 if max_score_id == "s1":
-                    if user_count > self.cf("p2_learn_s1_threshold", 5, int): learn_value = 0
-                    else: learn_value = - self.cf("p2_learn_s1", 0.002, float)
+                    if user_count > self.cf("learn_s1_threshold", cast = int): learn_value = 0
+                    else: learn_value = - self.cf("learn_s1", cast = float)
                 else:
-                    if user_count > self.cf("p2_learn_s23_threshold", 5, int) \
-                       and user_replace * self.cf("p2_learn_s23_ratio", 5, int) < user_count \
-                       and user_score(c) > max_user_score / self.cf("p2_learn_score_ratio", 4, int):
-                        learn_value = self.cf("p2_learn_s23", 0.01, float)
+                    if user_count > self.cf("learn_s23_threshold", cast = int) \
+                       and user_replace * self.cf("learn_s23_ratio", cast = int) < user_count \
+                       and user_score(c) > max_user_score / self.cf("learn_score_ratio", cast = int):
+                        learn_value = self.cf("learn_s23", cast = float)
                     else: learn_value = 0
 
                 predict_scores[c] = (max(predict_scores[c][0], learn_value), "L+%s:%.4f" % (s_id, learn_value))
@@ -853,11 +846,11 @@ class LanguageModel:
         """ suggest backtracking solution for last two (at the moment) guesses
             return value (tuple): (start position, old content, new content, correlation_id) """
 
-        timeout = self.cf("backtrack_timeout", 3, int)
-        max_count = self.cf("backtrack_max", 5, int)
-        score_threshold = self.cf("backtrack_score_threshold", 0.01, float)
+        timeout = self.cf("backtrack_timeout", cast = int)
+        max_count = self.cf("backtrack_max", cast = int)
+        score_threshold = self.cf("backtrack_score_threshold", cast = float)
 
-        min_s3 = 10 ** (- 10 * self.cf("backtrack_min_s3_log", 0.6, float))
+        min_s3 = 10 ** (- 10 * self.cf("backtrack_min_s3_log", cast = float))
 
         pos = 0
         now = time.time()
@@ -967,12 +960,12 @@ class LanguageModel:
         self._commit_learn(commit_all = force_flush)
 
         # purge
-        if now > self._last_purge + self.cf("purge_every", 432000, int):
+        if now > self._last_purge + self.cf("purge_every", cast = int):
             self.log("Purge DB ...")
 
             current_day = int(now / 86400)
-            self._db.purge(self.cf("purge_min_count1", 3, float), current_day - self.cf("purge_min_date1", 30, int))
-            self._db.purge(self.cf("purge_min_count2", 20, float), current_day - self.cf("purge_min_date2", 180, int))
+            self._db.purge(self.cf("purge_min_count1", cast = float), current_day - self.cf("purge_min_date1", cast = int))
+            self._db.purge(self.cf("purge_min_count2", cast = float), current_day - self.cf("purge_min_date2", cast = int))
             self._last_purge = now
             self._db.set_param("last_purge", now)
 
