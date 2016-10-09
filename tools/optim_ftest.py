@@ -3,11 +3,13 @@
 import sys
 import ftest_replay as fr
 import re
+import pickle
 
 EPS = 0.0001
 
 def optim(records, tools):
     param_list_req = tools.cf("optim").split(",")
+    persist = tools.cf("persist", "", str)
     score_start = score0 = fr.play_all(records, tools)
     print("All parameters:", tools.params)
 
@@ -18,6 +20,14 @@ def optim(records, tools):
                 param_list.add(p)
     print("Optimize requested:", param_list_req)
     print("Optimizing parameters:", list(param_list))
+
+    if persist:
+        with open(persist, 'rb') as f:
+            try:
+                tools.params = pickle.load(f)
+                print("Load", persist, "OK")
+            except:
+                print("Load", persist, "Failed")
 
     params0 = dict(tools.params)
 
@@ -76,6 +86,10 @@ def optim(records, tools):
                 with open(tools.params["outfile"], "w") as f:
                     f.write("\n".join(log) + "\n")
 
+            if persist:
+                with open(persist + '.tmp', 'wb') as f:
+                    try: tools.params = pickle.dump(tools.params, f)
+                    except: pass
 
 tools = fr.Tools()
 records = fr.cli_params(sys.argv[1:], tools)

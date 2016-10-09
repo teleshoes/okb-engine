@@ -1379,7 +1379,7 @@ void Scenario::turn_transfer(int turn_count, turn_t *turn_detail) {
   }
 }
 
-void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) {
+void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return, simple_turn_t *turns) {
   /* this score check if actual segmentation (deduced from user input curve)
      is a good match for the expected one (curve which link all keys in the
      current scenario)
@@ -1632,7 +1632,6 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
 	}
       }
 
-
       /* step 2 : try to fill the gaps */
       for(int j = i0; j <= i; j++) {
 	if ((typ_exp[j] == 1 || typ_exp[j] == -1) && (typ_exp[j] == typ_act[j])) {
@@ -1848,6 +1847,13 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
     } /* new block */
 
   } /* for(i) */
+
+  // return turn information
+  for(int j = 0; j < count; j ++) {
+    turns[j].expected = a_expected[j];
+    turns[j].length_before = j?segment_length[j - 1]:0;
+    turns[j].length_after = segment_length[j];
+  }
 
   /* step 5: compute length */
   if (turn_count > 0) {
@@ -2484,6 +2490,126 @@ float Scenario::calc_score_misc(int i) {
   return score;
 }
 
+void Scenario::check_turn2(simple_turn_t *turns, turn_t *turn_detail, int turn_count) {
+  /* other checks for curve inconsistent with turns */
+
+  // 1) small turn before a sharp turn (ST=2) is likely to be linked to another match point
+  for(int i = 1; i < count - 1; i ++) {
+    int expected = (int) turns[i].expected;
+
+    DBG(" [check turn 2.1] #%d expected=%d length=[%d:%d]", i, expected, turns[i].length_before, turns[i].length_after);
+
+    index = index_history[i];
+    if (curve->hasFlags(index, FLAG_HINT_ANY)) { continue; }
+    if (curve->getSpecialPoint(index) != 2) { continue; }
+    if (abs(expected) > params->ct1_max_turn) { continue; }
+    if (index_history[i + 1] == index || index_history[i - 1] == index) { continue; }
+
+    for(int sens = -1; sens <= 1; sens += 2) {
+
+      int length = (sens < 0)?turns[i].length_before:turns[i].length_after;
+      if (length < params->ct1_min_length) { continue; }
+
+      int other_length = (sens > 0)?turns[i].length_before:turns[i].length_after;
+      if (other_length < params->ct1_min_length2) { continue; }
+
+      int next_index = index_history[i + sens];
+      if (index + 8 * sens > 0 && index + 8 * sens < curve->size()) {
+	float ratio = params->ct1_ratio;
+	int max_index = -1;
+	int max_value = 0;
+	for(int j = params->ct1_gap1; j <= params->ct1_gap2; j ++ ) {
+	  int value = abs(curve->getTurnSmooth(index + sens * j));
+	  if (value > max_value) {
+	    max_value = value;
+	    max_index = index + sens * j;
+	  }
+	}
+	int ok = 0;
+	int t0 = curve->getTurnSmooth(max_index);
+	for(int k = 1; k <= params->ct1_range; k ++) {
+	  int t1 = curve->getTurnSmooth(max_index - k);
+	  int t2 = curve->getTurnSmooth(max_index + k);
+	  if (abs(t1) < abs(t0) * ratio && t1 * t0 >= 0) { ok |= 1; }
+	  if (abs(t2) < abs(t0) * ratio && t2 * t0 >= 0) { ok |= 2; }
+	  if (abs(t1) > abs(t0) && t0 * t1 > 0) { ok |= 4; }
+	  if (abs(t2) > abs(t0) && t0 * t2 > 0) { ok |= 4; }
+	}
+
+	int value_threshold = params->ct1_min_value;
+
+	DBG(" [check turn 2.1] #%d: ST_index=%d(%d) max_index=%d value=%d/%d ok=%d", i, index, next_index, max_index, t0, value_threshold, ok);
+
+	if (max_value >= value_threshold && ok == 3 && abs(max_index - next_index) > abs(index - max_index)) {
+	  DBG(" [check turn 2.1] match!");
+	  scores[i].misc_score -= params->ct1_score;
+	  log_misc(getName(), "ct1_score", params->ct1_score, -1);
+	}
+      }
+
+    }
+  }
+
+  // 2) eliminate candidates with suspicious turns near tips
+  if (turn_count > 0) {
+    for(int tip = 0; tip <= 1; tip ++) {
+      int index, length, step, last_index;
+      if (! tip) {
+	index = 0;
+	last_index = index_history[turn_detail[0].start_index] / 2;
+	length = turn_detail[0].length_before;
+	step = 1;
+      } else {
+	index = curve->size() - 1;
+	last_index = (index_history[turn_detail[turn_count - 1].index] + index) / 2;
+	length = turn_detail[turn_count - 1].length_after;
+	step = -1;
+      }
+      int index_start = index;
+      DBG(" [check turn 2.2] tip=%d index=%d->%d step=%d length=%d/%d", tip, index, last_index, step, length, params->ct2_min_length);
+      if (length < params->ct2_min_length) { continue; }
+      int turn0 = 0;
+      int total = 0;
+      while (index != last_index) {
+	int turn = curve->getTurnSmooth(index);
+	total += turn;
+	if (turn) {
+	  if (! turn0) {
+	    turn0 = turn;
+	  } else {
+	    if (turn0 * turn < 0) { break; }
+	  }
+
+	  if (abs(total) > params->ct2_max_turn &&
+	      abs(total) > params->ct2_max_avg * abs(index - index_start) &&
+	      abs(index - index_start) > params->ct2_min_points) {
+
+	    // if the turn is consistent with trying to reach target point, do not register the score decrease
+	    Point tg = keys->get(letter_history[tip?0:(count - 1)]);
+	    Point p1 = curve->point(index + 2 * step);
+	    Point p2 = curve->point(index + step);
+	    float angle = anglep(p2 - p1, tg - p2);
+	    bool ok = (angle * turn * step < 0);
+	    
+	    DBG(" [check turn 2.2] tip=%d index=%d total=%d/%d avg=%.3f/%.3f angle=%.2f angle_ok=%d",
+		tip, index, total, params->ct2_max_turn,
+		(float) abs(total) / abs(index - index_start), params->ct2_max_avg,
+		angle * 180 / M_PI, (int) ok);
+	    if (! ok) {
+	      scores[tip?count - 1:0].misc_score -= params->ct2_score;
+	      log_misc(getName(), "ct2_score", params->ct2_score, -1);
+	    }
+	    break;
+	  }
+	}
+	index += step;
+      }
+    }
+  }
+
+
+}
+
 void Scenario::calc_straight_score_all(turn_t *turn_detail, int turn_count, float straight_score) {
   float result = 0;
 
@@ -2815,8 +2941,9 @@ bool Scenario::postProcess(stats_t &st) {
   }
 
   turn_t turn_detail[count];
+  simple_turn_t simple_turns[count];
   int turn_count;
-  calc_turn_score_all(turn_detail, &turn_count);
+  calc_turn_score_all(turn_detail, &turn_count, simple_turns);
 
   calc_straight_score_all(turn_detail, turn_count, curve->straight);
 
@@ -2824,6 +2951,8 @@ bool Scenario::postProcess(stats_t &st) {
 
   /* flat2 score for part of words that should or should not be flat */
   calc_flat2_score_all();
+
+  check_turn2(simple_turns, turn_detail, turn_count);
 
   /* particular case: simple turn (ST=1) shared between two keys
      this is an ugly workaround: curve_score works really badly in this case

@@ -31,6 +31,20 @@ class Params {
   int cst_max_length;
   int cst_max_turn2;
   int cst_min_turn1;
+  int ct1_gap1;
+  int ct1_gap2;
+  int ct1_max_turn;
+  int ct1_min_length;
+  int ct1_min_length2;
+  int ct1_min_value;
+  int ct1_range;
+  float ct1_ratio;
+  float ct1_score;
+  float ct2_max_avg;
+  int ct2_max_turn;
+  int ct2_min_length;
+  int ct2_min_points;
+  float ct2_score;
   int curve_dist_threshold;
   int curve_score_min_dist;
   float curve_surface_coef;
@@ -232,6 +246,20 @@ static Params default_params = {
   100, // cst_max_length
   40, // cst_max_turn2
   130, // cst_min_turn1
+  3, // ct1_gap1
+  6, // ct1_gap2
+  170, // ct1_max_turn
+  200, // ct1_min_length
+  100, // ct1_min_length2
+  5, // ct1_min_value
+  2, // ct1_range
+  0.75, // ct1_ratio
+  0.05, // ct1_score
+  4.0, // ct2_max_avg
+  35, // ct2_max_turn
+  200, // ct2_min_length
+  7, // ct2_min_points
+  0.05, // ct2_score
   95, // curve_dist_threshold
   50, // curve_score_min_dist
   20.0, // curve_surface_coef
@@ -427,6 +455,20 @@ void Params::toJson(QJsonObject &json) const {
   json["cst_max_length"] = cst_max_length;
   json["cst_max_turn2"] = cst_max_turn2;
   json["cst_min_turn1"] = cst_min_turn1;
+  json["ct1_gap1"] = ct1_gap1;
+  json["ct1_gap2"] = ct1_gap2;
+  json["ct1_max_turn"] = ct1_max_turn;
+  json["ct1_min_length"] = ct1_min_length;
+  json["ct1_min_length2"] = ct1_min_length2;
+  json["ct1_min_value"] = ct1_min_value;
+  json["ct1_range"] = ct1_range;
+  json["ct1_ratio"] = ct1_ratio;
+  json["ct1_score"] = ct1_score;
+  json["ct2_max_avg"] = ct2_max_avg;
+  json["ct2_max_turn"] = ct2_max_turn;
+  json["ct2_min_length"] = ct2_min_length;
+  json["ct2_min_points"] = ct2_min_points;
+  json["ct2_score"] = ct2_score;
   json["curve_dist_threshold"] = curve_dist_threshold;
   json["curve_score_min_dist"] = curve_score_min_dist;
   json["curve_surface_coef"] = curve_surface_coef;
@@ -624,6 +666,20 @@ Params Params::fromJson(const QJsonObject &json) {
   if (json.contains("cst_max_length")) { p.cst_max_length = json["cst_max_length"].toDouble(); }
   if (json.contains("cst_max_turn2")) { p.cst_max_turn2 = json["cst_max_turn2"].toDouble(); }
   if (json.contains("cst_min_turn1")) { p.cst_min_turn1 = json["cst_min_turn1"].toDouble(); }
+  if (json.contains("ct1_gap1")) { p.ct1_gap1 = json["ct1_gap1"].toDouble(); }
+  if (json.contains("ct1_gap2")) { p.ct1_gap2 = json["ct1_gap2"].toDouble(); }
+  if (json.contains("ct1_max_turn")) { p.ct1_max_turn = json["ct1_max_turn"].toDouble(); }
+  if (json.contains("ct1_min_length")) { p.ct1_min_length = json["ct1_min_length"].toDouble(); }
+  if (json.contains("ct1_min_length2")) { p.ct1_min_length2 = json["ct1_min_length2"].toDouble(); }
+  if (json.contains("ct1_min_value")) { p.ct1_min_value = json["ct1_min_value"].toDouble(); }
+  if (json.contains("ct1_range")) { p.ct1_range = json["ct1_range"].toDouble(); }
+  if (json.contains("ct1_ratio")) { p.ct1_ratio = json["ct1_ratio"].toDouble(); }
+  if (json.contains("ct1_score")) { p.ct1_score = json["ct1_score"].toDouble(); }
+  if (json.contains("ct2_max_avg")) { p.ct2_max_avg = json["ct2_max_avg"].toDouble(); }
+  if (json.contains("ct2_max_turn")) { p.ct2_max_turn = json["ct2_max_turn"].toDouble(); }
+  if (json.contains("ct2_min_length")) { p.ct2_min_length = json["ct2_min_length"].toDouble(); }
+  if (json.contains("ct2_min_points")) { p.ct2_min_points = json["ct2_min_points"].toDouble(); }
+  if (json.contains("ct2_score")) { p.ct2_score = json["ct2_score"].toDouble(); }
   if (json.contains("curve_dist_threshold")) { p.curve_dist_threshold = json["curve_dist_threshold"].toDouble(); }
   if (json.contains("curve_score_min_dist")) { p.curve_score_min_dist = json["curve_score_min_dist"].toDouble(); }
   if (json.contains("curve_surface_coef")) { p.curve_surface_coef = json["curve_surface_coef"].toDouble(); }
