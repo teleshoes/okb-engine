@@ -2139,7 +2139,7 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return, 
       float score = max(0, max_dist / max_err - 1);
       if (! score) { continue; }
       DBG("[%s] Flat segment not matched: turn #%d->#%d max_dist=%d --> score=%.2f", getNameCharPtr(), i, i + 1, (int) max_dist, score);
-      log_misc(getName(), "flat_score", params->flat_score, -1);
+      log_misc(getName(), "flat_score", params->flat_score, - score);
       scores[i].misc_score -= 0.5 * params->flat_score * score;
       scores[i + 1].misc_score -= 0.5 * params->flat_score * score;
     }
