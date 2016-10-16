@@ -78,6 +78,7 @@ defparams = [
     [ "hints_master_switch", int ],
     [ "hint_o_dist_coef", float, 0.5, 2 ],
     [ "hint_o_max_radius", int, 20, 100 ],
+    [ "hint_o_max_small", int, 1, 10],
     [ "hint_o_min_segments", int, 3, 12 ],
     [ "hint_o_spare_st2_angle", int, 80, 180 ],
     [ "hint_o_spare_st2_gap", int, 1, 6 ],

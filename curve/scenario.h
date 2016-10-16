@@ -134,6 +134,7 @@ class QuickCurve {
   int getHintOIndex(int index0, bool incremental = false);
 
   bool finished;
+  bool on_hold;
   bool isDot;
   float straight;
 

@@ -79,6 +79,7 @@ class Params {
   float flat_score;
   float hint_o_dist_coef;
   int hint_o_max_radius;
+  int hint_o_max_small;
   int hint_o_min_segments;
   int hint_o_spare_st2_angle;
   int hint_o_spare_st2_gap;
@@ -294,12 +295,13 @@ static Params default_params = {
   29, // flat_max_deviation
   0.06, // flat_score
   1.0, // hint_o_dist_coef
-  70, // hint_o_max_radius
+  65, // hint_o_max_radius
+  4, // hint_o_max_small
   6, // hint_o_min_segments
   120, // hint_o_spare_st2_angle
   2, // hint_o_spare_st2_gap
   340, // hint_o_total_min
-  20, // hint_o_turn_min
+  16, // hint_o_turn_min
   6, // hint_o_turn_min_middle
   1.5, // hint_v_dist_coef
   0.15, // hint_v_max_slope
@@ -505,6 +507,7 @@ void Params::toJson(QJsonObject &json) const {
   json["flat_score"] = flat_score;
   json["hint_o_dist_coef"] = hint_o_dist_coef;
   json["hint_o_max_radius"] = hint_o_max_radius;
+  json["hint_o_max_small"] = hint_o_max_small;
   json["hint_o_min_segments"] = hint_o_min_segments;
   json["hint_o_spare_st2_angle"] = hint_o_spare_st2_angle;
   json["hint_o_spare_st2_gap"] = hint_o_spare_st2_gap;
@@ -717,6 +720,7 @@ Params Params::fromJson(const QJsonObject &json) {
   if (json.contains("flat_score")) { p.flat_score = json["flat_score"].toDouble(); }
   if (json.contains("hint_o_dist_coef")) { p.hint_o_dist_coef = json["hint_o_dist_coef"].toDouble(); }
   if (json.contains("hint_o_max_radius")) { p.hint_o_max_radius = json["hint_o_max_radius"].toDouble(); }
+  if (json.contains("hint_o_max_small")) { p.hint_o_max_small = json["hint_o_max_small"].toDouble(); }
   if (json.contains("hint_o_min_segments")) { p.hint_o_min_segments = json["hint_o_min_segments"].toDouble(); }
   if (json.contains("hint_o_spare_st2_angle")) { p.hint_o_spare_st2_angle = json["hint_o_spare_st2_angle"].toDouble(); }
   if (json.contains("hint_o_spare_st2_gap")) { p.hint_o_spare_st2_gap = json["hint_o_spare_st2_gap"].toDouble(); }

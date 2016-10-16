@@ -77,14 +77,14 @@ class CurveMatch {
   QHash<QString, UserDictEntry> userDictionary;
 
   void scenarioFilter(QList<ScenarioType> &scenarios, float score_ratio, int min_size, int max_size = -1, bool finished = false);
-  void curvePreprocess1(int curve_id = 0);
+  bool curvePreprocess1(int curve_id = 0);
   void curvePreprocess2();
 
   int compare_scenario(ScenarioType *s1, ScenarioType *s2, bool reverse = false);
 
   QuickCurve quickCurves[MAX_CURVES + 1];
 
-  void setCurves();
+  bool setCurves();
 
   KeyShift keyShift;
 

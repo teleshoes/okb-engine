@@ -81,6 +81,7 @@ void QuickCurve::setCurve(QList<CurvePoint> &curve, int curve_id, int min_length
   finished = false;
   isDot = false;
   straight = -1;
+  on_hold = false;
 
   int cs = curve.size();
   if (! cs) { count = 0; return; }
@@ -3271,16 +3272,30 @@ bool Scenario::nextLength(unsigned char next_letter, int curve_id, int &min_leng
     (currently it's value is last key curve length + distance between the two keys + 2 * max distance error
     which means, that matching will always ~200 pixels late (with current settings)
     max_length is a pessimistic guess (it prevent retries and uses the less cpu time)
-    min_length is an optimistic guess
+    min_length is an optimistic guess (for lower latency in incremental mode)
   */
 
   max_length = last_length  + (1.0 + (float)dist / params->dist_max_next / 20) * (params->incremental_length_lag + dist);
   min_length = last_length + max(0, dist - params->incremental_length_lag / 2);
 
-  /* @todo optimize retries & hint-O
-  if (curve->hasFlags(index_history[count - 1], FLAG_HINT_O)) {
-    max_length += something;
-    min_length += something;
+  /* optimize retries & hint-O */
+  /* This still seems not needed
+  // quick check for hint-o loop
+  bool found = false;
+  int i = index_history[count - 1];
+  while(i < curve->size()) {
+    if (curve->hasFlags(i, FLAG_HINT_O | FLAG_HINT_o)) { found = true; }
+    i += params->hint_o_min_segments - 1;
+  }
+  if (! found) { return true; }
+
+  // we have got a hint-o loop ahead
+  for(int i = index_history[count - 1]; i < curve->size() - 1; i ++) {
+    if (curve->hasFlags(i, FLAG_HINT_O | FLAG_HINT_o)) {
+      int l = curve->getLength(i + 1) - curve->getLength(i);
+      min_length += l;
+      max_length += l;
+    }
   }
   */
 

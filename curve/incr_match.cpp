@@ -399,7 +399,11 @@ void IncrementalMatch::incrementalMatchUpdate(bool finished, float aggressive) {
   if (delayed_scenarios.size() == 0 && ! finished) { return; }
   if (curve.size() < 5 && ! finished ) { return; }
 
-  setCurves(); // curve may have new points since last iteration
+  // update preprocess pass (curve may have new points since last iteration)
+  if (setCurves()) {
+    return; // some curve is on hold
+    // note: this will be inefficient il multi-touch mode (@todo try a per-curve approach)
+  }
 
   if (curve_count > last_curve_count) {
     // new touchpoint registered, user has just started a new curve
