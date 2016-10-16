@@ -84,6 +84,7 @@ class Params {
   int hint_o_spare_st2_gap;
   int hint_o_total_min;
   int hint_o_turn_min;
+  int hint_o_turn_min_middle;
   float hint_v_dist_coef;
   float hint_v_max_slope;
   int hint_v_maxgap;
@@ -299,6 +300,7 @@ static Params default_params = {
   2, // hint_o_spare_st2_gap
   340, // hint_o_total_min
   20, // hint_o_turn_min
+  6, // hint_o_turn_min_middle
   1.5, // hint_v_dist_coef
   0.15, // hint_v_max_slope
   2, // hint_v_maxgap
@@ -508,6 +510,7 @@ void Params::toJson(QJsonObject &json) const {
   json["hint_o_spare_st2_gap"] = hint_o_spare_st2_gap;
   json["hint_o_total_min"] = hint_o_total_min;
   json["hint_o_turn_min"] = hint_o_turn_min;
+  json["hint_o_turn_min_middle"] = hint_o_turn_min_middle;
   json["hint_v_dist_coef"] = hint_v_dist_coef;
   json["hint_v_max_slope"] = hint_v_max_slope;
   json["hint_v_maxgap"] = hint_v_maxgap;
@@ -719,6 +722,7 @@ Params Params::fromJson(const QJsonObject &json) {
   if (json.contains("hint_o_spare_st2_gap")) { p.hint_o_spare_st2_gap = json["hint_o_spare_st2_gap"].toDouble(); }
   if (json.contains("hint_o_total_min")) { p.hint_o_total_min = json["hint_o_total_min"].toDouble(); }
   if (json.contains("hint_o_turn_min")) { p.hint_o_turn_min = json["hint_o_turn_min"].toDouble(); }
+  if (json.contains("hint_o_turn_min_middle")) { p.hint_o_turn_min_middle = json["hint_o_turn_min_middle"].toDouble(); }
   if (json.contains("hint_v_dist_coef")) { p.hint_v_dist_coef = json["hint_v_dist_coef"].toDouble(); }
   if (json.contains("hint_v_max_slope")) { p.hint_v_max_slope = json["hint_v_max_slope"].toDouble(); }
   if (json.contains("hint_v_maxgap")) { p.hint_v_maxgap = json["hint_v_maxgap"].toDouble(); }

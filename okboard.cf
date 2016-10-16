@@ -79,6 +79,7 @@ hint_o_min_segments = 6
 hint_o_spare_st2_angle = 120
 hint_o_spare_st2_gap = 2
 hint_o_turn_min = 20
+hint_o_turn_min_middle = 6
 hint_o_total_min = 340
 hint_v_dist_coef = 1.5
 hint_v_maxgap = 2

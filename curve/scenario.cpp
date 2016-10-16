@@ -602,6 +602,13 @@ Point Scenario::actual_curve_tangent(int i) {
 float Scenario::calc_curve_score(unsigned char prev_letter, unsigned char letter, int index, int new_index) {
   /* score based on maximum distance from straight path */
 
+  if (curve->hasFlags(index, FLAG_HINT_ANY) || curve->hasFlags(new_index, FLAG_HINT_ANY)) {
+    // curve score not evaluated new Hint-O loops
+    // note: this will also catch Hint-V which may not be a good idea
+    DBG("  [curve score] %s:%c[%d->%d] not evaluated because of hints", getNameCharPtr(), letter, index, new_index);
+    return 0;
+  }
+
   Point pbegin = keys->get(prev_letter);
   Point pend = keys->get(letter);
 
@@ -2590,7 +2597,7 @@ void Scenario::check_turn2(simple_turn_t *turns, turn_t *turn_detail, int turn_c
 	    Point p2 = curve->point(index + step);
 	    float angle = anglep(p2 - p1, tg - p2);
 	    bool ok = (angle * turn * step < 0);
-	    
+
 	    DBG(" [check turn 2.2] tip=%d index=%d total=%d/%d avg=%.3f/%.3f angle=%.2f angle_ok=%d",
 		tip, index, total, params->ct2_max_turn,
 		(float) abs(total) / abs(index - index_start), params->ct2_max_avg,

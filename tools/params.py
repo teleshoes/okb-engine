@@ -82,6 +82,7 @@ defparams = [
     [ "hint_o_spare_st2_angle", int, 80, 180 ],
     [ "hint_o_spare_st2_gap", int, 1, 6 ],
     [ "hint_o_turn_min", int, 5, 30 ],
+    [ "hint_o_turn_min_middle", int, 2, 15 ],
     [ "hint_o_total_min", int, 180, 270 ],
     [ "hint_v_dist_coef", float, 0.5, 2 ],
     [ "hint_v_maxgap", int, 1, 5 ],

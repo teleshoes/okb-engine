@@ -592,18 +592,19 @@ void CurveMatch::curvePreprocess1(int curve_id) {
     /* detect loop hints */
     if (params.hints_master_switch) {
       int i0 = 0;
-      int total = 0;
       for(int i = 0; i < l; i ++) {
 	int turn = oneCurve[i].turn_smooth;
-	if (abs(turn) > params.hint_o_turn_min) {
-	  if ((! i0) || (i0 && oneCurve[i0].turn_smooth * turn < 0)) { i0 = i; total = 0; }
-	  total += turn;
+	if (i < l - 1 && abs(turn) >= (i0?params.hint_o_turn_min_middle:params.hint_o_turn_min)) {
+	  if ((! i0) || (i0 && oneCurve[i0].turn_smooth * turn < 0)) { i0 = i; }
 	} else if (i0) {
 	  int i1 = i - 1;
 
+	  // Rewind to last significant turn
+	  while(i1 > i0 && abs(oneCurve[i1].turn_smooth) <= params.hint_o_turn_min) { i1 --; }
+
 	  // is the loop matching the beginning of the curve ?
 	  bool start_ok = true;
-	  for(int j = 1; j < i0 ; j++) {
+	  for(int j = 2; j < i0 ; j++) {
 	    if (abs(oneCurve[j].turn_smooth) < params.hint_o_turn_min / 2 ||
 		oneCurve[j].turn_smooth * oneCurve[i0].turn_smooth < 0) { start_ok = false; }
 	  }
@@ -611,11 +612,16 @@ void CurveMatch::curvePreprocess1(int curve_id) {
 
 	  // is the loop matching the tail of the curve ?
 	  bool end_ok = true;
-	  for(int j = i1 + 1; j < l - 1 ; j++) {
+	  for(int j = i1 + 1; j < l - 2 ; j++) {
 	    if (abs(oneCurve[j].turn_smooth) < params.hint_o_turn_min / 2 ||
 		oneCurve[j].turn_smooth * oneCurve[i0].turn_smooth < 0) { end_ok = false; }
 	  }
 	  if (end_ok) { i1 = l - 1; }
+
+	  int total = 0;
+	  for(int i = i0; i <= i1; i ++) { total += oneCurve[i].turn_smooth; }
+
+	  DBG("[Hint-O] Candidate loop [%d:%d] total=%d tips=%d:%d", i0, i1, total, start_ok, end_ok);
 
 	  if (abs(total) > params.hint_o_total_min &&
 	      (i1 - i0) >= params.hint_o_min_segments) {
