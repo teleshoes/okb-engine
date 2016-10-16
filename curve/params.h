@@ -321,7 +321,7 @@ static Params default_params = {
   1.0, // key_shift_ratio
   0.02, // lazy_loop_bias
   0.001, // length_penalty
-  0.01, // loop_penalty
+  0.7, // loop_penalty
   50, // loop_recover_max_len
   155, // loop_threshold1
   120, // loop_threshold2

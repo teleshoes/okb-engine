@@ -2762,7 +2762,7 @@ void Scenario::calc_flat2_score_part(int i1, int i2) {
     for(int j = i1; j <= i2; j ++) {
       scores[j].misc_score -= params->flat2_score_max / (i2 - i1 + 1);
     }
-    log_misc(getName(), "flat2_score_max", params->loop_penalty, -1);
+    log_misc(getName(), "flat2_score_max", params->flat2_score_max, -1);
   }
 }
 
@@ -2790,7 +2790,7 @@ void Scenario::calc_flat2_score_all() {
       for(int j = i1; j <= i2; j ++) {
 	scores[j].misc_score -= params->flat2_score_min / (i2 - i1 + 1);
       }
-      log_misc(getName(), "flat2_score_min", params->loop_penalty, -1);
+      log_misc(getName(), "flat2_score_min", params->flat2_score_min, -1);
     }
     */
   }
