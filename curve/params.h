@@ -292,8 +292,8 @@ static Params default_params = {
   100, // flat2_min_height
   0.03, // flat2_score_max
   0.0, // flat2_score_min
-  24, // flat_max_angle
-  24, // flat_max_angle2
+  30, // flat_max_angle
+  30, // flat_max_angle2
   29, // flat_max_deviation
   0.06, // flat_score
   1.0, // hint_o_dist_coef

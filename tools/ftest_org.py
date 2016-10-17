@@ -250,7 +250,9 @@ if __name__ == '__main__':
                                                            gap, rank))
 
         manifest.append(';'.join([ str(x) for x in [ id, word, guess, gap, rank, st,
-                                                     lang, rank if rank >= 0 else 999 ] ]))
+                                                     lang, rank if rank >= 0 else 999,
+                                                     language_model.word2letters(word),
+                                                     language_model.word2letters(guess or "") ] ]))
 
         # @todo add wiring to learning / backtracking
 
