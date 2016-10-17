@@ -1405,6 +1405,8 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return, 
   bool  a_same[count];
   memset(a_same, 0, sizeof(a_same));
 
+  a_actual[0] = a_expected[0] = 0;
+  
   // compute actual turn rate
   float segment_length[count];
 
@@ -1412,29 +1414,36 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return, 
 
   int i1 = 0;
   int i_ = 1;
-  for(int i = 1; i < count - 1; i ++) {
-    // curve index
-    int i2 = index_history[i];
-    int i3 = index_history[i + 1];
+  if (count == 2) {
+    Point p1 = curve->point(0);
+    Point p2 = curve->point(curve->size() - 1);
+    segment_length[0] = distancep(p1, p2);
+    
+  } else {
+    for(int i = 1; i < count - 1; i ++) {
+      // curve index
+      int i2 = index_history[i];
+      int i3 = index_history[i + 1];
 
-    // curve points
-    Point p1 = curve->point(i1);
-    Point p2 = curve->point(i2);
-    Point p3 = curve->point(i3);
+      // curve points
+      Point p1 = curve->point(i1);
+      Point p2 = curve->point(i2);
+      Point p3 = curve->point(i3);
 
-    segment_length[i] = distancep(p2, p3);
-    if (i == 1) { segment_length[0] = distancep(p1, p2); } // piquets & intervalles
+      segment_length[i] = distancep(p2, p3);
+      if (i == 1) { segment_length[0] = distancep(p1, p2); } // piquets & intervalles
 
-    a_same[i] = (i2 == i3);
+      a_same[i] = (i2 == i3);
 
-    if (i3 > i2 && i2 > i1) {
-      float actual = anglep(p2 - p1, p3 - p2) * 180 / M_PI;
+      if (i3 > i2 && i2 > i1) {
+	float actual = anglep(p2 - p1, p3 - p2) * 180 / M_PI;
 
-      for(int j = i_; j <= i; j++) {
-	a_actual[j] = actual / (1 + i - i_);  // in case of "null-point" we spread the turn rate over all matches at the same position
+	for(int j = i_; j <= i; j++) {
+	  a_actual[j] = actual / (1 + i - i_);  // in case of "null-point" we spread the turn rate over all matches at the same position
+	}
+
+	i_ = i + 1; i1 = i2;
       }
-
-      i_ = i + 1; i1 = i2;
     }
   }
   for(int i = i_; i <= count - 1; i ++) {
@@ -2112,7 +2121,7 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return, 
 
   // check for "locally-flat" strokes
   // (if a segment is between curve tips and/or straigt or 180° turns it should be mostly flat)
-#define IS_FLAT(a) (abs(a) < params->flat_max_angle || abs(abs(a) - 180) < params->flat_max_angle)
+#define IS_FLAT(a) (abs(a) < params->flat_max_angle || abs(abs(a) - 180) < params->flat_max_angle2)
 
   for(int i = 0; i < count - 1; i ++) {
     if ((i == 0 || IS_FLAT(a_expected[i])) &&
@@ -2137,6 +2146,13 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return, 
       }
       int max_err = params->flat_max_deviation;
       float score = max(0, max_dist / max_err - 1);
+
+      DBG("FLAT %s [%c:%c] index=%d:%d angle=%d:%d len=%d:%d:%d max_dist=%d/%d score=%.2f",
+	  getNameCharPtr(), letter_history[i], letter_history[i + 1], i, i + 1,
+	  (i == 0)?-1:(int) a_expected[i], (i == count - 2)?-1:(int) a_expected[i + 1],
+	  (i == 0)?-1:(int) segment_length[i - 1], (int) segment_length[i], (i == count - 2)?-1:(int) segment_length[i + 1],
+	  (int) max_dist, max_err, score);
+
       if (! score) { continue; }
       DBG("[%s] Flat segment not matched: turn #%d->#%d max_dist=%d --> score=%.2f", getNameCharPtr(), i, i + 1, (int) max_dist, score);
       log_misc(getName(), "flat_score", params->flat_score, - score);

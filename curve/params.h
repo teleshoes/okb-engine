@@ -75,6 +75,7 @@ class Params {
   float flat2_score_max;
   float flat2_score_min;
   int flat_max_angle;
+  int flat_max_angle2;
   int flat_max_deviation;
   float flat_score;
   float hint_o_dist_coef;
@@ -292,6 +293,7 @@ static Params default_params = {
   0.03, // flat2_score_max
   0.0, // flat2_score_min
   24, // flat_max_angle
+  24, // flat_max_angle2
   29, // flat_max_deviation
   0.06, // flat_score
   1.0, // hint_o_dist_coef
@@ -503,6 +505,7 @@ void Params::toJson(QJsonObject &json) const {
   json["flat2_score_max"] = flat2_score_max;
   json["flat2_score_min"] = flat2_score_min;
   json["flat_max_angle"] = flat_max_angle;
+  json["flat_max_angle2"] = flat_max_angle2;
   json["flat_max_deviation"] = flat_max_deviation;
   json["flat_score"] = flat_score;
   json["hint_o_dist_coef"] = hint_o_dist_coef;
@@ -716,6 +719,7 @@ Params Params::fromJson(const QJsonObject &json) {
   if (json.contains("flat2_score_max")) { p.flat2_score_max = json["flat2_score_max"].toDouble(); }
   if (json.contains("flat2_score_min")) { p.flat2_score_min = json["flat2_score_min"].toDouble(); }
   if (json.contains("flat_max_angle")) { p.flat_max_angle = json["flat_max_angle"].toDouble(); }
+  if (json.contains("flat_max_angle2")) { p.flat_max_angle2 = json["flat_max_angle2"].toDouble(); }
   if (json.contains("flat_max_deviation")) { p.flat_max_deviation = json["flat_max_deviation"].toDouble(); }
   if (json.contains("flat_score")) { p.flat_score = json["flat_score"].toDouble(); }
   if (json.contains("hint_o_dist_coef")) { p.hint_o_dist_coef = json["hint_o_dist_coef"].toDouble(); }
