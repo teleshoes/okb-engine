@@ -53,7 +53,7 @@ class WordInfo:
 
     def __str__(self):
         cstr = "{%s}" % (' '.join([ "%s:%s" % (x, str(y)) for x, y in self.count.items() ])) if self.count else ""
-        return "[WordInfo: %s (%d:%d) %s %s %s]" % (self.word, self.id, self.cluster_id,
+        return "[WordInfo: %s (%d:%d) %s %s %s]" % (self.word, self.id or -1, self.cluster_id or -1,
                                                     self.displayed_word or "-", cstr, "[BC]" if self.bad_caps else "")
 
     def clone(self):
