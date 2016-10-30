@@ -162,7 +162,7 @@ if __name__ == '__main__':
             db_file = os.path.join(mydir, "db/predict-%s.db" % lang)
             print("Language change: %s -> %s" % (last_lang or "None", lang))
             if os.path.exists(db_file):
-                lang_db = backend.FslmCdbBackend(db_file)
+                lang_db = backend.FslmCdbBackend(db_file, readonly = True)
                 lm = language_model.LanguageModel(lang_db, tools = tools)
             else:
                 # oops maybe we have tried third parties language files and user a language
@@ -253,8 +253,6 @@ if __name__ == '__main__':
                                                      lang, rank if rank >= 0 else 999,
                                                      language_model.word2letters(word),
                                                      language_model.word2letters(guess or "") ] ]))
-
-        # @todo add wiring to learning / backtracking
 
         with open(pre + ".predict.log", 'w') as pf:
             pf.write("Summary: %s %s %s %s\n" % (lang, word, guess, ok))
