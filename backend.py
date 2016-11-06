@@ -6,6 +6,7 @@
 import os
 import cfslm, cdb
 import re
+import shutil, tempfile, atexit
 
 # python plugins detailed logging
 if os.getenv("NGRAM_DEBUG", None):
@@ -25,19 +26,31 @@ class FslmCdbBackend:
     TAGS = { '#TOTAL': (-2, -4),
              '#NA': (-1, -1),
              '#START': (-3, -3),
-             '#CTOTAL': (-4, -4) }
+             '#CTOTAL': (-4, -4),
+             '#NOCLUSTER': (-5, -5)}
 
 
     def __init__(self, dbfile, readonly = False):
         self.loaded = False
         self.dirty = False
         self.readonly = readonly
-
-        self.dbfile = os.path.realpath(dbfile)
         fslm_file = dbfile
         if fslm_file[-3:] == '.db': fslm_file = fslm_file[:-3]
         fslm_file += '.ng'
-        self.fslm_file = fslm_file
+
+        self.tmpdir = None
+        if readonly:
+            # readonly mode is only for testing, not for use on device
+            self.tmpdir = tempfile.mkdtemp(prefix = "okboard-backend")
+            new_dbfile = os.path.join(self.tmpdir, os.path.basename(dbfile))
+            new_fslm_file = os.path.join(self.tmpdir, os.path.basename(fslm_file))
+            shutil.copyfile(dbfile, new_dbfile)
+            shutil.copyfile(fslm_file, new_fslm_file)
+            dbfile, fslm_file = new_dbfile, new_fslm_file
+            atexit.register(self.close)
+
+        self.dbfile = os.path.realpath(dbfile)
+        self.fslm_file = os.path.realpath(fslm_file)
 
         self.params = dict()
 
@@ -72,7 +85,6 @@ class FslmCdbBackend:
 
     def set_param(self, key, value):
         """ sets a parameter """
-        if self.readonly: return
         cdb.set_string("param_%s" % key, str(value))
         self.params[key] = value
         self.dirty = True
@@ -107,7 +119,6 @@ class FslmCdbBackend:
 
     def set_gram(self, ids, gram):
         """ sets a n-gram metadata (same format as returned by get_ngram function) """
-        if self.readonly: return
         self.dirty = True
 
         (stock_count_not_used, user_count, user_replace, last_time) = gram  # obviously stock_count is ignored
@@ -116,7 +127,6 @@ class FslmCdbBackend:
 
     def add_word(self, word):
         """ add a new user learned word """
-        if self.readonly: return
         self._load()
         self.dirty = True
 
@@ -176,6 +186,13 @@ class FslmCdbBackend:
 
     def close(self):
         """ close database """
+        if self.tmpdir:
+            try:
+                os.unlink(self.dbfile)
+                os.unlink(self.fslm_file)
+                os.rmdir(self.tmpdir)
+            except: pass
+            self.tmpdir = None
         self.clear()
 
     def factory_reset(self):

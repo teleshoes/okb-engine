@@ -33,7 +33,7 @@ def play_all(records, tools, backtrack = False, verbose = True, mock_time = Fals
         if lang_filter and lang != lang_filter: continue
 
         db_file = os.path.join(db_path, "predict-%s.db" % lang)
-        db = backend.FslmCdbBackend(db_file)
+        db = backend.FslmCdbBackend(db_file, readonly = not learn)
         if db_reset: db.factory_reset()
         lm = language_model.LanguageModel(db, tools = tools, debug = False, dummy = False)
 
