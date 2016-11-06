@@ -42,6 +42,7 @@ words['#TOTAL'] = ( -2, -4 )  # #TOTAL -> #CTOTAL
 words['#NA'] = ( -1, -1 )
 words['#START'] = ( -3, -3 )
 words['#CTOTAL'] = ( -4, -4 )
+words['#NOCLUSTER'] = ( -5, -5 )
 
 fslm_encoder = fslm_ngrams.NGramEncoder(base_bits = 4,
                                         block_size = 128,
