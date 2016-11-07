@@ -13,6 +13,8 @@ sys.path.insert(0, libdir)
 
 import language_model, backend
 
+from dev_tools import Tools
+
 def obj2dict(o):
     d = dict()
     for a in dir(o):
@@ -22,21 +24,6 @@ def obj2dict(o):
 
 def remove_quotes(word):
     return  re.sub(r'^([\'\"])(.*)\1$', r'\2', word)
-
-class Tools:
-    def __init__(self, params = dict(), verbose = True):
-        self.messages = []
-        self.params = params
-        self.verbose = verbose
-
-    def log(self, *args, **kwargs):
-        if not args: return
-        message = ' '.join(map(str, args))
-        if self.verbose: print(message)
-        self.messages.append(message)
-
-    def cf(self, key, default_value, cast):
-        return cast(self.params.get(key, default_value))
 
 def ftest_load(index_org, work_dir, params = dict()):
     current = None
@@ -175,7 +162,7 @@ if __name__ == '__main__':
             db_file = os.path.join(mydir, "db/predict-%s.db" % lang)
             print("Language change: %s -> %s" % (last_lang or "None", lang))
             if os.path.exists(db_file):
-                lang_db = backend.FslmCdbBackend(db_file)
+                lang_db = backend.FslmCdbBackend(db_file, readonly = True)
                 lm = language_model.LanguageModel(lang_db, tools = tools)
             else:
                 # oops maybe we have tried third parties language files and user a language
@@ -263,9 +250,9 @@ if __name__ == '__main__':
                                                            gap, rank))
 
         manifest.append(';'.join([ str(x) for x in [ id, word, guess, gap, rank, st,
-                                                     lang, rank if rank >= 0 else 999 ] ]))
-
-        # @todo add wiring to learning / backtracking
+                                                     lang, rank if rank >= 0 else 999,
+                                                     language_model.word2letters(word),
+                                                     language_model.word2letters(guess or "") ] ]))
 
         with open(pre + ".predict.log", 'w') as pf:
             pf.write("Summary: %s %s %s %s\n" % (lang, word, guess, ok))

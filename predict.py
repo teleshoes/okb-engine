@@ -29,6 +29,11 @@ class Predict:
 
         self.debug_surrounding = os.environ.get('OKB_DEBUG_SURROUNDING', None)
 
+        if not self.tools:
+            # development tools
+            import tools.dev_tools as dev_tools
+            self.tools = dev_tools.Tools(cfvalues)
+
     def mock_time(self, time):
         if self.lm: self.lm.mock_time(time)
         self._mock_time = time
@@ -36,33 +41,20 @@ class Predict:
     def _now(self):
         return self._mock_time or int(time.time())
 
-    def cf(self, key, default_value, cast = None):
-        """ "mockable" configuration """
-        if self.db and self.db.get_param(key):
-            ret = self.db.get_param(key)  # per language DB parameter values
-        elif self.tools:
-            ret = self.tools.cf(key, default_value, cast)
-        elif self.cf:
-            ret = self.cfvalues.get(key, default_value)
-        else:
-            ret = default_value
-
-        if cast: ret = cast(ret)
-        return ret
+    def cf(self, key, default_value = None, cast = None):
+        return self.tools.cf(key, default_value, cast)
 
     def log(self, *args, **kwargs):
         """ log with default simple implementation """
-        if self.tools:
-            self.tools.log(*args, **kwargs)
-        else:
-            print(' '.join(map(str, args)))
+        self.tools.log(*args, **kwargs)
 
     def set_dbfile(self, dbfile):
         """ select database file name to load """
-        self.dbfile = dbfile
         if self.lm: self.lm.close()
         if self.db: self.db.close()
+        self.dbfile = dbfile
         self.db = self.lm = None
+        self.tools.set_db(None)
 
     def load_db(self, force_reload = False):
         """ load database if needed """
@@ -77,6 +69,8 @@ class Predict:
         self.log("DB open OK:", self.dbfile)
 
         self.lm.mock_time(self._mock_time)
+
+        self.tools.set_db(self.db)
 
         return True
 
@@ -276,7 +270,7 @@ class Predict:
                                 correlation_id = correlation_id, speed = speed,
                                 verbose = self.verbose)
 
-        self.predict_list = guesses[0:self.cf('max_predict', 30, int)]
+        self.predict_list = guesses[0:self.cf('max_predict', cast = int)]
 
         if self.predict_list:
             word = self.predict_list.pop(0)
@@ -296,7 +290,7 @@ class Predict:
             may have invalidated the new guess) """
 
         if not self.db: return
-        if not self.cf("backtrack", 1, int): return
+        if not self.cf("backtrack", cast = int): return
 
         context = self.surrounding_text
         if not context: return

@@ -1,14 +1,19 @@
 #! /bin/bash
 
 lang=
+expected=
 if [ "$1" = "-l" ] ; then
     lang="$2"
+    shift ; shift
+fi
+if [ "$1" = "-e" ] ; then
+    expected="$2"
     shift ; shift
 fi
 
 test="$1"
 edit="$2"
-if [ ! -f "$test" ] ; then echo "usage: $0 <json test file> [<editor for log file>]" ; exit 1; fi
+if [ ! -f "$test" ] ; then echo "usage: "$(basename "$0")" [-l <lang>] [-e <expected word>] <json test file> [<editor for log file>]" ; exit 1; fi
 dir=`dirname "$0"`"/.."
 dir=`readlink -f "$dir"`
 name=`basename "$test" .json`
@@ -21,6 +26,8 @@ elif [ -z "$lang" ] ; then
     lang="en"
 fi
 name=$(echo "$name" | sed 's/\-.*//' | sed 's/[0-9]*$//')
+
+[ -n "$expected" ] && name="$expected"
 
 echo "Lang: $lang, expected word: $name"
 

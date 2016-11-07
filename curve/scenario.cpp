@@ -81,6 +81,7 @@ void QuickCurve::setCurve(QList<CurvePoint> &curve, int curve_id, int min_length
   finished = false;
   isDot = false;
   straight = -1;
+  on_hold = false;
 
   int cs = curve.size();
   if (! cs) { count = 0; return; }
@@ -601,6 +602,13 @@ Point Scenario::actual_curve_tangent(int i) {
 
 float Scenario::calc_curve_score(unsigned char prev_letter, unsigned char letter, int index, int new_index) {
   /* score based on maximum distance from straight path */
+
+  if (curve->hasFlags(index, FLAG_HINT_ANY) || curve->hasFlags(new_index, FLAG_HINT_ANY)) {
+    // curve score not evaluated new Hint-O loops
+    // note: this will also catch Hint-V which may not be a good idea
+    DBG("  [curve score] %s:%c[%d->%d] not evaluated because of hints", getNameCharPtr(), letter, index, new_index);
+    return 0;
+  }
 
   Point pbegin = keys->get(prev_letter);
   Point pend = keys->get(letter);
@@ -1379,7 +1387,7 @@ void Scenario::turn_transfer(int turn_count, turn_t *turn_detail) {
   }
 }
 
-void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) {
+void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return, simple_turn_t *turns) {
   /* this score check if actual segmentation (deduced from user input curve)
      is a good match for the expected one (curve which link all keys in the
      current scenario)
@@ -1397,6 +1405,8 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
   bool  a_same[count];
   memset(a_same, 0, sizeof(a_same));
 
+  a_actual[0] = a_expected[0] = 0;
+  
   // compute actual turn rate
   float segment_length[count];
 
@@ -1404,29 +1414,36 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
 
   int i1 = 0;
   int i_ = 1;
-  for(int i = 1; i < count - 1; i ++) {
-    // curve index
-    int i2 = index_history[i];
-    int i3 = index_history[i + 1];
+  if (count == 2) {
+    Point p1 = curve->point(0);
+    Point p2 = curve->point(curve->size() - 1);
+    segment_length[0] = distancep(p1, p2);
+    
+  } else {
+    for(int i = 1; i < count - 1; i ++) {
+      // curve index
+      int i2 = index_history[i];
+      int i3 = index_history[i + 1];
 
-    // curve points
-    Point p1 = curve->point(i1);
-    Point p2 = curve->point(i2);
-    Point p3 = curve->point(i3);
+      // curve points
+      Point p1 = curve->point(i1);
+      Point p2 = curve->point(i2);
+      Point p3 = curve->point(i3);
 
-    segment_length[i] = distancep(p2, p3);
-    if (i == 1) { segment_length[0] = distancep(p1, p2); } // piquets & intervalles
+      segment_length[i] = distancep(p2, p3);
+      if (i == 1) { segment_length[0] = distancep(p1, p2); } // piquets & intervalles
 
-    a_same[i] = (i2 == i3);
+      a_same[i] = (i2 == i3);
 
-    if (i3 > i2 && i2 > i1) {
-      float actual = anglep(p2 - p1, p3 - p2) * 180 / M_PI;
+      if (i3 > i2 && i2 > i1) {
+	float actual = anglep(p2 - p1, p3 - p2) * 180 / M_PI;
 
-      for(int j = i_; j <= i; j++) {
-	a_actual[j] = actual / (1 + i - i_);  // in case of "null-point" we spread the turn rate over all matches at the same position
+	for(int j = i_; j <= i; j++) {
+	  a_actual[j] = actual / (1 + i - i_);  // in case of "null-point" we spread the turn rate over all matches at the same position
+	}
+
+	i_ = i + 1; i1 = i2;
       }
-
-      i_ = i + 1; i1 = i2;
     }
   }
   for(int i = i_; i <= count - 1; i ++) {
@@ -1631,7 +1648,6 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
 	  typ_act[j] = typ_exp[j] = typ_act[j + 1] = typ_exp[j + 1] = (a_actual[j] > 0)?1:-1;
 	}
       }
-
 
       /* step 2 : try to fill the gaps */
       for(int j = i0; j <= i; j++) {
@@ -1848,6 +1864,13 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
     } /* new block */
 
   } /* for(i) */
+
+  // return turn information
+  for(int j = 0; j < count; j ++) {
+    turns[j].expected = a_expected[j];
+    turns[j].length_before = j?segment_length[j - 1]:0;
+    turns[j].length_after = segment_length[j];
+  }
 
   /* step 5: compute length */
   if (turn_count > 0) {
@@ -2098,7 +2121,7 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
 
   // check for "locally-flat" strokes
   // (if a segment is between curve tips and/or straigt or 180° turns it should be mostly flat)
-#define IS_FLAT(a) (abs(a) < params->flat_max_angle || abs(abs(a) - 180) < params->flat_max_angle)
+#define IS_FLAT(a) (abs(a) < params->flat_max_angle || abs(abs(a) - 180) < params->flat_max_angle2)
 
   for(int i = 0; i < count - 1; i ++) {
     if ((i == 0 || IS_FLAT(a_expected[i])) &&
@@ -2123,9 +2146,16 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return) 
       }
       int max_err = params->flat_max_deviation;
       float score = max(0, max_dist / max_err - 1);
+
+      DBG("FLAT %s [%c:%c] index=%d:%d angle=%d:%d len=%d:%d:%d max_dist=%d/%d score=%.2f",
+	  getNameCharPtr(), letter_history[i], letter_history[i + 1], i, i + 1,
+	  (i == 0)?-1:(int) a_expected[i], (i == count - 2)?-1:(int) a_expected[i + 1],
+	  (i == 0)?-1:(int) segment_length[i - 1], (int) segment_length[i], (i == count - 2)?-1:(int) segment_length[i + 1],
+	  (int) max_dist, max_err, score);
+
       if (! score) { continue; }
       DBG("[%s] Flat segment not matched: turn #%d->#%d max_dist=%d --> score=%.2f", getNameCharPtr(), i, i + 1, (int) max_dist, score);
-      log_misc(getName(), "flat_score", params->flat_score, -1);
+      log_misc(getName(), "flat_score", params->flat_score, - score);
       scores[i].misc_score -= 0.5 * params->flat_score * score;
       scores[i + 1].misc_score -= 0.5 * params->flat_score * score;
     }
@@ -2484,6 +2514,126 @@ float Scenario::calc_score_misc(int i) {
   return score;
 }
 
+void Scenario::check_turn2(simple_turn_t *turns, turn_t *turn_detail, int turn_count) {
+  /* other checks for curve inconsistent with turns */
+
+  // 1) small turn before a sharp turn (ST=2) is likely to be linked to another match point
+  for(int i = 1; i < count - 1; i ++) {
+    int expected = (int) turns[i].expected;
+
+    DBG(" [check turn 2.1] #%d expected=%d length=[%d:%d]", i, expected, turns[i].length_before, turns[i].length_after);
+
+    index = index_history[i];
+    if (curve->hasFlags(index, FLAG_HINT_ANY)) { continue; }
+    if (curve->getSpecialPoint(index) != 2) { continue; }
+    if (abs(expected) > params->ct1_max_turn) { continue; }
+    if (index_history[i + 1] == index || index_history[i - 1] == index) { continue; }
+
+    for(int sens = -1; sens <= 1; sens += 2) {
+
+      int length = (sens < 0)?turns[i].length_before:turns[i].length_after;
+      if (length < params->ct1_min_length) { continue; }
+
+      int other_length = (sens > 0)?turns[i].length_before:turns[i].length_after;
+      if (other_length < params->ct1_min_length2) { continue; }
+
+      int next_index = index_history[i + sens];
+      if (index + 8 * sens > 0 && index + 8 * sens < curve->size()) {
+	float ratio = params->ct1_ratio;
+	int max_index = -1;
+	int max_value = 0;
+	for(int j = params->ct1_gap1; j <= params->ct1_gap2; j ++ ) {
+	  int value = abs(curve->getTurnSmooth(index + sens * j));
+	  if (value > max_value) {
+	    max_value = value;
+	    max_index = index + sens * j;
+	  }
+	}
+	int ok = 0;
+	int t0 = curve->getTurnSmooth(max_index);
+	for(int k = 1; k <= params->ct1_range; k ++) {
+	  int t1 = curve->getTurnSmooth(max_index - k);
+	  int t2 = curve->getTurnSmooth(max_index + k);
+	  if (abs(t1) < abs(t0) * ratio && t1 * t0 >= 0) { ok |= 1; }
+	  if (abs(t2) < abs(t0) * ratio && t2 * t0 >= 0) { ok |= 2; }
+	  if (abs(t1) > abs(t0) && t0 * t1 > 0) { ok |= 4; }
+	  if (abs(t2) > abs(t0) && t0 * t2 > 0) { ok |= 4; }
+	}
+
+	int value_threshold = params->ct1_min_value;
+
+	DBG(" [check turn 2.1] #%d: ST_index=%d(%d) max_index=%d value=%d/%d ok=%d", i, index, next_index, max_index, t0, value_threshold, ok);
+
+	if (max_value >= value_threshold && ok == 3 && abs(max_index - next_index) > abs(index - max_index)) {
+	  DBG(" [check turn 2.1] match!");
+	  scores[i].misc_score -= params->ct1_score;
+	  log_misc(getName(), "ct1_score", params->ct1_score, -1);
+	}
+      }
+
+    }
+  }
+
+  // 2) eliminate candidates with suspicious turns near tips
+  if (turn_count > 0) {
+    for(int tip = 0; tip <= 1; tip ++) {
+      int index, length, step, last_index;
+      if (! tip) {
+	index = 0;
+	last_index = index_history[turn_detail[0].start_index] / 2;
+	length = turn_detail[0].length_before;
+	step = 1;
+      } else {
+	index = curve->size() - 1;
+	last_index = (index_history[turn_detail[turn_count - 1].index] + index) / 2;
+	length = turn_detail[turn_count - 1].length_after;
+	step = -1;
+      }
+      int index_start = index;
+      DBG(" [check turn 2.2] tip=%d index=%d->%d step=%d length=%d/%d", tip, index, last_index, step, length, params->ct2_min_length);
+      if (length < params->ct2_min_length) { continue; }
+      int turn0 = 0;
+      int total = 0;
+      while (index != last_index) {
+	int turn = curve->getTurnSmooth(index);
+	total += turn;
+	if (turn) {
+	  if (! turn0) {
+	    turn0 = turn;
+	  } else {
+	    if (turn0 * turn < 0) { break; }
+	  }
+
+	  if (abs(total) > params->ct2_max_turn &&
+	      abs(total) > params->ct2_max_avg * abs(index - index_start) &&
+	      abs(index - index_start) > params->ct2_min_points) {
+
+	    // if the turn is consistent with trying to reach target point, do not register the score decrease
+	    Point tg = keys->get(letter_history[tip?0:(count - 1)]);
+	    Point p1 = curve->point(index + 2 * step);
+	    Point p2 = curve->point(index + step);
+	    float angle = anglep(p2 - p1, tg - p2);
+	    bool ok = (angle * turn * step < 0);
+
+	    DBG(" [check turn 2.2] tip=%d index=%d total=%d/%d avg=%.3f/%.3f angle=%.2f angle_ok=%d",
+		tip, index, total, params->ct2_max_turn,
+		(float) abs(total) / abs(index - index_start), params->ct2_max_avg,
+		angle * 180 / M_PI, (int) ok);
+	    if (! ok) {
+	      scores[tip?count - 1:0].misc_score -= params->ct2_score;
+	      log_misc(getName(), "ct2_score", params->ct2_score, -1);
+	    }
+	    break;
+	  }
+	}
+	index += step;
+      }
+    }
+  }
+
+
+}
+
 void Scenario::calc_straight_score_all(turn_t *turn_detail, int turn_count, float straight_score) {
   float result = 0;
 
@@ -2628,7 +2778,7 @@ void Scenario::calc_flat2_score_part(int i1, int i2) {
     for(int j = i1; j <= i2; j ++) {
       scores[j].misc_score -= params->flat2_score_max / (i2 - i1 + 1);
     }
-    log_misc(getName(), "flat2_score_max", params->loop_penalty, -1);
+    log_misc(getName(), "flat2_score_max", params->flat2_score_max, -1);
   }
 }
 
@@ -2656,7 +2806,7 @@ void Scenario::calc_flat2_score_all() {
       for(int j = i1; j <= i2; j ++) {
 	scores[j].misc_score -= params->flat2_score_min / (i2 - i1 + 1);
       }
-      log_misc(getName(), "flat2_score_min", params->loop_penalty, -1);
+      log_misc(getName(), "flat2_score_min", params->flat2_score_min, -1);
     }
     */
   }
@@ -2815,8 +2965,9 @@ bool Scenario::postProcess(stats_t &st) {
   }
 
   turn_t turn_detail[count];
+  simple_turn_t simple_turns[count];
   int turn_count;
-  calc_turn_score_all(turn_detail, &turn_count);
+  calc_turn_score_all(turn_detail, &turn_count, simple_turns);
 
   calc_straight_score_all(turn_detail, turn_count, curve->straight);
 
@@ -2824,6 +2975,8 @@ bool Scenario::postProcess(stats_t &st) {
 
   /* flat2 score for part of words that should or should not be flat */
   calc_flat2_score_all();
+
+  check_turn2(simple_turns, turn_detail, turn_count);
 
   /* particular case: simple turn (ST=1) shared between two keys
      this is an ugly workaround: curve_score works really badly in this case
@@ -3135,16 +3288,30 @@ bool Scenario::nextLength(unsigned char next_letter, int curve_id, int &min_leng
     (currently it's value is last key curve length + distance between the two keys + 2 * max distance error
     which means, that matching will always ~200 pixels late (with current settings)
     max_length is a pessimistic guess (it prevent retries and uses the less cpu time)
-    min_length is an optimistic guess
+    min_length is an optimistic guess (for lower latency in incremental mode)
   */
 
   max_length = last_length  + (1.0 + (float)dist / params->dist_max_next / 20) * (params->incremental_length_lag + dist);
   min_length = last_length + max(0, dist - params->incremental_length_lag / 2);
 
-  /* @todo optimize retries & hint-O
-  if (curve->hasFlags(index_history[count - 1], FLAG_HINT_O)) {
-    max_length += something;
-    min_length += something;
+  /* optimize retries & hint-O */
+  /* This still seems not needed
+  // quick check for hint-o loop
+  bool found = false;
+  int i = index_history[count - 1];
+  while(i < curve->size()) {
+    if (curve->hasFlags(i, FLAG_HINT_O | FLAG_HINT_o)) { found = true; }
+    i += params->hint_o_min_segments - 1;
+  }
+  if (! found) { return true; }
+
+  // we have got a hint-o loop ahead
+  for(int i = index_history[count - 1]; i < curve->size() - 1; i ++) {
+    if (curve->hasFlags(i, FLAG_HINT_O | FLAG_HINT_o)) {
+      int l = curve->getLength(i + 1) - curve->getLength(i);
+      min_length += l;
+      max_length += l;
+    }
   }
   */
 

@@ -66,7 +66,9 @@ for t in records:
 
     content = open(os.path.join(dir, "%s.%s" % (id, extension)), 'r').read()
     if content[0] != '{':
-        content = content[content.index('{'):]
+        pos = content.find('{')
+        if pos == -1: raise Exception("No JSON found (id=%s). Maybe you have used cli '-s' option ?" % id)
+        content = content[pos:]
     js = json.loads(content)
     candidates = [ c["name"] for c in js["candidates"] ]
     if len(candidates) <= 1: continue

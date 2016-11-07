@@ -9,6 +9,9 @@ import unicodedata
 import math
 import os
 
+from operator import mul
+from functools import reduce
+
 def word2letters(word):
     letters = ''.join(c for c in unicodedata.normalize('NFD', word.lower()) if unicodedata.category(c) != 'Mn')
     letters = re.sub(r'[^a-z]', '', letters.lower())
@@ -40,6 +43,18 @@ def split_old_candidate_list(candidates):
 
     return out
 
+EPS = 1E-6  # for ex-aequo
+
+
+def sign(x):
+    return math.copysign(1, x) if x else 0
+
+def response(x, xthreshold, ybefore, yafter = None):
+    if abs(x) <= xthreshold: return sign(x) * EPS
+    if abs(x) >= 1: return x * (yafter or ybefore)
+    ratio = (abs(x) - xthreshold) / (1 - xthreshold)
+    return ybefore * x * ratio
+    # @todo try: return ybefore * sign(x) * (abs(x) ** exposant)
 
 class WordInfo:
     def __init__(self, word, id = -1, cluster_id = -1, displayed_word = None, ts = 0, bad_caps = False):
@@ -53,7 +68,7 @@ class WordInfo:
 
     def __str__(self):
         cstr = "{%s}" % (' '.join([ "%s:%s" % (x, str(y)) for x, y in self.count.items() ])) if self.count else ""
-        return "[WordInfo: %s (%d:%d) %s %s %s]" % (self.word, self.id, self.cluster_id,
+        return "[WordInfo: %s (%d:%d) %s %s %s]" % (self.word, self.id or -1, self.cluster_id or -1,
                                                     self.displayed_word or "-", cstr, "[BC]" if self.bad_caps else "")
 
     def clone(self):
@@ -77,15 +92,23 @@ class LanguageModel:
         self._mock_time = None
         self._cache = dict()
         self._learn_history = dict()
-        self._last_purge = self._db.get_param("last_purge", 0, int)
 
-        self._half_life = self.cf('learning_half_life', 20, int)
         self._history = []
         self._debug = debug
 
+        if os.getenv('LM_DEBUG', None): self._debug = True
+
+        if not self._tools:
+            # development tools
+            import tools.dev_tools as dev_tools
+            self._tools = dev_tools.Tools(cfvalues)
+            self._tools.set_db(db)  # for language specific parameters
+
+        self._last_purge = self._db.get_param("last_purge", 0, int)
+        self._half_life = self.cf('learning_half_life', cast = int)
+
         if dummy: self._dummy_request()
 
-        if os.getenv('LM_DEBUG', None): self._debug = True
 
     def mock_time(self, time):
         self._mock_time = time
@@ -94,25 +117,10 @@ class LanguageModel:
         return self._mock_time or int(time.time())
 
     def cf(self, key, default_value = None, cast = None):
-        """ "mockable" configuration """
-        if self._db and self._db.get_param(key):
-            ret = self._db.get_param(key)  # per language DB parameter values
-        elif self._tools:
-            ret = self._tools.cf(key, default_value, cast)
-        elif self._cfvalues:
-            ret = self._cfvalues.get(key, default_value)
-        else:
-            ret = default_value
-
-        if cast: ret = cast(ret)
-        return ret
+        return self._tools.cf(key, default_value, cast)
 
     def log(self, *args, **kwargs):
-        """ log with default simple implementation """
-        if self._tools:
-            self._tools.log(*args, **kwargs)
-        else:
-            print(' '.join(map(str, args)))
+        self._tools.log(*args, **kwargs)
 
     def debug(self, *args, **kwargs):
         if self._debug:
@@ -136,7 +144,7 @@ class LanguageModel:
             learn = self._learn_history.keys()
         else:
             now = int(time.time())
-            delay = self.cf('commit_delay', 20, int)
+            delay = self.cf('commit_delay', cast = int)
             learn = [ key for key, item in self._learn_history.items() if item[2] < now - delay ]
 
         if not learn: return
@@ -236,18 +244,26 @@ class LanguageModel:
         if word.find("'") > -1 or word.find("-") > -1:
             l1 = l2 = None
 
-            # prefixes
-            mo = re.match(r'^([^\-\']+[\-\'])(.+)$', word)
-            if mo:
-                l1 = self._word2wi(mo.group(1), first_word)  # prefix
-                if l1: l2 = self._word2wi(mo.group(2), False, create = create, uncapitalized = uncapitalized, parent = False)
-                if l1 and l2: return l1 + l2
-            # suffixes
-            mo = re.match(r'^(.+)([\-\'][^\-\']+)$', word)
-            if mo:
-                l2 = self._word2wi(mo.group(2), False)  # suffix
-                if l2: l1 = self._word2wi(mo.group(1), first_word, create = create, uncapitalized = uncapitalized, parent = False)
-                if l1 and l2: return l1 + l2
+            # remove begin / end punctiations signs
+            word = re.sub(r'^[\'\-]+', '', word)
+            word = re.sub(r'[\'\-]+$', '', word)
+
+            if not word: return None
+
+            if word.find("'") > -1 or word.find("-") > -1:
+
+                # prefixes
+                mo = re.match(r'^([^\-\']+[\-\'])(.+)$', word)
+                if mo:
+                    l1 = self._word2wi(mo.group(1), first_word)  # prefix
+                    if l1: l2 = self._word2wi(mo.group(2), False, create = create, uncapitalized = uncapitalized, parent = False)
+                    if l1 and l2: return l1 + l2
+                # suffixes
+                mo = re.match(r'^(.+)([\-\'][^\-\']+)$', word)
+                if mo:
+                    l2 = self._word2wi(mo.group(2), False)  # suffix
+                    if l2: l1 = self._word2wi(mo.group(1), first_word, create = create, uncapitalized = uncapitalized, parent = False)
+                    if l1 and l2: return l1 + l2
 
         ids = self._db.get_words(word.lower())
 
@@ -456,73 +472,137 @@ class LanguageModel:
         return (user_count, user_replace, last_time, proba)
 
 
-    ALL_SCORES = [ "s3", "c3", "s2", "c2", "s1" ]
-    ALL_SCORES_NC = [ s for s in ALL_SCORES if s[0] == "s" ]
+    SCORE_PLUS1 = [ "s3", "s2" ]
+    SCORE_PLUS2 = [ "c+3", "c+2" ]
+    SCORE_MINUS = [ "c-3", "c-2" ]
+    SCORE_FREQ = [ "s1" ]
+    ALL_SCORES = SCORE_PLUS1 + SCORE_PLUS2 + SCORE_MINUS + SCORE_FREQ
+    ALL_SCORES_NC = [ "s3", "s2", "s1" ]
+    INFINITY = float('inf')
+    EPS = 1E-6  # juste to rank ex-aequo candidates
 
-    def _compare_coefs(self, coefs1, curve_score1, coefs2, curve_score2):
-        """ Compare coefficients for two words or parts of text
-            Input: dicts score_id => score + curve score (for each word)
-            Result:
-            <= -1 = first word wins
-            >= 1  = second word wins
-            x (in ]-1, 1[)  = ex-aequo (x is positive if second word is slightly better) """
+    def _compare_coefs(self, coefs1, coefs2, debug = False):
+        """ Input: dicts score_id => score + curve score (for each word)
+                   coefs are those ine ALL_SCORES + "curve" for curve score + "nocluster" for non clustered words
+            Output: relative curve score (>0 if word 2 has better score)
+        """
 
-        curve_max_gap2 = self.cf("p2_curve_max2", 0.011, float)
+        p3_log_ratio_discriminant = self.cf("p3_log_ratio_discriminant", cast = float)  # E.g. 2 for ratio = 100
+        p3_ratio_significant = self.cf("p3_ratio_significant", cast = float)  # no (% of above parameter)
+        p3_score_unknown = self.cf("p3_score_unknown", cast = float)
+        p3_score_plus = self.cf("p3_score_plus", cast = float)
+        p3_score_plus2 = self.cf("p3_score_plus2", cast = float)
+        p3_score_plus_unmatched = self.cf("p3_score_plus_unmatched", cast = float)
+        p3_score_minus = self.cf("p3_score_minus", cast = float)
+        p3_score_minus_unmatched = self.cf("p3_score_minus_unmatched", cast = float)
+        p3_min_count = self.cf("p3_min_count", cast = int)  # warning this may be dependent on text corpus used
+        p3_score_freq = self.cf("p3_score_freq", cast = float)
+        p3_score_freq_small = self.cf("p3_score_freq_small", cast = float)
+        p3_max_curve_gap = self.cf("p3_max_curve_gap", cast = float)
+        p3_s1_ratio_force = self.cf("p3_s1_ratio_force", cast = float)
+        p3_s1_ratio_score = self.cf("p3_s1_ratio_score", cast = float)
 
-        # filter candidates with bad curve (coarse setting)
-        if curve_score1 > curve_score2 + curve_max_gap2: return -1, "curve"
-        if curve_score2 > curve_score1 + curve_max_gap2: return 1, "curve"
+        curve_score1, curve_score2 = coefs1["curve"], coefs2["curve"]
+        if curve_score1 > curve_score2 + p3_max_curve_gap: return (- p3_score_minus_unmatched), "curve"
+        if curve_score2 > curve_score1 + p3_max_curve_gap: return p3_score_minus_unmatched, "curve"
 
-        if not coefs1 and not coefs2: return 0, "none"
-        if not coefs1: return 1, "no coef 1"
-        if not coefs2: return -1, "no coef 2"
+        found1 = found2 = False
+        cmp = dict()
+        for sc in LanguageModel.ALL_SCORES:
+            if sc not in coefs1 and sc not in coefs2: continue
+            if sc not in coefs1:
+                value = LanguageModel.INFINITY
+                found2 = True
+            elif sc not in coefs2:
+                value = - LanguageModel.INFINITY
+                found1 = True
+            else:
+                value = math.log10(coefs2[sc] / coefs1[sc]) / p3_log_ratio_discriminant
+                found1 = found2 = True
+            cmp[sc] = value
+
+        if not found1 and not found2: return 0, "nothing"
+        if not found1: return p3_score_unknown, "unknown"
+        if not found2: return (- p3_score_unknown), "unknown"
+
+        def score_part(score_ids, unmatched_score_fn, matched_score_fn):
+            sign_constraint = 0
+            score = 0
+            for sc in score_ids:
+                if sc not in cmp: continue
+
+                count = min([ coefs1.get("n" + sc, 0), coefs2.get("n" + sc, 0) ])
+                ratio = cmp[sc]
+                if math.isinf(ratio):
+                    sign_constraint = sign(ratio)
+                    count = max([ coefs1.get("n" + sc, 0), coefs2.get("n" + sc, 0) ])
+                    if count >= p3_min_count:
+                        score = unmatched_score_fn(sign_constraint, count)
+                        continue
+
+                if count < p3_min_count:
+                    sign_constraint = sign(ratio)
+                    continue
+
+                new_score = matched_score_fn(ratio)
+                if sign_constraint * new_score >= 0 and abs(new_score) > abs(score):
+                    score = new_score
+                    break
+
+            return score
+
+        score_plus = score_part(LanguageModel.SCORE_PLUS1,
+                                lambda sign_constraint, count: p3_score_plus_unmatched * sign_constraint * math.log10(count / p3_min_count),
+                                lambda ratio: response(ratio, p3_ratio_significant, p3_score_plus))
+
+        score_minus = score_part(LanguageModel.SCORE_MINUS,
+                                 lambda sign_constraint, count: sign_constraint * p3_score_minus_unmatched,
+                                 lambda ratio: response(ratio, 0, 0, p3_score_minus))
+
+        score_plus2 = score_part(LanguageModel.SCORE_PLUS2,
+                                 lambda sign_constraint, count: 0,  # has already been catched by score_minus
+                                 lambda ratio: response(ratio, p3_ratio_significant, p3_score_plus2))
+
+        if "s1" in cmp:
+            s1_ratio = cmp["s1"]
+            score_freq = response(s1_ratio, p3_ratio_significant, p3_score_freq_small, p3_score_freq)
+        else: s1_ratio, score_freq = 0, 0
+
+        # mixing all score together
+        score = score_plus
+        if score * score_minus >= 0 or abs(score) <= EPS: score += score_minus
+
+        if abs(score_plus2) > abs(score) and (score_plus2 * score >= 0 or abs(score) <= EPS): score = score_plus2  # fallback
+
+        if abs(s1_ratio) >= p3_s1_ratio_force:
+            score = score_freq * p3_s1_ratio_score
+        elif abs(s1_ratio) >= 1 and score_freq * score < 0: score = 0
+        else:
+            if score_freq * score >= 0: score += score_freq
+
+        if self._debug or debug:
+            return score, ("std:%.3f %s plus=%.5e/%.5e minus=%.5e freq=%.5e" %
+                           (score,
+                            ", ".join([ "%s=%.2f" % (cn, cs)
+                                        for (cn, cs) in cmp.items()]),
+                            score_plus, score_plus2, score_minus, score_freq))
+        else:
+            return score, "std:%.3f" % score
 
 
-        curve_max_gap = self.cf("p2_curve_max", 0.002, float)
-        curve_ratio = self.cf("p2_curve_ratio", 0.7, float)
-        ratio = self.cf("p2_ratio", 112.8, float)
-        default = self.cf("p2_default", 1.397, float)
+    def _compare_coefs_debug(self, coefs1, coefs2, debug = False):
+        word1, word2 = coefs1["word"], coefs2["word"]
+        result = self._compare_coefs(coefs1, coefs2, debug = debug)
+        if not self._debug and not debug: return result
+        tr = lambda coefs: ", ".join([ "%s=%.2e" % (x, y) for (x, y) in sorted(coefs.items()) if re.search('^[cs]', x)])
+        self.log("COMPARE: %s[%s] <=> %s[%s]: result=%.6f [%s]" %
+                 (word1, tr(coefs1), word2, tr(coefs2), result[0], result[1]))
 
-        # score evaluation: linear combination of log probability ratios
-        if not curve_max_gap: return 0, "parms_max_gap"  # optimizer dirty workaround
-        curve_coef = 10. ** (curve_ratio * (curve_score2 - curve_score1) / curve_max_gap)  # [0.1, 10], <1 if first word wins
+        # debug: result2 = self._compare_coefs(coefs2, coefs1)
+        # debug: if result2[0] + result[0] > EPS: raise Exception("Reverse compare inconsistent!")
 
-        score_ratio = dict()
-        for s_id in LanguageModel.ALL_SCORES:
-            c1, c2 = coefs1.get(s_id, 0), coefs2.get(s_id, 0)
+        return result
 
-            if c1 == 0 and c2 == 0: s = 0
-            elif c1 == 0: s = default
-            elif c2 == 0: s = -default
-            else: s = math.log10(curve_coef * c2 / c1) / math.log10(ratio)
-
-            score_ratio[s_id] = s
-
-        lst = [ (1, score_ratio["s1"]),
-                (self.cf("p2_coef_s2", 2.256, float), score_ratio["s2"]),
-                (self.cf("p2_coef_s3", 3.931, float), score_ratio["s3"]),
-                (self.cf("p2_coef_c2", 2.064, float), score_ratio["c2"]),
-                (self.cf("p2_coef_c3", 3.463, float), score_ratio["c3"]) ]
-
-        total = total_coef = 0.0
-        for (coef, sc) in lst:
-            if sc:
-                total += coef * sc
-                total_coef += coef
-
-        score = self.cf("p2_master_coef", 1.939, float) * total / total_coef if total_coef else 0
-
-        return score, "std:%.3f %s" % (score,
-                                       ", ".join([ "%s=%.2e" % (cn, cs)
-                                                   for (cn, cs) in score_ratio.items() ]) if self._debug else "-")
-
-    def _compare_coefs_debug(self, coefs1, curve_score1, coefs2, curve_score2, word1, word2):
-        result = self._compare_coefs(coefs1, curve_score1, coefs2, curve_score2)
-        if not self._debug: return result[0]
-        tr = lambda coefs: ", ".join([ "%s=%.5f" % (x, y) for (x, y) in coefs.items() ])
-        self.debug("%s[%.3f : %s] <=> %s[%.3f : %s] : compare=%.3f [%s]" %
-                   (word1, curve_score1, tr(coefs1), word2, curve_score2, tr(coefs2), result[0], result[1]))
-        return result[0]
 
     def _eval_score(self, candidates, verbose = False, expected_test = None):
         """ Evaluate overall score (curve + predict)
@@ -531,102 +611,71 @@ class LanguageModel:
 
         if not candidates: return dict()
 
-        p2_default_coef = 10 ** (- 10 * self.cf("p2_default_coef_log", 1., float))
         current_day = int(self._now() / 86400)
 
         # --- data preparation ---
         curve_scores = dict()
-        max_coef = dict()
         all_coefs = dict()
         for c in candidates:
             wi_list = candidates[c][1]
             curve_scores[c] = sum(candidates[c][0]) / len(candidates[c][0])  # average
+            all_coefs[c] = dict(curve = curve_scores[c], word = c)
 
             if not wi_list: continue
-            all_coefs[c] = dict()
+            for wi in wi_list:
+                if wi.cluster_id == -5:
+                    all_coefs[c]["nocluster"] = True   # #NOCLUSTER cluster
+
             for score_id in LanguageModel.ALL_SCORES:
                 coef = 1.0
                 found = False
+                counts = []
                 for wi in wi_list:
-                    if wi.count and score_id in wi.count and wi.count[score_id].count > 0:
-                        coef1 = ((wi.count["coef_wc"] if score_id[0] == 'c' else 1.0) *
-                                  wi.count[score_id].count / wi.count[score_id].total_count)
+                    key = score_id[0] + score_id[-1] if len(score_id) > 2 else score_id
+                    if wi.count and key in wi.count and wi.count[key].count > 0:
+                        coef1 = ((wi.count["coef_wc"] if score_id[1] == '+' else 1.0) *
+                                  wi.count[key].count / wi.count[key].total_count)
                         found = True
-                    else: coef1 = p2_default_coef  # arbitrary (small) value
-                    coef *= coef1
+                        counts.append(wi.count[key].count)
+                        coef *= coef1
+                    else: coef = 0.0
+
                 if not found: coef = 0
                 if coef > 0:
-                    coef = coef ** (1 / len(wi_list))
-                    if score_id not in max_coef or max_coef[score_id][0] < coef:
-                        max_coef[score_id] = (coef, c)
-                all_coefs[c][score_id] = coef
+                    coef = coef ** (1 / len(counts))
+                    all_coefs[c][score_id] = coef
+                    all_coefs[c]["n" + score_id] = reduce(mul, counts) ** (1 / len(counts))  # @TODO find good aggregation function
+
+        if expected_test and expected_test in all_coefs: all_coefs[expected_test]["expected"] = True
 
         # --- prediction score evaluation (stock) ---
         predict_scores = dict()
-        score_f = lambda x: curve_scores.get(x, 0) + predict_scores[x][0] if x in predict_scores else 0
 
-        # remove candidate with "coarse comparison failed" and keep others in a "green-list"
-        green_list = set()
-        for c in sorted(all_coefs.keys()):  # sort for repeatable results
-            if not green_list:
-                green_list.add(c)
-                self.debug("green list += %s (first)" % c)
-                continue
+        # find reference candidate
+        csorted = sorted(all_coefs.keys(), key = lambda x: all_coefs[x]["curve"], reverse = True)
+        ref = None
+        for c in csorted:
+            if not ref:
+                ref = c
+            else:
+                cmp = self._compare_coefs_debug(all_coefs[ref], all_coefs[c])[0] + curve_scores[c] - curve_scores[ref]
+                if cmp > 0: ref = c
+        self.debug("Reference:", ref)
 
-            remove = False
-            for c0 in list(green_list):
-                compare = self._compare_coefs_debug(all_coefs[c0], curve_scores.get(c0, 0),
-                                                    all_coefs[c], curve_scores.get(c, 0), c0, c)
+        # evaluate other candidate vs. reference
+        predict_scores[ref] = 0, "ref"
+        for c in csorted:
+            if c == ref: continue
+            cmp = self._compare_coefs_debug(all_coefs[ref], all_coefs[c])
+            pscore = cmp[0]
+            predict_scores[c] = pscore, cmp[1]
 
-                if compare >= 1:  # new candidate evict another candidate from reference list
-                    green_list.remove(c0)
-                    self.debug("green list -= %s (%.3f)" % (c0, compare))
-
-                elif compare <= -1:  # new candidate is eliminated by another one in reference list
-                    remove = True
-
-            if not remove:
-                green_list.add(c)
-                self.debug("green list += %s" % c)
-
-
-        # ordering fine tuning for candidates still in the green-list
-        last_c0 = None
-        green_list = list(green_list)
-        adj_f = lambda x: -0.0001 if x[0].isupper() else 0
-        p2_fine_threshold = self.cf("p2_fine_threshold", 0.288, float)
-        if green_list:
-            for _ in range(3):
-                green_list.sort(key = lambda x:  (score_f(x), x), reverse = True)  # the tuple ensures repeatable results
-                p2_score_fine = self.cf("p2_score_fine", 0.002, float)
-                self.debug("green list", str(green_list))
-                c0 = green_list[0]
-                if c0 == last_c0: break
-                last_c0 = c0
-
-                predict_scores[c0] = (adj_f(c0), "reference")
-                for c in green_list[1:]:
-                    compare = self._compare_coefs_debug(all_coefs[c0], curve_scores.get(c0, 0),
-                                                        all_coefs[c], curve_scores.get(c, 0), c0, c)
-
-                    if compare:
-                        if abs(compare) < p2_fine_threshold: compare = 0
-                        predict_scores[c] = (compare * p2_score_fine + adj_f(c),
-                                             "fine:%.4f" % compare)
-                        self.debug("fine[%.4f]: '%s'" % (compare, c))
-                    else:
-                        predict_scores[c] = (adj_f(c), "ex-aequo")
-                        self.debug("ex-aequo: '%s'" % c)
-
-        for c in candidates:
-            if c not in all_coefs:
-                predict_scores[c] = (- self.cf("p2_score_unknown", 0.008, float), "unknown")
-                self.debug("unknown: '%s'" % c)
-            elif c not in predict_scores:
-                compare = self._compare_coefs_debug(all_coefs[c0], curve_scores.get(c0, 0),
-                                                    all_coefs[c], curve_scores.get(c, 0), c0, c)
-                predict_scores[c] = (compare * self.cf("p2_score_coarse", 0.015, float), "coarse:%.2f" % compare)
-                self.debug("coarse[%.4f]: '%s'" % (compare, c))
+        # heuristics (good for French, maybe not other, but it will change only ex-aequo words anyway)
+        for c in csorted:
+            adj = 0
+            if c[0].isupper(): adj = -EPS
+            elif re.match(r'^[a-zA-Z\-\']+$', c): adj = EPS
+            if adj: predict_scores[c] = (predict_scores[c][0] + adj, predict_scores[c][1])
 
         # --- prediction score evaluation (user) ---
         user_stats = dict()
@@ -648,10 +697,10 @@ class LanguageModel:
 
                 if user_replace > user_count and user_replace > 0.5:
                     # negative learning
-                    predict_scores[c] = (predict_scores[c][0] - self.cf("p2_learn_negative", 0.01, float), "learn-:%s" % s_id)
+                    predict_scores[c] = (predict_scores[c][0] - self.cf("learn_negative", cast = float), "learn-:%s" % s_id)
                     break
 
-                if current_day - last_time > self.cf("p2_forget", 90, int): continue
+                if current_day - last_time > self.cf("learn_forget", cast = int): continue
                 if user_count < 0.5: continue
 
                 if s_id > max_score_id:
@@ -670,13 +719,13 @@ class LanguageModel:
             for c in user_stats:
                 (user_count, user_replace) = user_stats[c]
                 if max_score_id == "s1":
-                    if user_count > self.cf("p2_learn_s1_threshold", 5, int): learn_value = 0
-                    else: learn_value = - self.cf("p2_learn_s1", 0.002, float)
+                    if user_count > self.cf("learn_s1_threshold", cast = int): learn_value = 0
+                    else: learn_value = - self.cf("learn_s1", cast = float)
                 else:
-                    if user_count > self.cf("p2_learn_s23_threshold", 5, int) \
-                       and user_replace * self.cf("p2_learn_s23_ratio", 5, int) < user_count \
-                       and user_score(c) > max_user_score / self.cf("p2_learn_score_ratio", 4, int):
-                        learn_value = self.cf("p2_learn_s23", 0.01, float)
+                    if user_count > self.cf("learn_s23_threshold", cast = int) \
+                       and user_replace * self.cf("learn_s23_ratio", cast = int) < user_count \
+                       and user_score(c) > max_user_score / self.cf("learn_score_ratio", cast = int):
+                        learn_value = self.cf("learn_s23", cast = float)
                     else: learn_value = 0
 
                 predict_scores[c] = (max(predict_scores[c][0], learn_value), "L+%s:%.4f" % (s_id, learn_value))
@@ -693,11 +742,17 @@ class LanguageModel:
                              stats = candidates[c][1],
                              coefs = all_coefs.get(c, dict()))
 
-
         # --- verbose output (no actual processing done here) ---
         if verbose:  # detailed display (for debug)
             # this is really fugly formatting code (i was too lazy to build tabulate or other on the phone)
             # @TODO put this in a separate function if we do not need information from above scoring
+
+            if len(result) >= 2:
+                guess = sorted(result.keys(), key = lambda x: result[x]["score"], reverse = True)[0]
+                if guess != expected_test and expected_test in all_coefs:
+                    self._compare_coefs_debug(all_coefs[guess], all_coefs[expected_test], debug = True)
+
+            all_scores = [ "s3", "c3", "s2", "c2", "s1" ]
             clist = sorted(candidates.keys(),
                            key = lambda c: scores.get(c, 0),
                            reverse = True)
@@ -715,7 +770,7 @@ class LanguageModel:
                 for wi in wi_list or []:
                     li = " %-8s" % wi.word[:8]
                     # stock counts
-                    for score_id in LanguageModel.ALL_SCORES:
+                    for score_id in all_scores:
                         if score_id in wi.count and wi.count[score_id].count > 0:
                             cc = wi.count[score_id]
                             txt = score_id + ": " + smallify_number(cc.count) \
@@ -734,7 +789,7 @@ class LanguageModel:
                     # user counts
                     found = False
                     li = "U>"
-                    for score_id in LanguageModel.ALL_SCORES:
+                    for score_id in all_scores:
                         if score_id in wi.count and wi.count[score_id].user_count > 0:
                             cc = wi.count[score_id]
                             txt = score_id + ":" + smallify_number_3(cc.user_count) \
@@ -749,8 +804,9 @@ class LanguageModel:
 
                 if c in all_coefs:
                     li = " ------- "
-                    for score_id in LanguageModel.ALL_SCORES:
-                        cc = all_coefs[c].get(score_id, None)
+                    for score_id in all_scores:
+                        key = 'c-' + score_id[1] if score_id[0] == 'c' else score_id
+                        cc = all_coefs[c].get(key, None)
                         if cc: li += "%s: [%.2e] " % (score_id, cc)
                         else: li += " " * 15
                     col3.append(li)
@@ -813,11 +869,11 @@ class LanguageModel:
         sorted_candidates = sorted(candidates_tmp.keys(), key = lambda x: candidates_tmp[x][1], reverse = True)
 
         max_score = candidates_tmp[sorted_candidates[0]][1]
-        max_count = self.cf("p2_max_candidates", 50, int)
+        max_count = self.cf("predict_max_candidates", cast = int)
         if len(sorted_candidates) > max_count:
             filt = max_score - candidates_tmp[sorted_candidates[max_count]][1]
         else:
-            filt = self.cf("p2_filter", 0.025, float)
+            filt = self.cf("predict_filter", cast = float)
 
         candidates = dict([ (w, v) for w, v in candidates_tmp.items()
                             if v[1] >= max_score - filt ])
@@ -853,11 +909,11 @@ class LanguageModel:
         """ suggest backtracking solution for last two (at the moment) guesses
             return value (tuple): (start position, old content, new content, correlation_id) """
 
-        timeout = self.cf("backtrack_timeout", 3, int)
-        max_count = self.cf("backtrack_max", 5, int)
-        score_threshold = self.cf("backtrack_score_threshold", 0.01, float)
+        timeout = self.cf("backtrack_timeout", cast = int)
+        max_count = self.cf("backtrack_max", cast = int)
+        score_threshold = self.cf("backtrack_score_threshold", cast = float)
 
-        min_s3 = 10 ** (- 10 * self.cf("backtrack_min_s3_log", 0.6, float))
+        min_s3 = 10 ** (- 10 * self.cf("backtrack_min_s3_log", cast = float))
 
         pos = 0
         now = time.time()
@@ -967,12 +1023,12 @@ class LanguageModel:
         self._commit_learn(commit_all = force_flush)
 
         # purge
-        if now > self._last_purge + self.cf("purge_every", 432000, int):
+        if now > self._last_purge + self.cf("purge_every", cast = int):
             self.log("Purge DB ...")
 
             current_day = int(now / 86400)
-            self._db.purge(self.cf("purge_min_count1", 3, float), current_day - self.cf("purge_min_date1", 30, int))
-            self._db.purge(self.cf("purge_min_count2", 20, float), current_day - self.cf("purge_min_date2", 180, int))
+            self._db.purge(self.cf("purge_min_count1", cast = float), current_day - self.cf("purge_min_date1", cast = int))
+            self._db.purge(self.cf("purge_min_count2", cast = float), current_day - self.cf("purge_min_date2", cast = int))
             self._last_purge = now
             self._db.set_param("last_purge", now)
 

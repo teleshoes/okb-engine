@@ -58,11 +58,13 @@ CurveMatch::CurveMatch() : keyShift(&params) {
   id = -1;
 }
 
-void CurveMatch::curvePreprocess1(int curve_id) {
+bool CurveMatch::curvePreprocess1(int curve_id) {
   /* curve preprocessing that can be evaluated incrementally :
      - evaluate turn rate
      - find sharp turns
      - normal vector calculation */
+
+  bool on_hold = false;
 
   QList<CurvePoint> oneCurve = QList<CurvePoint>();
   QList<int> idxmap = QList<int>();
@@ -79,7 +81,7 @@ void CurveMatch::curvePreprocess1(int curve_id) {
   }
   int l = oneCurve.size();
 
-  if (l < 2) { return; }
+  if (l < 2) { return false; }
 
   // apply smoothing to this curve ("smoothed" values will be in .smoothx & .smoothy attributes)
   if (params.smooth) {
@@ -592,18 +594,33 @@ void CurveMatch::curvePreprocess1(int curve_id) {
     /* detect loop hints */
     if (params.hints_master_switch) {
       int i0 = 0;
-      int total = 0;
+      int small_count = 0;
+
       for(int i = 0; i < l; i ++) {
 	int turn = oneCurve[i].turn_smooth;
-	if (abs(turn) > params.hint_o_turn_min) {
-	  if ((! i0) || (i0 && oneCurve[i0].turn_smooth * turn < 0)) { i0 = i; total = 0; }
-	  total += turn;
+	if (i == l - 1 && ! end_flag && i0) {
+	  DBG("[Hint-O] possible partial loop -> keeping curve on hold [%d:%d]", i0, i);
+	  on_hold = true;
+	}
+
+	if (i < l - 1 && abs(turn) >= ((i0 && small_count < params.hint_o_max_small)?params.hint_o_turn_min_middle:params.hint_o_turn_min)) {
+	  if ((! i0) || (i0 && oneCurve[i0].turn_smooth * turn < 0)) { i0 = i; small_count = 0; }
+
+	  if (i0 && abs(turn) < params.hint_o_turn_min) {
+	    small_count ++;
+	  } else {
+	    small_count = 0;
+	  }
+
 	} else if (i0) {
 	  int i1 = i - 1;
 
+	  // Rewind to last significant turn
+	  while(i1 > i0 && abs(oneCurve[i1].turn_smooth) <= params.hint_o_turn_min) { i1 --; }
+
 	  // is the loop matching the beginning of the curve ?
 	  bool start_ok = true;
-	  for(int j = 1; j < i0 ; j++) {
+	  for(int j = 2; j < i0 ; j++) {
 	    if (abs(oneCurve[j].turn_smooth) < params.hint_o_turn_min / 2 ||
 		oneCurve[j].turn_smooth * oneCurve[i0].turn_smooth < 0) { start_ok = false; }
 	  }
@@ -611,11 +628,16 @@ void CurveMatch::curvePreprocess1(int curve_id) {
 
 	  // is the loop matching the tail of the curve ?
 	  bool end_ok = true;
-	  for(int j = i1 + 1; j < l - 1 ; j++) {
+	  for(int j = i1 + 1; j < l - 2 ; j++) {
 	    if (abs(oneCurve[j].turn_smooth) < params.hint_o_turn_min / 2 ||
 		oneCurve[j].turn_smooth * oneCurve[i0].turn_smooth < 0) { end_ok = false; }
 	  }
 	  if (end_ok) { i1 = l - 1; }
+
+	  int total = 0;
+	  for(int i = i0; i <= i1; i ++) { total += oneCurve[i].turn_smooth; }
+
+	  DBG("[Hint-O] Candidate loop [%d:%d] total=%d tips=%d:%d", i0, i1, total, start_ok, end_ok);
 
 	  if (abs(total) > params.hint_o_total_min &&
 	      (i1 - i0) >= params.hint_o_min_segments) {
@@ -628,33 +650,38 @@ void CurveMatch::curvePreprocess1(int curve_id) {
 	    yavg /= (i1 - i0 + 1);
 	    int found = -1;
 	    int min_dist = 0;
+	    int max_dist = 0;
 	    for(int j = i0; j <= i1; j ++) {
 	      int dist = distance(xavg, yavg, oneCurve[j].x, oneCurve[j].y);
 	      if (dist < min_dist || ! min_dist) {
 		min_dist = dist;
 		found = j;
 	      }
-	      if (dist > params.hint_o_max_radius) {
-		min_dist = -1;
-	      }
+	      if (dist > max_dist) { max_dist = dist; }
 	    }
 
-	    for(int j = i0; j <= i1; j ++) {
-	      if (oneCurve[j].sharp_turn != 2 ||
-		  oneCurve[j].turn_angle < params.hint_o_spare_st2_angle ||
-		  abs(j - found) <= params.hint_o_spare_st2_gap) { // <- if this test is not discriminant enough, replace turns by ST=5
-		oneCurve[j].sharp_turn = 0;
-	      }
-	    }
+	    if (min_dist >= 0 && max_dist <= params.hint_o_max_radius) {
 
-	    if (min_dist >= 0) {
+	      // remove ST=2 caused by the loop
+	      for(int j = i0; j <= i1; j ++) {
+		if (oneCurve[j].sharp_turn != 2 ||
+		    oneCurve[j].turn_angle < params.hint_o_spare_st2_angle ||
+		    abs(j - found) <= params.hint_o_spare_st2_gap) { // <- if this test is not discriminant enough, replace turns by ST=5
+		  oneCurve[j].sharp_turn = 0;
+		}
+	      }
+
 	      for(int j = i0; j <= i1; j ++) {
 		oneCurve[j].flags |= FLAG_HINT_o;
 	      }
 	      oneCurve[found].sharp_turn = 2;
 	      oneCurve[found].flags |= FLAG_HINT_O;
 
-	      DBG("[Hint-O] Loop detected at curve index %d (error=%d, total_turn=%d, indexes=[%d:%d])", found, min_dist, total, i0, i1);
+	      DBG("[Hint-O] Loop detected at curve index %d (error=%d, radius=%d, total_turn=%d, indexes=[%d:%d])",
+		  found, min_dist, max_dist, total, i0, i1);
+
+	    } else {
+	      DBG("[Hint-O] bad distance: %d < %d < %d", min_dist, max_dist, params.hint_o_max_radius);
 	    }
 	  }
 	  i0 = 0;
@@ -719,6 +746,7 @@ void CurveMatch::curvePreprocess1(int curve_id) {
     curve[idxmap[i]] = oneCurve[i];
   }
 
+  return on_hold;
 }
 
 void CurveMatch::curvePreprocess2() {
@@ -1003,12 +1031,17 @@ void CurveMatch::scenarioFilter(QList<ScenarioType> &scenarios, float score_rati
 
 }
 
-void CurveMatch::setCurves() {
+bool CurveMatch::setCurves() {
+  bool result = false;
   for (int i = 0; i < curve_count; i ++) {
-    curvePreprocess1(i);
+    bool on_hold = curvePreprocess1(i);
     quickCurves[i].setCurve(curve, i, params.multi_dot_threshold);
+    quickCurves[i].on_hold = on_hold;
+
+    result |= on_hold;
   }
   quickCurves[curve_count].clearCurve();
+  return result;
 }
 
 bool CurveMatch::match() {

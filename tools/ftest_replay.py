@@ -14,38 +14,7 @@ sys.path.insert(0, libdir)
 
 import language_model, backend
 
-class Tools:
-    def __init__(self, params = dict()):
-        self.messages = None
-        self.params = params
-        self.verbose = False
-        self._cache = dict()
-
-    def log(self, *args, **kwargs):
-        if not args: return
-        message = ' '.join(map(str, args))
-        if self.verbose: print(message)
-        if "logfile" in self.params:
-            with open(self.params["logfile"], "a") as f:
-                f.write(message + "\n")
-        if self.messages is not None: self.messages.append(message)
-
-    def set_param(self, key, value):
-        self._cache.pop(key, None)
-        self.params[key] = value
-
-    def cf(self, key, default_value = None, cast = None):
-        if key in self._cache: return self._cache[key]
-
-        if key in self.params:
-            value = cast(self.params[key]) if cast else self.params[key]
-        elif default_value is None or not cast:
-            raise Exception("No default value or type %s" % key)
-        else:
-            value = self.params[key] = cast(default_value)
-
-        self._cache[key] = value
-        return value
+from dev_tools import Tools
 
 def play_all(records, tools, backtrack = False, verbose = True, mock_time = False,
              learn = False, db_path = None, db_reset = True, display_stats = True,
@@ -64,7 +33,7 @@ def play_all(records, tools, backtrack = False, verbose = True, mock_time = Fals
         if lang_filter and lang != lang_filter: continue
 
         db_file = os.path.join(db_path, "predict-%s.db" % lang)
-        db = backend.FslmCdbBackend(db_file)
+        db = backend.FslmCdbBackend(db_file, readonly = not learn)
         if db_reset: db.factory_reset()
         lm = language_model.LanguageModel(db, tools = tools, debug = False, dummy = False)
 
@@ -137,8 +106,8 @@ def play_all(records, tools, backtrack = False, verbose = True, mock_time = Fals
             ok = guesses and guesses[0] == exp
             count += 1
             if ok: count_ok += 1
-            tools.log("[*] Guess %s \"%s\" (expected \"%s\"): %s" %
-                      (t["context"], guesses[0] if guesses else "?", t["expected"], ("=OK=" if ok else "*FAIL*")))
+            tools.log("[*] Guess %s %s \"%s\" (expected \"%s\"): %s" %
+                      (t["id"], t["context"], guesses[0] if guesses else "?", t["expected"], ("=OK=" if ok else "*FAIL*")))
 
             if guesses: guessed_context.append(guesses[0])
             else: guessed_context =  []
@@ -146,7 +115,7 @@ def play_all(records, tools, backtrack = False, verbose = True, mock_time = Fals
             if learn:
                 # @todo use right "replace" value when backtracking is active
                 replaces = guesses[0] if not ok and guesses and learn_replace else None
-                tools.log("[*] Learn:", learn_context, exp, ("{%s}" % replaces) if replaces else "")
+                tools.log("[*] Learn %s:" % t["id"], learn_context, exp, ("{%s}" % replaces) if replaces else "")
                 lm.learn(True, exp, list(reversed(learn_context)),
                          replaces = replaces)
                 if count % 50 == 0: lm.cleanup(force_flush = True)
@@ -169,7 +138,7 @@ def play_all(records, tools, backtrack = False, verbose = True, mock_time = Fals
                         st = "*BT-FAIL*"
                         count_ok -= 1
                     else: st = "*BT-FAIL*"
-                    tools.log("[*] Backtracking %s %s -> %s %s" % (guessed_context, old, new, st))
+                    tools.log("[*] Backtracking %s %s %s -> %s %s" % (t["id"], guessed_context, old, new, st))
                     # @todo learn
 
         if learn: lm.cleanup(force_flush = True)

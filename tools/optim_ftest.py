@@ -3,11 +3,15 @@
 import sys
 import ftest_replay as fr
 import re
+import pickle
+
+from dev_tools import Tools
 
 EPS = 0.0001
 
 def optim(records, tools):
     param_list_req = tools.cf("optim").split(",")
+    persist = tools.cf("persist", "", str)
     score_start = score0 = fr.play_all(records, tools)
     print("All parameters:", tools.params)
 
@@ -18,6 +22,14 @@ def optim(records, tools):
                 param_list.add(p)
     print("Optimize requested:", param_list_req)
     print("Optimizing parameters:", list(param_list))
+
+    if persist:
+        with open(persist, 'rb') as f:
+            try:
+                tools.params = pickle.load(f)
+                print("Load", persist, "OK")
+            except:
+                print("Load", persist, "Failed")
 
     params0 = dict(tools.params)
 
@@ -30,10 +42,10 @@ def optim(records, tools):
         updated = False
         for p in param_list:
             value0 = tools.cf(p)
-            print("Iteration %d - Parameter %s = %.3f - score = %.4f" % (it, p, value0, score0))
+            print("Iteration %d - Parameter %s = %.4f - score = %.4f" % (it, p, value0, score0))
             max_value = None
             max_score = score0
-            step = max(0.001, value0 / 250)
+            step = max(0.0001, value0 / 250)
             for sens in [-1, 1]:
                 c = zc = 0
                 last_score = score0
@@ -43,7 +55,7 @@ def optim(records, tools):
                     c += 1
                     tools.set_param(p, new_value)
                     score = fr.play_all(records, tools, verbose = False)
-                    print(" > try %s = %.3f --> score %.4f %s" % (p, new_value, score, "*" if score > max_score else ""))
+                    print(" > try %s = %.4f --> score %.4f %s" % (p, new_value, score, "*" if score > max_score else ""))
                     if score <= score0:
                         zc += 2 if score < last_score else 1
                         if zc >= 10: break
@@ -57,7 +69,7 @@ def optim(records, tools):
                     last_score = score
 
             if max_value:
-                print("Param %s: value %.3f -> %.3f ... score %.4f -> %.4f" % (p, value0, max_value, score0, max_score))
+                print("Param %s: value %.4f -> %.4f ... score %.4f -> %.4f" % (p, value0, max_value, score0, max_score))
                 tools.set_param(p, max_value)
                 score0 = max_score
                 updated = True
@@ -65,7 +77,7 @@ def optim(records, tools):
                 print("Param %s: no change" % p)
                 tools.set_param(p, value0)
 
-            log = [ "* %s: %.3f -> %.3f%s" % (q, params0[q], tools.params[q],
+            log = [ "* %s: %.4f -> %.4f%s" % (q, params0[q], tools.params[q],
                                                " *" if params0[q] != tools.params[q] else "")
                     for q in sorted(param_list) ]
             log.append("* max_score: %.5f -> %.5f" % (score_start, max_score))
@@ -76,8 +88,17 @@ def optim(records, tools):
                 with open(tools.params["outfile"], "w") as f:
                     f.write("\n".join(log) + "\n")
 
+            if persist:
+                with open(persist + '.tmp', 'wb') as f:
+                    try: tools.params = pickle.dump(tools.params, f)
+                    except: pass
 
-tools = fr.Tools()
+    updated = False
+    for p in params0.keys():
+        if tools.params[p] != params0[p]: updated = True
+    if updated: tools.save(suffix = ".updated")
+
+tools = Tools(verbose = False)
 records = fr.cli_params(sys.argv[1:], tools)
 optim(records, tools)
 print(tools.params)

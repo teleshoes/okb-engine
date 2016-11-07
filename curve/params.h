@@ -31,6 +31,20 @@ class Params {
   int cst_max_length;
   int cst_max_turn2;
   int cst_min_turn1;
+  int ct1_gap1;
+  int ct1_gap2;
+  int ct1_max_turn;
+  int ct1_min_length;
+  int ct1_min_length2;
+  int ct1_min_value;
+  int ct1_range;
+  float ct1_ratio;
+  float ct1_score;
+  float ct2_max_avg;
+  int ct2_max_turn;
+  int ct2_min_length;
+  int ct2_min_points;
+  float ct2_score;
   int curve_dist_threshold;
   int curve_score_min_dist;
   float curve_surface_coef;
@@ -61,15 +75,18 @@ class Params {
   float flat2_score_max;
   float flat2_score_min;
   int flat_max_angle;
+  int flat_max_angle2;
   int flat_max_deviation;
   float flat_score;
   float hint_o_dist_coef;
   int hint_o_max_radius;
+  int hint_o_max_small;
   int hint_o_min_segments;
   int hint_o_spare_st2_angle;
   int hint_o_spare_st2_gap;
   int hint_o_total_min;
   int hint_o_turn_min;
+  int hint_o_turn_min_middle;
   float hint_v_dist_coef;
   float hint_v_max_slope;
   int hint_v_maxgap;
@@ -232,6 +249,20 @@ static Params default_params = {
   100, // cst_max_length
   40, // cst_max_turn2
   130, // cst_min_turn1
+  3, // ct1_gap1
+  6, // ct1_gap2
+  170, // ct1_max_turn
+  200, // ct1_min_length
+  100, // ct1_min_length2
+  5, // ct1_min_value
+  2, // ct1_range
+  0.75, // ct1_ratio
+  0.05, // ct1_score
+  4.0, // ct2_max_avg
+  35, // ct2_max_turn
+  200, // ct2_min_length
+  7, // ct2_min_points
+  0.05, // ct2_score
   95, // curve_dist_threshold
   50, // curve_score_min_dist
   20.0, // curve_surface_coef
@@ -261,16 +292,19 @@ static Params default_params = {
   100, // flat2_min_height
   0.03, // flat2_score_max
   0.0, // flat2_score_min
-  24, // flat_max_angle
+  30, // flat_max_angle
+  30, // flat_max_angle2
   29, // flat_max_deviation
   0.06, // flat_score
   1.0, // hint_o_dist_coef
-  70, // hint_o_max_radius
+  65, // hint_o_max_radius
+  4, // hint_o_max_small
   6, // hint_o_min_segments
   120, // hint_o_spare_st2_angle
   2, // hint_o_spare_st2_gap
   340, // hint_o_total_min
-  20, // hint_o_turn_min
+  16, // hint_o_turn_min
+  6, // hint_o_turn_min_middle
   1.5, // hint_v_dist_coef
   0.15, // hint_v_max_slope
   2, // hint_v_maxgap
@@ -289,7 +323,7 @@ static Params default_params = {
   1.0, // key_shift_ratio
   0.02, // lazy_loop_bias
   0.001, // length_penalty
-  0.01, // loop_penalty
+  0.7, // loop_penalty
   50, // loop_recover_max_len
   155, // loop_threshold1
   120, // loop_threshold2
@@ -427,6 +461,20 @@ void Params::toJson(QJsonObject &json) const {
   json["cst_max_length"] = cst_max_length;
   json["cst_max_turn2"] = cst_max_turn2;
   json["cst_min_turn1"] = cst_min_turn1;
+  json["ct1_gap1"] = ct1_gap1;
+  json["ct1_gap2"] = ct1_gap2;
+  json["ct1_max_turn"] = ct1_max_turn;
+  json["ct1_min_length"] = ct1_min_length;
+  json["ct1_min_length2"] = ct1_min_length2;
+  json["ct1_min_value"] = ct1_min_value;
+  json["ct1_range"] = ct1_range;
+  json["ct1_ratio"] = ct1_ratio;
+  json["ct1_score"] = ct1_score;
+  json["ct2_max_avg"] = ct2_max_avg;
+  json["ct2_max_turn"] = ct2_max_turn;
+  json["ct2_min_length"] = ct2_min_length;
+  json["ct2_min_points"] = ct2_min_points;
+  json["ct2_score"] = ct2_score;
   json["curve_dist_threshold"] = curve_dist_threshold;
   json["curve_score_min_dist"] = curve_score_min_dist;
   json["curve_surface_coef"] = curve_surface_coef;
@@ -457,15 +505,18 @@ void Params::toJson(QJsonObject &json) const {
   json["flat2_score_max"] = flat2_score_max;
   json["flat2_score_min"] = flat2_score_min;
   json["flat_max_angle"] = flat_max_angle;
+  json["flat_max_angle2"] = flat_max_angle2;
   json["flat_max_deviation"] = flat_max_deviation;
   json["flat_score"] = flat_score;
   json["hint_o_dist_coef"] = hint_o_dist_coef;
   json["hint_o_max_radius"] = hint_o_max_radius;
+  json["hint_o_max_small"] = hint_o_max_small;
   json["hint_o_min_segments"] = hint_o_min_segments;
   json["hint_o_spare_st2_angle"] = hint_o_spare_st2_angle;
   json["hint_o_spare_st2_gap"] = hint_o_spare_st2_gap;
   json["hint_o_total_min"] = hint_o_total_min;
   json["hint_o_turn_min"] = hint_o_turn_min;
+  json["hint_o_turn_min_middle"] = hint_o_turn_min_middle;
   json["hint_v_dist_coef"] = hint_v_dist_coef;
   json["hint_v_max_slope"] = hint_v_max_slope;
   json["hint_v_maxgap"] = hint_v_maxgap;
@@ -624,6 +675,20 @@ Params Params::fromJson(const QJsonObject &json) {
   if (json.contains("cst_max_length")) { p.cst_max_length = json["cst_max_length"].toDouble(); }
   if (json.contains("cst_max_turn2")) { p.cst_max_turn2 = json["cst_max_turn2"].toDouble(); }
   if (json.contains("cst_min_turn1")) { p.cst_min_turn1 = json["cst_min_turn1"].toDouble(); }
+  if (json.contains("ct1_gap1")) { p.ct1_gap1 = json["ct1_gap1"].toDouble(); }
+  if (json.contains("ct1_gap2")) { p.ct1_gap2 = json["ct1_gap2"].toDouble(); }
+  if (json.contains("ct1_max_turn")) { p.ct1_max_turn = json["ct1_max_turn"].toDouble(); }
+  if (json.contains("ct1_min_length")) { p.ct1_min_length = json["ct1_min_length"].toDouble(); }
+  if (json.contains("ct1_min_length2")) { p.ct1_min_length2 = json["ct1_min_length2"].toDouble(); }
+  if (json.contains("ct1_min_value")) { p.ct1_min_value = json["ct1_min_value"].toDouble(); }
+  if (json.contains("ct1_range")) { p.ct1_range = json["ct1_range"].toDouble(); }
+  if (json.contains("ct1_ratio")) { p.ct1_ratio = json["ct1_ratio"].toDouble(); }
+  if (json.contains("ct1_score")) { p.ct1_score = json["ct1_score"].toDouble(); }
+  if (json.contains("ct2_max_avg")) { p.ct2_max_avg = json["ct2_max_avg"].toDouble(); }
+  if (json.contains("ct2_max_turn")) { p.ct2_max_turn = json["ct2_max_turn"].toDouble(); }
+  if (json.contains("ct2_min_length")) { p.ct2_min_length = json["ct2_min_length"].toDouble(); }
+  if (json.contains("ct2_min_points")) { p.ct2_min_points = json["ct2_min_points"].toDouble(); }
+  if (json.contains("ct2_score")) { p.ct2_score = json["ct2_score"].toDouble(); }
   if (json.contains("curve_dist_threshold")) { p.curve_dist_threshold = json["curve_dist_threshold"].toDouble(); }
   if (json.contains("curve_score_min_dist")) { p.curve_score_min_dist = json["curve_score_min_dist"].toDouble(); }
   if (json.contains("curve_surface_coef")) { p.curve_surface_coef = json["curve_surface_coef"].toDouble(); }
@@ -654,15 +719,18 @@ Params Params::fromJson(const QJsonObject &json) {
   if (json.contains("flat2_score_max")) { p.flat2_score_max = json["flat2_score_max"].toDouble(); }
   if (json.contains("flat2_score_min")) { p.flat2_score_min = json["flat2_score_min"].toDouble(); }
   if (json.contains("flat_max_angle")) { p.flat_max_angle = json["flat_max_angle"].toDouble(); }
+  if (json.contains("flat_max_angle2")) { p.flat_max_angle2 = json["flat_max_angle2"].toDouble(); }
   if (json.contains("flat_max_deviation")) { p.flat_max_deviation = json["flat_max_deviation"].toDouble(); }
   if (json.contains("flat_score")) { p.flat_score = json["flat_score"].toDouble(); }
   if (json.contains("hint_o_dist_coef")) { p.hint_o_dist_coef = json["hint_o_dist_coef"].toDouble(); }
   if (json.contains("hint_o_max_radius")) { p.hint_o_max_radius = json["hint_o_max_radius"].toDouble(); }
+  if (json.contains("hint_o_max_small")) { p.hint_o_max_small = json["hint_o_max_small"].toDouble(); }
   if (json.contains("hint_o_min_segments")) { p.hint_o_min_segments = json["hint_o_min_segments"].toDouble(); }
   if (json.contains("hint_o_spare_st2_angle")) { p.hint_o_spare_st2_angle = json["hint_o_spare_st2_angle"].toDouble(); }
   if (json.contains("hint_o_spare_st2_gap")) { p.hint_o_spare_st2_gap = json["hint_o_spare_st2_gap"].toDouble(); }
   if (json.contains("hint_o_total_min")) { p.hint_o_total_min = json["hint_o_total_min"].toDouble(); }
   if (json.contains("hint_o_turn_min")) { p.hint_o_turn_min = json["hint_o_turn_min"].toDouble(); }
+  if (json.contains("hint_o_turn_min_middle")) { p.hint_o_turn_min_middle = json["hint_o_turn_min_middle"].toDouble(); }
   if (json.contains("hint_v_dist_coef")) { p.hint_v_dist_coef = json["hint_v_dist_coef"].toDouble(); }
   if (json.contains("hint_v_max_slope")) { p.hint_v_max_slope = json["hint_v_max_slope"].toDouble(); }
   if (json.contains("hint_v_maxgap")) { p.hint_v_maxgap = json["hint_v_maxgap"].toDouble(); }

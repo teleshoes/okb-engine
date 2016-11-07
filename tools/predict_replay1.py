@@ -26,7 +26,7 @@ for line in f.readlines():
     if line.startswith('ID: '):
         id = re.search(r'^ID:\s+(\S+)', line).group(1)
         context = re.search(r'Context:\s+\[([^\[\]]*)\]', line).group(1)
-        context = re.sub('\s','', context)
+        context = re.sub('\s', '', context)
         context = [ re.sub(r'^\'(.*)\'', r'\1', x) for x in context.split(',') ]
         context = list(reversed(context))
 

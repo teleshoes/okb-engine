@@ -134,6 +134,7 @@ class QuickCurve {
   int getHintOIndex(int index0, bool incremental = false);
 
   bool finished;
+  bool on_hold;
   bool isDot;
   float straight;
 
@@ -226,6 +227,13 @@ typedef struct {
   int length;
 } turn_t;
 
+typedef struct {
+  float expected;
+  int length_before;
+  int length_after;
+  // complete as needed
+} simple_turn_t;
+
 class NextIndex {
  public:
   int index;
@@ -310,7 +318,8 @@ class Scenario {
   float calc_distance_score(unsigned char letter, int index, int count, float *return_distance = NULL);
   float calc_cos_score(unsigned char prev_letter, unsigned char letter, int index, int new_index);
   float calc_curve_score(unsigned char prev_letter, unsigned char letter, int index, int new_index);
-  void calc_turn_score_all(turn_t *turn_detail, int *turn_count_return);
+  void calc_turn_score_all(turn_t *turn_detail, int *turn_count_return, simple_turn_t *turns);
+  void check_turn2(simple_turn_t *turns, turn_t *turn_detail, int turn_count);
   int get_turn_kind(int index);
   void check_reverse_turn(int index1, int index2, int direction1, int direction2, bool check_hints = true);
   float calc_score_misc(int i);
