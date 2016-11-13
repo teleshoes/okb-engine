@@ -241,29 +241,28 @@ class LanguageModel:
             of word splitting to handle compound words """
 
         # handle full compound words
-        if word.find("'") > -1 or word.find("-") > -1:
-            l1 = l2 = None
-
-            # remove begin / end punctiations signs
+        if parent and (word.find("'") > -1 or word.find("-") > -1):
+            # remove begin / end punctiations signs (only before we start to split compound words)
             word = re.sub(r'^[\'\-]+', '', word)
             word = re.sub(r'[\'\-]+$', '', word)
 
             if not word: return None
 
-            if word.find("'") > -1 or word.find("-") > -1:
+        if word.find("'") > -1 or word.find("-") > -1:
+            l1 = l2 = None
 
-                # prefixes
-                mo = re.match(r'^([^\-\']+[\-\'])(.+)$', word)
-                if mo:
-                    l1 = self._word2wi(mo.group(1), first_word)  # prefix
-                    if l1: l2 = self._word2wi(mo.group(2), False, create = create, uncapitalized = uncapitalized, parent = False)
-                    if l1 and l2: return l1 + l2
-                # suffixes
-                mo = re.match(r'^(.+)([\-\'][^\-\']+)$', word)
-                if mo:
-                    l2 = self._word2wi(mo.group(2), False)  # suffix
-                    if l2: l1 = self._word2wi(mo.group(1), first_word, create = create, uncapitalized = uncapitalized, parent = False)
-                    if l1 and l2: return l1 + l2
+            # prefixes
+            mo = re.match(r'^([^\-\']+[\-\'])(.+)$', word)
+            if mo:
+                l1 = self._word2wi(mo.group(1), first_word = first_word, parent = False)  # prefix
+                if l1: l2 = self._word2wi(mo.group(2), False, create = create, uncapitalized = uncapitalized, parent = False)
+                if l1 and l2: return l1 + l2
+            # suffixes
+            mo = re.match(r'^(.+)([\-\'][^\-\']+)$', word)
+            if mo:
+                l2 = self._word2wi(mo.group(2), first_word = False, parent = False)  # suffix
+                if l2: l1 = self._word2wi(mo.group(1), first_word = first_word, create = create, uncapitalized = uncapitalized, parent = False)
+                if l1 and l2: return l1 + l2
 
         ids = self._db.get_words(word.lower())
 
