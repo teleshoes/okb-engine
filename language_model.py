@@ -536,30 +536,51 @@ class LanguageModel:
 
         # --- data preparation ---
         curve_scores = dict()
-        max_coef = dict()
         all_coefs = dict()
         for c in candidates:
             wi_list = candidates[c][1]
             curve_scores[c] = sum(candidates[c][0]) / len(candidates[c][0])  # average
+            all_coefs[c] = dict(curve = curve_scores[c], word = c)
 
             if not wi_list: continue
-            all_coefs[c] = dict()
-            for score_id in LanguageModel.ALL_SCORES:
-                coef = 1.0
-                found = False
-                for wi in wi_list:
-                    if wi.count and score_id in wi.count and wi.count[score_id].count > 0:
-                        coef1 = ((wi.count["coef_wc"] if score_id[0] == 'c' else 1.0) *
-                                  wi.count[score_id].count / wi.count[score_id].total_count)
-                        found = True
-                    else: coef1 = p2_default_coef  # arbitrary (small) value
-                    coef *= coef1
-                if not found: coef = 0
-                if coef > 0:
-                    coef = coef ** (1 / len(wi_list))
-                    if score_id not in max_coef or max_coef[score_id][0] < coef:
-                        max_coef[score_id] = (coef, c)
-                all_coefs[c][score_id] = coef
+            if [ wi for wi in wi_list if not wi.count ]: continue
+
+            first_word = True
+
+            for wi in wi_list:
+
+                if wi.cluster_id == -5:
+                    all_coefs[c]["nocluster"] = True   # #NOCLUSTER cluster
+
+                coefs = dict()
+                coef_wc = coefs["coef_wc"] = wi.count["coef_wc"]
+                for score_id in LanguageModel.ALL_SCORES:
+                    if score_id in wi.count and wi.count[score_id].count > 0:
+                        coefs[score_id] = ((coef_wc if score_id[0] == 'c' else 1.0) *
+                                           wi.count[score_id].count / wi.count[score_id].total_count)
+                        coefs["n" + score_id] = wi.count[score_id].count
+                    else:
+                        coefs[score_id] = 0
+                        coefs["n" + score_id] = 0
+
+                # combine coefficients for compound words
+                if first_word:
+                    all_coefs[c].update(coefs)  # juste overwrite for first word
+                    first_word = False
+                else:
+                    for score_id in reversed(LanguageModel.ALL_SCORES):
+                        all_coefs[c]["coef_wc"] *= coefs["coef_wc"]
+                        if score_id[-1] == '3':
+                            # estimation for coefficients with rank = 3
+                            all_coefs[c][score_id] = all_coefs[c][score_id] * coefs[score_id]
+                            all_coefs[c]["n" + score_id] = int(all_coefs[c]["n" + score_id] * coefs[score_id])
+                        else:
+                            # exact calculation for other coefficients
+                            next_id = score_id[:-1] + chr(ord(score_id[-1]) + 1)
+                            all_coefs[c][score_id] = all_coefs[c][score_id] * coefs[next_id]
+                            all_coefs[c]["n" + score_id] = coefs["n" + next_id]
+
+        # no more used ? p2_default_coef = 10 ** (- 10 * self.cf("p2_default_coef_log", cast = float))
 
         # --- prediction score evaluation (stock) ---
         predict_scores = dict()
