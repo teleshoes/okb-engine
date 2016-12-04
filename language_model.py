@@ -504,6 +504,9 @@ class LanguageModel:
                 (self.cf("p2_coef_c2", cast = float), score_ratio["c2"]),
                 (self.cf("p2_coef_c3", cast = float), score_ratio["c3"]) ]
 
+        if "nocluster" in coefs1 or "nocluster" in coefs2:
+            lst = [ lst[0] ]  # only
+
         total = total_coef = 0.0
         for (coef, sc) in lst:
             if sc:
@@ -531,7 +534,7 @@ class LanguageModel:
 
         if not candidates: return dict()
 
-        p2_default_coef = 10 ** (- 10 * self.cf("p2_default_coef_log", cast = float))
+        # no more used? p2_default_coef = 10 ** (- 10 * self.cf("p2_default_coef_log", cast = float))
         current_day = int(self._now() / 86400)
 
         # --- data preparation ---
@@ -553,14 +556,14 @@ class LanguageModel:
                     all_coefs[c]["nocluster"] = True   # #NOCLUSTER cluster
 
                 coefs = dict()
-                coef_wc = coefs["coef_wc"] = wi.count["coef_wc"]
+                coef_wc = coefs["coef_wc"] = wi.count.get("coef_wc", 1.)
                 for score_id in LanguageModel.ALL_SCORES:
                     if score_id in wi.count and wi.count[score_id].count > 0:
                         coefs[score_id] = ((coef_wc if score_id[0] == 'c' else 1.0) *
                                            wi.count[score_id].count / wi.count[score_id].total_count)
                         coefs["n" + score_id] = wi.count[score_id].count
                     else:
-                        coefs[score_id] = 0
+                        coefs[score_id] = 0.
                         coefs["n" + score_id] = 0
 
                 # combine coefficients for compound words
@@ -579,8 +582,6 @@ class LanguageModel:
                             next_id = score_id[:-1] + chr(ord(score_id[-1]) + 1)
                             all_coefs[c][score_id] = all_coefs[c][score_id] * coefs[next_id]
                             all_coefs[c]["n" + score_id] = coefs["n" + next_id]
-
-        # no more used ? p2_default_coef = 10 ** (- 10 * self.cf("p2_default_coef_log", cast = float))
 
         # --- prediction score evaluation (stock) ---
         predict_scores = dict()
