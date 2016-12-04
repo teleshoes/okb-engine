@@ -30,3 +30,4 @@ key_shift_*.ks
 *.lock
 *.db.orig
 *.updated
+ngrams-*.rpt
