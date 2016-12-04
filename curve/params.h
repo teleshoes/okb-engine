@@ -270,9 +270,9 @@ static Params default_params = {
   95, // curve_dist_threshold
   50, // curve_score_min_dist
   20.0, // curve_surface_coef
-  75, // dist_max_last
-  100, // dist_max_next
-  75, // dist_max_start
+  70, // dist_max_last
+  90, // dist_max_next
+  68, // dist_max_start
   22, // dst_x_add
   97, // dst_x_max
   40, // dst_y_add
@@ -334,8 +334,8 @@ static Params default_params = {
   120, // loop_threshold2
   60, // loop_threshold3
   7, // match_wait
-  105, // max_active_scenarios
-  205, // max_active_scenarios2
+  25, // max_active_scenarios
+  190, // max_active_scenarios2
   64, // max_angle
   50, // max_candidates
   25, // max_segment_length
@@ -353,7 +353,7 @@ static Params default_params = {
   2.947, // newdist_c6
   1.5, // newdist_dist_start_ratio
   0.52, // newdist_length_bias_pow
-  0.001, // newdist_rank_penalty
+  0.0, // newdist_rank_penalty
   3.12, // newdist_speed
   0.39, // newdist_tip_begin
   0.55, // newdist_tip_end
