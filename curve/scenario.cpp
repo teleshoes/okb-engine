@@ -655,7 +655,15 @@ float Scenario::calc_curve_score(unsigned char prev_letter, unsigned char letter
 float Scenario::calc_distance_score(unsigned char letter, int index, int count, float *return_distance) {
   /* score based on distance to from curve to key */
 
-  float ratio = (count > 0)?params->dist_max_next:params->dist_max_start;
+  float ratio;
+  if (! count) {
+    ratio = params->dist_max_start;
+  } else if (count < 0) {
+    ratio = params->dist_max_last;
+  } else {
+    ratio = params->dist_max_next;
+  }
+    
   Point k = keys->get(letter);
 
   float cplus;
@@ -2822,8 +2830,8 @@ void Scenario::newDistance() {
   QTextStream qs(& str);
 
   float coef[10] = { 1., params->newdist_c1, params->newdist_c2, params->newdist_c3, 0., params->newdist_c5,
-		     params->newdist_c6, 0., 0., params->newdist_ctip };
-  float exposant = params->newdist_pow;
+		     params->newdist_c6, 0., params->newdist_tip_begin, params->newdist_tip_end };
+  float exposant = params->new_dist_pow;
 
   // display match-point/key distance
   float ctotal = 0;
@@ -2855,9 +2863,15 @@ void Scenario::newDistance() {
       dist = distancep(key, pt);
     }
 
-    int st2 = (i == 0 || i == count - 1)?9:st; /* tip */
+    if (i == 0) { dist *= params->newdist_dist_start_ratio; }
+ 
+    int st2 = st;
+    if (i == 0) { st2 = 8; } else if (i == count - 1) { st2 = 9; } /* tip */
 
-    float c = coef[st2] / (1. + params->newdist_speed * speed / 1000.);
+
+    float c = coef[st2];
+    if (i < count - 1) { c *= (1. / (1. + params->newdist_rank_penalty * i)); }
+    c /= (1. + params->newdist_speed * speed / 1000.);
 
     /* hints */
     if (curve->hasFlags(index_history[i], FLAG_HINT_V)) { c *= params->hint_v_dist_coef; }

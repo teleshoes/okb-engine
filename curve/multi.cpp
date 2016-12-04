@@ -451,7 +451,7 @@ static void scoreToJson(QJsonObject &json_obj, score_t &score) {
 
 float MultiScenario::getNewDistance() {
   if (! count) { return 0; }
-  float exposant = params->newdist_pow;
+  float exposant = params->new_dist_pow;
   float dist = 0;
 
   // this must be consistent with formula in Scenario::newDistance()

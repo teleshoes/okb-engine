@@ -48,6 +48,7 @@ class Params {
   int curve_dist_threshold;
   int curve_score_min_dist;
   float curve_surface_coef;
+  int dist_max_last;
   int dist_max_next;
   int dist_max_start;
   int dst_x_add;
@@ -122,15 +123,18 @@ class Params {
   int min_turn_index_gap_st;
   int multi_dot_threshold;
   int multi_max_time_rewind;
+  float new_dist_pow;
   float newdist_c1;
   float newdist_c2;
   float newdist_c3;
   float newdist_c5;
   float newdist_c6;
-  float newdist_ctip;
+  float newdist_dist_start_ratio;
   float newdist_length_bias_pow;
-  float newdist_pow;
+  float newdist_rank_penalty;
   float newdist_speed;
+  float newdist_tip_begin;
+  float newdist_tip_end;
   int rt2_count_nz;
   int rt2_count_z;
   int rt2_flat_max;
@@ -266,6 +270,7 @@ static Params default_params = {
   95, // curve_dist_threshold
   50, // curve_score_min_dist
   20.0, // curve_surface_coef
+  75, // dist_max_last
   100, // dist_max_next
   75, // dist_max_start
   22, // dst_x_add
@@ -340,15 +345,18 @@ static Params default_params = {
   3, // min_turn_index_gap_st
   25, // multi_dot_threshold
   300, // multi_max_time_rewind
-  0.43, // newdist_c1
-  0.58, // newdist_c2
+  2.0, // new_dist_pow
+  0.5, // newdist_c1
+  0.5, // newdist_c2
   2.63, // newdist_c3
-  0.67, // newdist_c5
-  1.62, // newdist_c6
-  0.71, // newdist_ctip
-  0.5, // newdist_length_bias_pow
-  2.0, // newdist_pow
+  0.18, // newdist_c5
+  2.947, // newdist_c6
+  1.5, // newdist_dist_start_ratio
+  0.52, // newdist_length_bias_pow
+  0.001, // newdist_rank_penalty
   3.12, // newdist_speed
+  0.39, // newdist_tip_begin
+  0.55, // newdist_tip_end
   4, // rt2_count_nz
   5, // rt2_count_z
   37, // rt2_flat_max
@@ -478,6 +486,7 @@ void Params::toJson(QJsonObject &json) const {
   json["curve_dist_threshold"] = curve_dist_threshold;
   json["curve_score_min_dist"] = curve_score_min_dist;
   json["curve_surface_coef"] = curve_surface_coef;
+  json["dist_max_last"] = dist_max_last;
   json["dist_max_next"] = dist_max_next;
   json["dist_max_start"] = dist_max_start;
   json["dst_x_add"] = dst_x_add;
@@ -552,15 +561,18 @@ void Params::toJson(QJsonObject &json) const {
   json["min_turn_index_gap_st"] = min_turn_index_gap_st;
   json["multi_dot_threshold"] = multi_dot_threshold;
   json["multi_max_time_rewind"] = multi_max_time_rewind;
+  json["new_dist_pow"] = new_dist_pow;
   json["newdist_c1"] = newdist_c1;
   json["newdist_c2"] = newdist_c2;
   json["newdist_c3"] = newdist_c3;
   json["newdist_c5"] = newdist_c5;
   json["newdist_c6"] = newdist_c6;
-  json["newdist_ctip"] = newdist_ctip;
+  json["newdist_dist_start_ratio"] = newdist_dist_start_ratio;
   json["newdist_length_bias_pow"] = newdist_length_bias_pow;
-  json["newdist_pow"] = newdist_pow;
+  json["newdist_rank_penalty"] = newdist_rank_penalty;
   json["newdist_speed"] = newdist_speed;
+  json["newdist_tip_begin"] = newdist_tip_begin;
+  json["newdist_tip_end"] = newdist_tip_end;
   json["rt2_count_nz"] = rt2_count_nz;
   json["rt2_count_z"] = rt2_count_z;
   json["rt2_flat_max"] = rt2_flat_max;
@@ -692,6 +704,7 @@ Params Params::fromJson(const QJsonObject &json) {
   if (json.contains("curve_dist_threshold")) { p.curve_dist_threshold = json["curve_dist_threshold"].toDouble(); }
   if (json.contains("curve_score_min_dist")) { p.curve_score_min_dist = json["curve_score_min_dist"].toDouble(); }
   if (json.contains("curve_surface_coef")) { p.curve_surface_coef = json["curve_surface_coef"].toDouble(); }
+  if (json.contains("dist_max_last")) { p.dist_max_last = json["dist_max_last"].toDouble(); }
   if (json.contains("dist_max_next")) { p.dist_max_next = json["dist_max_next"].toDouble(); }
   if (json.contains("dist_max_start")) { p.dist_max_start = json["dist_max_start"].toDouble(); }
   if (json.contains("dst_x_add")) { p.dst_x_add = json["dst_x_add"].toDouble(); }
@@ -766,15 +779,18 @@ Params Params::fromJson(const QJsonObject &json) {
   if (json.contains("min_turn_index_gap_st")) { p.min_turn_index_gap_st = json["min_turn_index_gap_st"].toDouble(); }
   if (json.contains("multi_dot_threshold")) { p.multi_dot_threshold = json["multi_dot_threshold"].toDouble(); }
   if (json.contains("multi_max_time_rewind")) { p.multi_max_time_rewind = json["multi_max_time_rewind"].toDouble(); }
+  if (json.contains("new_dist_pow")) { p.new_dist_pow = json["new_dist_pow"].toDouble(); }
   if (json.contains("newdist_c1")) { p.newdist_c1 = json["newdist_c1"].toDouble(); }
   if (json.contains("newdist_c2")) { p.newdist_c2 = json["newdist_c2"].toDouble(); }
   if (json.contains("newdist_c3")) { p.newdist_c3 = json["newdist_c3"].toDouble(); }
   if (json.contains("newdist_c5")) { p.newdist_c5 = json["newdist_c5"].toDouble(); }
   if (json.contains("newdist_c6")) { p.newdist_c6 = json["newdist_c6"].toDouble(); }
-  if (json.contains("newdist_ctip")) { p.newdist_ctip = json["newdist_ctip"].toDouble(); }
+  if (json.contains("newdist_dist_start_ratio")) { p.newdist_dist_start_ratio = json["newdist_dist_start_ratio"].toDouble(); }
   if (json.contains("newdist_length_bias_pow")) { p.newdist_length_bias_pow = json["newdist_length_bias_pow"].toDouble(); }
-  if (json.contains("newdist_pow")) { p.newdist_pow = json["newdist_pow"].toDouble(); }
+  if (json.contains("newdist_rank_penalty")) { p.newdist_rank_penalty = json["newdist_rank_penalty"].toDouble(); }
   if (json.contains("newdist_speed")) { p.newdist_speed = json["newdist_speed"].toDouble(); }
+  if (json.contains("newdist_tip_begin")) { p.newdist_tip_begin = json["newdist_tip_begin"].toDouble(); }
+  if (json.contains("newdist_tip_end")) { p.newdist_tip_end = json["newdist_tip_end"].toDouble(); }
   if (json.contains("rt2_count_nz")) { p.rt2_count_nz = json["rt2_count_nz"].toDouble(); }
   if (json.contains("rt2_count_z")) { p.rt2_count_z = json["rt2_count_z"].toDouble(); }
   if (json.contains("rt2_flat_max")) { p.rt2_flat_max = json["rt2_flat_max"].toDouble(); }
