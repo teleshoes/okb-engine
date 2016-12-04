@@ -51,7 +51,7 @@ grams-%-full.csv.bz2: %-full.dict %-learn.txt.bz2
 	mv -f grams-$(lang)-full.csv.bz2.tmp grams-$(lang)-full.csv.bz2
 
 # select words to use with prediction engine from learn corpus
-%-predict.dict: grams-%-full.csv.bz2 lang-%.cf $(wildcard $(CORPUS_DIR)/words-predict-%.txt)
+%-predict.dict: grams-%-full.csv.bz2 $(wildcard $(CORPUS_DIR)/words-predict-%.txt)
 	$(eval lang=$*)
 	$(eval words=$(call getconf,lang-$(lang).cf,predict_words))
 	$(eval filter=$(call getconf,lang-$(lang).cf,filter_words))
@@ -70,6 +70,11 @@ grams-%-full.csv.bz2: %-full.dict %-learn.txt.bz2
 
 tmp-words-%.txt: %-predict.dict
 
+# find affixes
+affixes-%.txt: %-predict.dict
+	$(eval lang=$*)
+	set -o pipefail ; cat $(lang)-predict.dict | $(TOOLS_DIR)/find_affixes.py 5 > affixes-$(lang).txt.tmp && mv -vf affixes-$(lang).txt.tmp affixes-$(lang).txt
+
 # build dictionary file for gesture engine
 %.tre: %-full.dict %-predict.dict
 	$(eval lang=$*)
@@ -77,14 +82,14 @@ tmp-words-%.txt: %-predict.dict
 	$(TOOLS_DIR)/loadkb.py $@ < tmp-words-$(lang).txt  # all word seen in learn corpus (smaller than full directory, but bigger than prediction learning dictionary)
 
 # build N-grams list for learning & test corpora
-grams-%-learn.csv.bz2: %-predict.dict %-learn.txt.bz2
+grams-%-learn.csv.bz2: %-predict.dict %-learn.txt.bz2 affixes-%.txt
 	$(eval lang=$*)
-	set -o pipefail	; lbzip2 -d < $(lang)-learn.txt.bz2 | $(TOOLS_DIR)/import_corpus.py $(lang)-predict.dict | lbzip2 -9 > grams-$(lang)-learn.csv.bz2.tmp
+	set -o pipefail	; lbzip2 -d < $(lang)-learn.txt.bz2 | $(TOOLS_DIR)/import_corpus.py -a affixes-$(lang).txt $(lang)-predict.dict | lbzip2 -9 > grams-$(lang)-learn.csv.bz2.tmp
 	mv -f grams-$(lang)-learn.csv.bz2.tmp grams-$(lang)-learn.csv.bz2
 
-grams-%-test.csv.bz2: %-predict.dict %-test.txt.bz2
+grams-%-test.csv.bz2: %-predict.dict %-test.txt.bz2 affixes-%.txt
 	$(eval lang=$*)
-	set -o pipefail ; lbzip2 -d < $(lang)-test.txt.bz2 | $(TOOLS_DIR)/import_corpus.py $(lang)-predict.dict | lbzip2 -9 > grams-$(lang)-test.csv.bz2.tmp
+	set -o pipefail ; lbzip2 -d < $(lang)-test.txt.bz2 | $(TOOLS_DIR)/import_corpus.py -a affixes-$(lang).txt $(lang)-predict.dict | lbzip2 -9 > grams-$(lang)-test.csv.bz2.tmp
 	mv -f grams-$(lang)-test.csv.bz2.tmp grams-$(lang)-test.csv.bz2
 
 # compute optimal cluster list (a bit slow)
@@ -92,7 +97,7 @@ clusters-%.txt: grams-%-learn.csv.bz2
 	$(eval lang=$*)
 	@echo "Computing clusters for language $(lang). Please make some coffee ..."
 	@echo " (logs can be found in clusters-$(lang).log)"
-	set -o pipefail ; lbzip2 -d < $< | sort -rn | sed -n "1,13500000 p" \
+	set -o pipefail ; lbzip2 -d < $< | sort -n | $(TOOLS_DIR)/ngram_filter.py 0.99 0.95 \
 	 | $(TOOLS_DIR)/cluster -n 10 -o clusters-$(lang).tmp > clusters-$(lang).log 2>&1
 	mv -f clusters-$(lang).tmp $@
 
@@ -104,7 +109,7 @@ predict-%.db: clusters-%.txt grams-%-learn.csv.bz2 lang-%.cf db.version
 	$(eval wgrams=$(call getconf,lang-$(lang).cf,cluster_wgrams))
 
 	set -o pipefail ; lbzip2 -d < grams-$(lang)-learn.csv.bz2 \
-	 | $(TOOLS_DIR)/clusterize.py -l $(depth) -w $(wgrams) -c $(cgrams) clusters-$(lang).txt \
+	 | $(TOOLS_DIR)/clusterize.py -r ngrams-$(lang).rpt -l $(depth) -w $(wgrams) -c $(cgrams) clusters-$(lang).txt \
 	 | tee predict-$(lang).txt \
 	 | $(TOOLS_DIR)/load_cdb_fslm.py predict-$(lang)-tmp.db
 
@@ -122,4 +127,7 @@ predict-%.db: clusters-%.txt grams-%-learn.csv.bz2 lang-%.cf db.version
 
 
 clean:
-	rm -f *.tmp* *-{learn,test}.txt.bz2 grams-*.csv.bz2 *.tre *.dict clusters-*.{txt,log} predict-*.{db,ng,log,rpt,rpt.bz2} tmp-words-*.txt *.id
+	rm -f *.tmp* *-{learn,test}.txt.bz2 grams-*.csv.bz2 *.tre *.dict clusters-*.{txt,log}
+	rm -f predict-*.{db,ng,log,rpt,rpt.bz2} tmp-words-*.txt *.id ngrams-*.rpt
+
+.PRECIOUS: affixes-%.txt
