@@ -3,7 +3,7 @@
 
 # usage: cat dictionary.txt | find_affixes [<min count>] > new_dictionary.txt
 
-# This version only finds affixes with delimiters (quote or hyphen). Not suited for German.
+# This version only finds simple prefixes & suffixes with delimiters (quote or hyphen). Not suited for German.
 
 
 import sys, re
@@ -17,9 +17,8 @@ for word in sys.stdin.readlines():
     word = word.strip()
     words.add(word)
 
-def find_affixes(words, affix_out = None, filter = None):
+def find_affixes(words):
     affix = dict()
-    words_out = set()
 
     for word in words:
 
@@ -31,8 +30,6 @@ def find_affixes(words, affix_out = None, filter = None):
             if nword in words:
                 if key not in affix: affix[key] = 0
                 affix[key] += 1
-            if filter and key in filter:
-                word = nword
 
         # suffixes
         mo2 = re.match(r'^(.*)([\'\-][a-z]+)$', word, re.I)
@@ -42,23 +39,12 @@ def find_affixes(words, affix_out = None, filter = None):
             if nword in words:
                 if key not in affix: affix[key] = 0
                 affix[key] += 1
-            if filter and key in filter:
-                word = nword
 
-        words_out.add(word)
+    return affix
 
-    if affix_out is not None: affix_out.update(affix)
-
-    return words_out
-
-affix = dict()
-find_affixes(words, affix_out = affix)
+affix = find_affixes(words)
 
 for k, v in list(affix.items()):
     if v < min_count: del affix[k]
 
-words = find_affixes(words, filter = set(affix.keys()))
-
-print('\n'.join(words))
-if affix:
-    print('\n'.join(affix.keys()))
+print('\n'.join(affix.keys()))

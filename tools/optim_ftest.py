@@ -4,6 +4,7 @@ import sys
 import ftest_replay as fr
 import re
 import pickle
+import os
 
 from dev_tools import Tools
 
@@ -24,12 +25,12 @@ def optim(records, tools):
     print("Optimizing parameters:", list(param_list))
 
     if persist:
-        with open(persist, 'rb') as f:
-            try:
+        try:
+            with open(persist, 'rb') as f:
                 tools.params = pickle.load(f)
                 print("Load", persist, "OK")
-            except:
-                print("Load", persist, "Failed")
+        except:
+            print("Load", persist, "Failed")
 
     params0 = dict(tools.params)
 
@@ -90,8 +91,8 @@ def optim(records, tools):
 
             if persist:
                 with open(persist + '.tmp', 'wb') as f:
-                    try: tools.params = pickle.dump(tools.params, f)
-                    except: pass
+                    pickle.dump(tools.params, f)
+                os.rename(persist + '.tmp', persist)
 
     updated = False
     for p in params0.keys():

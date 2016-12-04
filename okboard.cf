@@ -1,4 +1,4 @@
-# default parameters
+# OKboard default parameters
 
 [default]
 accel_gap = 5
@@ -233,25 +233,26 @@ learn_s23_threshold = 5
 learn_score_ratio = 4
 learning_half_life = 20
 max_predict = 30
-p2_coef_c2 = 2.031
-p2_coef_c3 = 3.463
-p2_coef_s2 = 1.967
-p2_coef_s3 = 5.944
-p2_curve_max = 0.002
-p2_curve_max2 = 0.009
-p2_curve_ratio = 0.711
-p2_default = 1.397
-p2_default_coef_log = 1.000
-p2_filter = 0.009
-p2_fine_threshold = 0.077
-p2_master_coef = 2.435
+p2_coef_c2 = 1.9580
+p2_coef_c3 = 0.3453
+p2_coef_s2 = 2.8789
+p2_coef_s3 = 6.6313
+p2_curve_max = 0.0020
+p2_curve_max2 = 0.0098
+p2_curve_ratio = 0.7110
+p2_default = 0.7254
+p2_default_coef_log = 1.0000
+p2_filter = 0.0044
+p2_fine_threshold = 0.0367
+p2_master_coef = 2.1233
 p2_max_candidates = 36
-p2_ratio = 127.238
-p2_score_coarse = 0.015
-p2_score_fine = 0.002
+p2_ratio = 127.2380
+p2_score_coarse = 0.0070
+p2_score_fine = 0.0023
 p2_score_unknown = 0.007
 purge_every = 432000
 purge_min_count1 = 3
 purge_min_count2 = 20
 purge_min_date1 = 30
 purge_min_date2 = 180
+
