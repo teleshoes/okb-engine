@@ -208,6 +208,7 @@ def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, s
     wordk = dict()
     for (word, json_in, lang, test_id) in tests:
         key = test_id
+        if key in wordk: raise Exception("oops duplicate key: %s" % key)
         wordk[key] = word
         log1("# %s (%s)" % (word, lang))
         sys.stdout.flush()
@@ -225,6 +226,9 @@ def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, s
         word = wordk[key]
         out, err = out.decode(encoding='UTF-8'), err.decode(encoding='UTF-8')
         json_in = inj[key]
+
+        test_id = key
+        lang = [ x for x in tests if x[3] == test_id ][0][2]
 
         if dump:
             save(os.path.join(dump, "%s.json" % key), json_in)
@@ -258,11 +262,11 @@ def run_all(tests, params, typ, fail_on_bad_score = False, return_dict = None, s
             print("%s (%s): " % (word, lang), "%.3f - " % score, end = "")
         if score <= FAIL_SCORE:
             if fail_on_bad_score:
-                print("\n*** Test failed: %s" % cmd)
+                print("\n*** Test failed: %s (%s)" % (cmd, test_id))
                 dump_txt(json_in, "in")
                 dump_txt(out, "out")
                 dump_txt(err, "err")
-                raise Exception("negative score in reference test data: %s (type=%s, score=%d)" % (word, typ, score))
+                raise Exception("negative score in reference test data: %s (id=%s, type=%s, score=%d, lang=%s)" % (word, test_id, typ, score, lang))
             else:
                 bad_count += 1
         total += score
