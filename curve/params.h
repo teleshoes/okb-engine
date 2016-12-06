@@ -351,7 +351,7 @@ static Params default_params = {
   2.63, // newdist_c3
   0.18, // newdist_c5
   2.947, // newdist_c6
-  1.5, // newdist_dist_start_ratio
+  2.0, // newdist_dist_start_ratio
   0.52, // newdist_length_bias_pow
   0.0, // newdist_rank_penalty
   3.12, // newdist_speed

@@ -31,3 +31,4 @@ key_shift_*.ks
 *.db.orig
 *.updated
 ngrams-*.rpt
+.cache
