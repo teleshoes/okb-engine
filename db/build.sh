@@ -64,7 +64,7 @@ cp -vauf $mydir/lang-*.cf $mydir/add-words-*.txt $mydir/db.version $WORK_DIR/
 
 cd $WORK_DIR
 for target in $tgt_list ; do
-    make -j -f $mydir/makefile CORPUS_DIR=${CORPUS_DIR} TOOLS_DIR=$mydir/../tools $target
+    make -j -f $mydir/makefile CORPUS_DIR=${CORPUS_DIR} TOOLS_DIR=$mydir/../tools $target SHELL="$SHELL"
 done
 
 rsync -av *.tre *.db *.ng *.rpt.bz2 clusters-*.txt *.id ngrams-*.rpt $mydir/

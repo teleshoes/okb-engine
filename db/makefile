@@ -6,7 +6,6 @@
 TOOLS_DIR ?= ../tools
 CORPUS_DIR ?= /tmp
 DEST_DIR ?= .
-SHELL = /bin/bash
 
 mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
 
