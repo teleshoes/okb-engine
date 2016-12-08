@@ -6,6 +6,7 @@
 TOOLS_DIR ?= ../tools
 CORPUS_DIR ?= /tmp
 DEST_DIR ?= .
+SHELL = /bin/bash
 
 mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
 
@@ -102,7 +103,7 @@ clusters-%.txt: grams-%-learn.csv.bz2
 	mv -f clusters-$(lang).tmp $@
 
 # build prediction database
-predict-%.db: clusters-%.txt grams-%-learn.csv.bz2 lang-%.cf db.version
+predict-%.db: clusters-%.txt grams-%-learn.csv.bz2 db.version
 	$(eval lang=$*)
 	$(eval depth=$(call getconf,lang-$(lang).cf,cluster_depth))
 	$(eval cgrams=$(call getconf,lang-$(lang).cf,cluster_cgrams))
