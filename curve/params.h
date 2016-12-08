@@ -322,7 +322,7 @@ static Params default_params = {
   100, // incremental_length_lag
   120, // inf_max
   20, // inf_min
-  20, // inter_pt_min_dist
+  50, // inter_pt_min_dist
   0.005, // key_shift_ema_coef
   0, // key_shift_enable
   1.0, // key_shift_ratio
@@ -362,7 +362,7 @@ static Params default_params = {
   37, // rt2_flat_max
   8, // rt2_high
   5, // rt2_low
-  4, // rt2_offcenter
+  3, // rt2_offcenter
   0.2, // rt2_score_coef
   0.08, // rt_score_coef
   0.32, // rt_score_coef_tip
@@ -373,7 +373,7 @@ static Params default_params = {
   1.0, // score_pow
   0.6, // sharp_turn_penalty
   3, // slow_down_max_turn
-  2.5, // slow_down_ratio
+  1.15, // slow_down_ratio
   0.2, // small_segment_min_score
   1, // smooth
   0.2, // sp_bad
@@ -418,7 +418,7 @@ static Params default_params = {
   10, // turn_max_angle
   55, // turn_max_transfer
   10, // turn_min_angle
-  4, // turn_min_gap
+  3, // turn_min_gap
   160, // turn_optim
   0.3, // turn_score_unmatched
   184, // turn_separation
