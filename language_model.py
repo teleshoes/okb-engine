@@ -626,7 +626,7 @@ class LanguageModel:
                 if c0 == last_c0: break
                 last_c0 = c0
 
-                predict_scores[c0] = (adj_f(c0), "reference")
+                predict_scores[c0] = (adj_f(c0), "*ref*")
                 for c in green_list[1:]:
                     compare = self._compare_coefs_debug(all_coefs[c0], curve_scores.get(c0, 0),
                                                         all_coefs[c], curve_scores.get(c, 0), c0, c)
@@ -634,7 +634,7 @@ class LanguageModel:
                     if compare:
                         if abs(compare) < p2_fine_threshold: compare = 0
                         predict_scores[c] = (compare * p2_score_fine + adj_f(c),
-                                             "fine:%.4f" % compare)
+                                             "F:%.4f" % compare)
                         self.debug("fine[%.4f]: '%s'" % (compare, c))
                     else:
                         predict_scores[c] = (adj_f(c), "ex-aequo")
@@ -647,7 +647,7 @@ class LanguageModel:
             elif c not in predict_scores:
                 compare = self._compare_coefs_debug(all_coefs[c0], curve_scores.get(c0, 0),
                                                     all_coefs[c], curve_scores.get(c, 0), c0, c)
-                predict_scores[c] = (compare * self.cf("p2_score_coarse", cast = float), "coarse:%.2f" % compare)
+                predict_scores[c] = (compare * self.cf("p2_score_coarse", cast = float), "C:%.2f" % compare)
                 self.debug("coarse[%.4f]: '%s'" % (compare, c))
 
         # --- prediction score evaluation (user) ---
@@ -726,16 +726,16 @@ class LanguageModel:
             txtout = []
             for c in clist:
                 (candidate_curve_score, wi_list) = candidates[c]
-                head = "- %5.3f [%12s] " % (scores[c], predict_scores[c][1][:12])
+                head = "- %5.3f [%9s] " % (scores[c], predict_scores[c][1][:12])
                 if expected_test:
                     head += "*" if expected_test == c else " "
-                head += "%10s " % c[0:10]
+                head += "%18s " % c[0:18]
 
                 col2 = [ (" %5.3f " % x) for x in candidate_curve_score ]
                 col3 = [ ]
 
                 for wi in wi_list or []:
-                    li = " %-8s" % wi.word[:8]
+                    li = " %-6s" % wi.word[:6]
                     # stock counts
                     for score_id in LanguageModel.ALL_SCORES:
                         if score_id in wi.count and wi.count[score_id].count > 0:
@@ -770,7 +770,7 @@ class LanguageModel:
                     if found: col3.append(li)
 
                 if c in all_coefs:
-                    li = " ------- "
+                    li = " ----- "
                     for score_id in LanguageModel.ALL_SCORES:
                         cc = all_coefs[c].get(score_id, None)
                         if cc: li += "%s: [%.2e] " % (score_id, cc)
