@@ -522,7 +522,8 @@ class LanguageModel:
     def _compare_coefs_debug(self, coefs1, curve_score1, coefs2, curve_score2, word1, word2):
         result = self._compare_coefs(coefs1, curve_score1, coefs2, curve_score2)
         if not self._debug: return result[0]
-        tr = lambda coefs: ", ".join([ "%s=%.5f" % (x, y) for (x, y) in coefs.items() if re.match(r'^[cs].*[123]$', x) ])
+        tr = lambda coefs: ", ".join([ "%s=%.2e" % (x, y) for (x, y) in coefs.items()
+                                       if re.match(r'^[cs].*[123]$', x) and y ])
         self.debug("%s[%.3f : %s] <=> %s[%.3f : %s] : compare=%.3f [%s]" %
                    (word1, curve_score1, tr(coefs1), word2, curve_score2, tr(coefs2), result[0], result[1]))
         return result[0]
