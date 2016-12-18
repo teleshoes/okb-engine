@@ -15,7 +15,7 @@ include $(patsubst lang-%.cf,.depend-%,$(wildcard lang-*.cf))
 
 all: $(patsubst lang-%.cf,all-%,$(wildcard lang-*.cf))
 
-all-%: predict-%.db %.tre grams-%-test.csv.bz2
+all-%: predict-%.db %.tre grams-%-test.csv.bz2 wordstats-%.rpt
 	@echo OK $*
 
 depend: $(patsubst lang-%.cf,.depend-%,$(wildcard lang-*.cf))
@@ -101,6 +101,14 @@ clusters-%.txt: grams-%-learn.csv.bz2
 	 | $(TOOLS_DIR)/cluster -n 10 -o clusters-$(lang).tmp > clusters-$(lang).log 2>&1
 	mv -f clusters-$(lang).tmp $@
 
+# word statistics
+wordstats-%.rpt: grams-%-learn.csv.bz2
+	$(eval lang=$*)
+	lbzip2 -d < grams-$(lang)-learn.csv.bz2 | grep ';#NA;#NA;' | sort -rn \
+	 | grep -v '#TOTAL' | cut -d';' -f 1,4 \
+	 | $(TOOLS_DIR)/wordstats2.py > wordstats-$(lang).tmp
+	mv -f wordstats-$(lang).tmp $@
+
 # build prediction database
 predict-%.db: clusters-%.txt grams-%-learn.csv.bz2 db.version
 	$(eval lang=$*)
@@ -128,6 +136,6 @@ predict-%.db: clusters-%.txt grams-%-learn.csv.bz2 db.version
 
 clean:
 	rm -f *.tmp* *-{learn,test}.txt.bz2 grams-*.csv.bz2 *.tre *.dict clusters-*.{txt,log}
-	rm -f predict-*.{db,ng,log,rpt,rpt.bz2} tmp-words-*.txt *.id ngrams-*.rpt
+	rm -f predict-*.{db,ng,log,rpt,rpt.bz2} tmp-words-*.txt *.id ngrams-*.rpt wordstats-*.rpt
 
 .PRECIOUS: affixes-%.txt
