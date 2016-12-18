@@ -1,13 +1,21 @@
 #! /usr/bin/python3
 
 import sys, os
+import getopt
 
-if len(sys.argv) < 2:
+opts, args =  getopt.getopt(sys.argv[1:], 'l:')
+logfile = None
+for o, a in opts:
+    if o == "-l": logfile = open(a, 'w')
+    else: raise Exception("bad opt:", o)
+
+
+if len(args) < 2:
     print("usage:", os.path.basename(__file__), "<word coverage [0-1]> <ngram coverage [0-1]>")
     print(" input/ouput ngram files on stdin/stdout (sorted by count)")
     exit(1)
 
-word_coverage, ngram_coverage = float(sys.argv[1]), float(sys.argv[2])
+word_coverage, ngram_coverage = float(args[0]), float(args[1])
 if word_coverage <= 0 or word_coverage > 1: raise Exception("Word coverage must be between 0 and 1")
 if ngram_coverage <= 0 or ngram_coverage > 1: raise Exception("N-gram coverage must be between 0 and 1")
 
@@ -30,7 +38,10 @@ for line in sys.stdin:
     ngrams.append((count, ';'.join([w1, w2, w3])))
     ngram_sum += count
 
-def say(x): sys.stderr.write(x + "\n")
+def say(x):
+    global logfile
+    if logfile: logfile.write(x + "\n")
+    sys.stderr.write(x + "\n")
 
 # remove rare words
 new_word_sum = word_sum
@@ -72,3 +83,5 @@ say("N-grams: %d -> %d (%.2f%%), coverage=%.2f%%" %
 
 for count, ngram in ngrams:
     print("%s;%s" % (count, ngram))
+
+if logfile: logfile.close()

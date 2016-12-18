@@ -97,7 +97,7 @@ clusters-%.txt: grams-%-learn.csv.bz2
 	$(eval lang=$*)
 	@echo "Computing clusters for language $(lang). Please make some coffee ..."
 	@echo " (logs can be found in clusters-$(lang).log)"
-	set -o pipefail ; lbzip2 -d < $< | sort -n | $(TOOLS_DIR)/ngram_filter.py 0.99 0.95 \
+	set -o pipefail ; lbzip2 -d < $< | sort -n | $(TOOLS_DIR)/ngram_filter.py -l ngram_filter-$(lang).log 0.995 0.95 \
 	 | $(TOOLS_DIR)/cluster -n 10 -o clusters-$(lang).tmp > clusters-$(lang).log 2>&1
 	mv -f clusters-$(lang).tmp $@
 
@@ -137,5 +137,6 @@ predict-%.db: clusters-%.txt grams-%-learn.csv.bz2 db.version
 clean:
 	rm -f *.tmp* *-{learn,test}.txt.bz2 grams-*.csv.bz2 *.tre *.dict clusters-*.{txt,log}
 	rm -f predict-*.{db,ng,log,rpt,rpt.bz2} tmp-words-*.txt *.id ngrams-*.rpt wordstats-*.rpt
+	rm -f ngram_filter.log
 
 .PRECIOUS: affixes-%.txt
