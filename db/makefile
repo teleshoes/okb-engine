@@ -137,6 +137,6 @@ predict-%.db: clusters-%.txt grams-%-learn.csv.bz2 db.version
 clean:
 	rm -f *.tmp* *-{learn,test}.txt.bz2 grams-*.csv.bz2 *.tre *.dict clusters-*.{txt,log}
 	rm -f predict-*.{db,ng,log,rpt,rpt.bz2} tmp-words-*.txt *.id ngrams-*.rpt wordstats-*.rpt
-	rm -f ngram_filter.log
+	rm -f ngram_filter-*.log
 
 .PRECIOUS: affixes-%.txt
