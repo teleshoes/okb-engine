@@ -663,7 +663,7 @@ float Scenario::calc_distance_score(unsigned char letter, int index, int count, 
   } else {
     ratio = params->dist_max_next;
   }
-    
+
   Point k = keys->get(letter);
 
   float cplus;
@@ -1414,7 +1414,7 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return, 
   memset(a_same, 0, sizeof(a_same));
 
   a_actual[0] = a_expected[0] = 0;
-  
+
   // compute actual turn rate
   float segment_length[count];
 
@@ -1426,7 +1426,7 @@ void Scenario::calc_turn_score_all(turn_t *turn_detail, int *turn_count_return, 
     Point p1 = curve->point(0);
     Point p2 = curve->point(curve->size() - 1);
     segment_length[0] = distancep(p1, p2);
-    
+
   } else {
     for(int i = 1; i < count - 1; i ++) {
       // curve index
@@ -2864,7 +2864,7 @@ void Scenario::newDistance() {
     }
 
     if (i == 0) { dist *= params->newdist_dist_start_ratio; }
- 
+
     int st2 = st;
     if (i == 0) { st2 = 8; } else if (i == count - 1) { st2 = 9; } /* tip */
 
@@ -3233,7 +3233,20 @@ void Scenario::sortCandidates(QList<Scenario*> candidates, Params &params, int d
       - params.coef_error * min(2, candidates[i]->getErrorCount());
     if (new_score > quality) { quality = new_score; }
   }
-  DBG("Quality index %.3f", quality)
+  DBG("Quality index %.3f", quality);
+
+  /* allowed distance range depending on minimum distance found
+     this favors slow/careful typing, and brings better overall average result */
+  float new_dist_range;
+  if (min_dist < 50) {
+    float c = (float) min_dist / 50;
+    new_dist_range = params.final_newdist_range50 * c + params.final_newdist_range0 * (1 - c);
+  } else if (min_dist < 100) {
+    float c = (float) (min_dist - 50) / 50;
+    new_dist_range = params.final_newdist_range100 * c + params.final_newdist_range50 * (1 - c);
+  } else {
+    new_dist_range = params.final_newdist_range100;
+  }
 
   float tmpsc[n];
   float max_score = 0;
@@ -3243,7 +3256,7 @@ void Scenario::sortCandidates(QList<Scenario*> candidates, Params &params, int d
 		       + params.final_coef_turn * pow(max(0, sc.turn_score), params.final_coef_turn_exp)
 		       - params.final_score_v1_coef * max(0, max_score_v1 - params.final_score_v1_threshold - candidates[i]->getScoreV1())
 		       /* old distance: - 0.1 * signpow(0.1 * (candidates[i]->distance() - min_dist), params.final_distance_pow) */
-		       - 0.1 * pow((candidates[i]->getNewDistance() - min_dist) / params.final_newdist_range, params.final_newdist_pow)
+		       - 0.1 * pow((candidates[i]->getNewDistance() - min_dist) / new_dist_range, params.final_newdist_pow)
 		       ) / (1 + params.final_coef_turn)
       - params.coef_error * candidates[i]->getErrorCount();
     tmpsc[i] = new_score;

@@ -1284,6 +1284,8 @@ void CurveMatch::resultToJson(QJsonObject &json) {
     json_st.append(quickCurves[i].straight);
   }
   json["straight"] = json_st;
+
+  json["multi_count"] = curve_count;
 }
 
 QString CurveMatch::resultToString(bool indent) {

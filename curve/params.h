@@ -68,7 +68,9 @@ class Params {
   float final_coef_turn_exp;
   float final_distance_pow;
   float final_newdist_pow;
-  int final_newdist_range;
+  int final_newdist_range0;
+  int final_newdist_range100;
+  int final_newdist_range50;
   float final_score_v1_coef;
   float final_score_v1_threshold;
   int flat2_max_height;
@@ -290,7 +292,9 @@ static Params default_params = {
   0.33, // final_coef_turn_exp
   0.5, // final_distance_pow
   1.0, // final_newdist_pow
-  40, // final_newdist_range
+  20, // final_newdist_range0
+  40, // final_newdist_range100
+  40, // final_newdist_range50
   0.0, // final_score_v1_coef
   0.12, // final_score_v1_threshold
   50, // flat2_max_height
@@ -506,7 +510,9 @@ void Params::toJson(QJsonObject &json) const {
   json["final_coef_turn_exp"] = final_coef_turn_exp;
   json["final_distance_pow"] = final_distance_pow;
   json["final_newdist_pow"] = final_newdist_pow;
-  json["final_newdist_range"] = final_newdist_range;
+  json["final_newdist_range0"] = final_newdist_range0;
+  json["final_newdist_range100"] = final_newdist_range100;
+  json["final_newdist_range50"] = final_newdist_range50;
   json["final_score_v1_coef"] = final_score_v1_coef;
   json["final_score_v1_threshold"] = final_score_v1_threshold;
   json["flat2_max_height"] = flat2_max_height;
@@ -724,7 +730,9 @@ Params Params::fromJson(const QJsonObject &json) {
   if (json.contains("final_coef_turn_exp")) { p.final_coef_turn_exp = json["final_coef_turn_exp"].toDouble(); }
   if (json.contains("final_distance_pow")) { p.final_distance_pow = json["final_distance_pow"].toDouble(); }
   if (json.contains("final_newdist_pow")) { p.final_newdist_pow = json["final_newdist_pow"].toDouble(); }
-  if (json.contains("final_newdist_range")) { p.final_newdist_range = json["final_newdist_range"].toDouble(); }
+  if (json.contains("final_newdist_range0")) { p.final_newdist_range0 = json["final_newdist_range0"].toDouble(); }
+  if (json.contains("final_newdist_range100")) { p.final_newdist_range100 = json["final_newdist_range100"].toDouble(); }
+  if (json.contains("final_newdist_range50")) { p.final_newdist_range50 = json["final_newdist_range50"].toDouble(); }
   if (json.contains("final_score_v1_coef")) { p.final_score_v1_coef = json["final_score_v1_coef"].toDouble(); }
   if (json.contains("final_score_v1_threshold")) { p.final_score_v1_threshold = json["final_score_v1_threshold"].toDouble(); }
   if (json.contains("flat2_max_height")) { p.flat2_max_height = json["flat2_max_height"].toDouble(); }
