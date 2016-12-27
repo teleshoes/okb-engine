@@ -826,6 +826,7 @@ class LanguageModel:
             if isinstance(score_curve, (list, tuple)):
                 score_curve = sum(score_curve) / len(score_curve) if score_curve else 1
             word_list = [ w for w in re.split(r'[^\w\'\-]+', words) if w ]
+            if not word_list: continue  # skip empty candidates
             candidates_tmp[words] = (word_list, score_curve)
 
         self.log("Candidates: " + ', '.join([ '%s[%.2f]' % (c, candidates_tmp[c][1])
