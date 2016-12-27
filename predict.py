@@ -309,6 +309,10 @@ class Predict:
 
         hist = [ h["guess"] for h in self.lm._history ]
 
+        # exit if there is not enough context and history to proceed
+        if len(words) < 2: return  # context too small
+        if len(hist) < 3: return  # history too small
+
         self.log("Backtracking check - words:", words[:4], "hist:", hist[:4])
 
         # due to race conditions, the preedit & surrounding_text may not be up-to-date
