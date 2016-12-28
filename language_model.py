@@ -515,6 +515,12 @@ class LanguageModel:
 
         score = self.cf("p2_master_coef", cast = float) * total / total_coef if total_coef else 0
 
+        # lower score of non-clusterized words
+        p2_nocluster = self.cf("p2_score_nocluster", cast = float)
+        if "nocluster" in coefs1: total += p2_nocluster
+        if "nocluster" in coefs2: total -= p2_nocluster
+
+
         return score, "std:%.3f %s" % (score,
                                        ", ".join([ "%s=%.2e" % (cn, cs)
                                                    for (cn, cs) in score_ratio.items() ]) if self._debug else "-")
