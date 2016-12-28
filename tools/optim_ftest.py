@@ -5,15 +5,16 @@ import ftest_replay as fr
 import re
 import pickle
 import os
+import getopt
 
 from dev_tools import Tools
 
 EPS = 0.0001
 
-def optim(records, tools):
+def optim(records, tools, eval_func):
     param_list_req = tools.cf("optim").split(",")
     persist = tools.cf("persist", "", str)
-    score_start = score0 = fr.play_all(records, tools)
+    score_start = score0 = eval_func(records, tools)
     print("All parameters:", tools.params)
 
     param_list = set()
@@ -55,7 +56,7 @@ def optim(records, tools):
                     if new_value < 0 or new_value > max(1, value0 * 2): break
                     c += 1
                     tools.set_param(p, new_value)
-                    score = fr.play_all(records, tools, verbose = False)
+                    score = eval_func(records, tools, verbose = False)
                     print(" > try %s = %.4f --> score %.4f %s" % (p, new_value, score, "*" if score > max_score else ""))
                     if score <= score0:
                         zc += 2 if score < last_score else 1
@@ -99,7 +100,24 @@ def optim(records, tools):
         if tools.params[p] != params0[p]: updated = True
     if updated: tools.save(suffix = ".updated")
 
+
+def score_func(rec, tools, verbose = True):
+    return fr.play_all(rec, tools, verbose = verbose, eval_score = True)["score"]
+
+def hit_func(rec, tools, verbose = True):
+    return fr.play_all(rec, tools, verbose = verbose)
+
+
+use_score = False
+opts, args =  getopt.getopt(sys.argv[1:], 's')
+
+for o, a in opts:
+    if o == "-s": use_score = True
+    else: raise Exception("Bad option: %s" % o)
+
 tools = Tools(verbose = False)
-records = fr.cli_params(sys.argv[1:], tools)
-optim(records, tools)
+records = fr.cli_params(args, tools)
+
+
+optim(records, tools, score_func if use_score else hit_func)
 print(tools.params)

@@ -18,7 +18,7 @@ from dev_tools import Tools
 
 def play_all(records, tools, backtrack = False, verbose = True, mock_time = False,
              learn = False, db_path = None, db_reset = True, display_stats = True,
-             learn_replace = False):
+             learn_replace = False, eval_score = False):
     all_langs = set([ x["lang"] for x in records ])
     count = count_ok = count_bad = 0
     bt_count = bt_ok = 0
@@ -28,6 +28,7 @@ def play_all(records, tools, backtrack = False, verbose = True, mock_time = Fals
     if not db_path: db_path = os.path.join(mydir, "db")
 
     print("# %d records - %d langs" % (len(records), len(all_langs)))
+    total_score = 0
     for lang in sorted(all_langs):
         lang_filter = tools.cf("lang", "", str)
         if lang_filter and lang != lang_filter: continue
@@ -112,6 +113,16 @@ def play_all(records, tools, backtrack = False, verbose = True, mock_time = Fals
             if guesses: guessed_context.append(guesses[0])
             else: guessed_context =  []
 
+            # use scoring function instead of %hit
+            if eval_score:
+                if ok: total_score += 1
+                elif exp in guesses:
+                    # try 1: predict_exp = details[exp]["predict"]
+                    # try 1: predict_guess = details[guesses[0]]["predict"]
+                    # try 1: if predict_exp < predict_guess - 0.002: total_score -= 3  # magic values :-)
+                    if details[exp]["predict_reason"].startswith("C:"): total_score -= 3  # this is dependent on language model version (p2)
+            # /scoring
+
             if learn:
                 # @todo use right "replace" value when backtracking is active
                 replaces = guesses[0] if not ok and guesses and learn_replace else None
@@ -122,7 +133,7 @@ def play_all(records, tools, backtrack = False, verbose = True, mock_time = Fals
 
             if backtrack:
                 tools.log("")
-                rst = lm.backtrack(verbose = verbose, testing = True, learn = False) # or learn = learn ??
+                rst = lm.backtrack(verbose = verbose, testing = True, learn = False)  # or learn = learn ??
                 if rst:
                     bt_count += 1
                     index, old, new, id = rst
@@ -145,11 +156,17 @@ def play_all(records, tools, backtrack = False, verbose = True, mock_time = Fals
         lm.close()
         db.close()
 
+    okresult = 100.0 * count_ok / count
+
     if display_stats:
         print("Summary: total=%d OK=(%.2f%%) bad=(%.2f%%)" % (count, 100.0 * count_ok / count, 100.0 * count_bad / count))
+        if eval_score: print("Summary: score=%.2f" % (100.0 * total_score / count))
         if bt_count: print("Summary: backtrack=%d OK=%d (%.2f%%)" % (bt_count, bt_ok, 100.0 * bt_ok / bt_count))
 
-    return 100.0 * count_ok / count
+    if eval_score:
+        return dict(ok = okresult, score = 100.0 * total_score / count)
+
+    return okresult
 
 def cli_params(args, tools):
     file_in = None
