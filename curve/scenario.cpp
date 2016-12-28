@@ -1038,6 +1038,12 @@ bool Scenario::childScenarioInternal(LetterNode &childNode, QList<Scenario> &res
   unsigned char letter = childNode.getChar();
   unsigned char *ptr = keys->getKeysForLetter(letter);
 
+  if (! ptr) {
+    // unknown key, ignore child and avoid crashing
+    DBG("Unknown key for letter '%c'", letter);
+    return false;
+  }
+
   // diacritic keys support
   while(* ptr) {
     bool status = childScenarioInternalWithLetter(*ptr, childNode, result, st_fork, incremental, endScenario);

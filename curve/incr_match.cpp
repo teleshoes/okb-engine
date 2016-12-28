@@ -168,6 +168,13 @@ void DelayedScenario::updateNextLetters() {
 
     // diacritic keys support
     unsigned char *ptr = keys->getKeysForLetter(letter);
+
+    if (! ptr) {
+      // unknown key, ignore child and avoid crashing
+      DBG("Unknown key for letter '%c'", letter);
+      continue;
+    }
+
     while(* ptr) {
       next[* ptr] = NextLetter(child);
       ptr ++;
