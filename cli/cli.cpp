@@ -36,7 +36,7 @@ static void usage(char *progname) {
   cout << " -g : disable debug more" << endl;
   cout << " -l <file> : log file" << endl;
   cout << " -a <nr> : implementation (0:simple, 1:incremental, 2:thread)" << endl;
-  cout << " -s : online display scores (instead of full json)" << endl;
+  cout << " -s : only display scores (instead of full json)" << endl;
   cout << " -m <ms> : delay between curve point feeding (thread mode only)" << endl;
   cout << " -r <count> : repeat (for profiling)" << endl;
   cout << " -k <mode> : 0=ignore, 1=load (default), 2=load+save" << endl;
