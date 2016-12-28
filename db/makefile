@@ -9,7 +9,7 @@ DEST_DIR ?= .
 
 mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
 
-getconf = $(shell grep '^'$(2)'=' $(1) | sed 's/^.*=//' | head -n 1)
+getconf = $(shell grep '^'$(2)'=' $(1) default.cf | sed 's/^.*=//' | head -n 1)
 
 include $(patsubst lang-%.cf,.depend-%,$(wildcard lang-*.cf))
 
@@ -95,9 +95,12 @@ grams-%-test.csv.bz2: %-predict.dict %-test.txt.bz2 affixes-%.txt
 # compute optimal cluster list (a bit slow)
 clusters-%.txt: grams-%-learn.csv.bz2
 	$(eval lang=$*)
+	$(eval cluster_filter_words=$(call getconf,lang-$(lang).cf,cluster_filter_words))
+	$(eval cluster_filter=$(call getconf,lang-$(lang).cf,cluster_filter))
 	@echo "Computing clusters for language $(lang). Please make some coffee ..."
 	@echo " (logs can be found in clusters-$(lang).log)"
-	set -o pipefail ; lbzip2 -d < $< | sort -n | $(TOOLS_DIR)/ngram_filter.py -l ngram_filter-$(lang).log 0.995 0.95 \
+	set -o pipefail ; lbzip2 -d < $< | sort -n \
+	 | $(TOOLS_DIR)/ngram_filter.py -l ngram_filter-$(lang).log $(cluster_filter_words) $(cluster_filter) \
 	 | $(TOOLS_DIR)/cluster -n 10 -o clusters-$(lang).tmp > clusters-$(lang).log 2>&1
 	mv -f clusters-$(lang).tmp $@
 

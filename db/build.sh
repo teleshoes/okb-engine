@@ -32,9 +32,10 @@ usage() {
 
 add_tgt=
 langs=
+clean=
 while [ -n "$1" ] ; do
     case "$1" in
-	-r) add_tgt=clean ;;
+	-r) clean=1 ;;
 	-*) usage ;;
 	*) langs="$langs $1" ;;
     esac
@@ -60,11 +61,20 @@ $mydir/../build_all.sh
 
 . $mydir/../tools/env.sh
 
-cp -vauf $mydir/lang-*.cf $mydir/add-words-*.txt $mydir/db.version $WORK_DIR/
+cp -vauf $mydir/lang-*.cf $mydir/default.cf $mydir/add-words-*.txt $mydir/db.version $WORK_DIR/
 
 cd $WORK_DIR
+
+MAKE="make -f $mydir/makefile CORPUS_DIR=${CORPUS_DIR} TOOLS_DIR=$mydir/../tools $target SHELL=$SHELL"
+
+# clean
+if [ -n "$clean" ] ; then
+    find . -name '.depend*' -delete
+    $MAKE clean depend
+fi
+
 for target in $tgt_list ; do
-    make -j -f $mydir/makefile CORPUS_DIR=${CORPUS_DIR} TOOLS_DIR=$mydir/../tools $target SHELL="$SHELL"
+    $MAKE -j
 done
 
 rsync -av *.tre *.db *.ng *.rpt.bz2 clusters-*.txt *.id ngrams-*.rpt wordstats-*.rpt $mydir/

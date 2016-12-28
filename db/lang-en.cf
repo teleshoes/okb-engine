@@ -1,6 +1,6 @@
-predict_words=30000
-cluster_cgrams=500000
-cluster_wgrams=200000
-cluster_depth=8
+# Language settings for English
+
+# There is only an upper-case "I" in english
+# lowercase "i" are mistakes and must be mapped to "I"
 filter_words=(i)
 

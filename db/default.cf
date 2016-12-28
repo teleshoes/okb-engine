@@ -1,0 +1,31 @@
+# OKBoard: Common configuration for language files build
+
+# number of (most used) words to use for prediction engine
+# (n-grams & clustering models)
+# other words can be added at run-time by using them once
+#
+# this settings is ignored if a predict dictionary is provided
+#  ($CORPUS_DIR/words-predict-$LANG.txt file)
+predict_words=30000
+
+# number of cluster n-grams
+cluster_cgrams=1000000
+
+# number of words n-grams
+cluster_wgrams=300000
+
+# depths of cluster splitting
+# (so cluster count is at most 2 ^ cluster_depth)
+cluster_depth=8
+
+# words to ignore completely
+filter_words=NO_FILTER
+
+# clustering: only includes words needed for this coverage from learning corpus [0, 1]
+# this may drop some words from provided predict dictionary
+# use 1 to keep all words (predict_words settings or predict dictionary)
+cluster_filter_words=0.995
+
+# clustering: only includes n-grams needed for this coverage from learning corpus n-grams [0, 1]
+# allow to ignore rarely used patterns (which may be mistakes in input corpus)
+cluster_filter=0.95

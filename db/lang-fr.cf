@@ -1,5 +1,3 @@
+# Language settings for French
+
 predict_words=60000
-cluster_cgrams=500000
-cluster_wgrams=300000
-cluster_depth=8
-filter_words=NO_FILTER
