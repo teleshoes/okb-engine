@@ -517,8 +517,8 @@ class LanguageModel:
 
         # lower score of non-clusterized words
         p2_nocluster = self.cf("p2_score_nocluster", cast = float)
-        if "nocluster" in coefs1: total += p2_nocluster
-        if "nocluster" in coefs2: total -= p2_nocluster
+        if "nocluster" in coefs1: score += p2_nocluster
+        if "nocluster" in coefs2: score -= p2_nocluster
 
 
         return score, "std:%.3f %s" % (score,
