@@ -24,7 +24,7 @@ date=$(date)
     echo "# [$date] replay diff $r1 -> $r2"
     echo
     echo "* differences list"
-    paste "$t1" "$t2" | awk '{ print $1 " " $2 " " $4 }' |
+    join "$t1" "$t2" | (
 	while read id st1 st2 ; do
 	    [ "$st1" = "$st2" ] && continue
 
@@ -36,4 +36,5 @@ date=$(date)
 
 	    echo "  - [ ] $id [[file:$r1::$l1][$st1]] -> [[file:$r2::$l2][$st2]] $comment"
 	done
+    )
 ) | tee "$cmp.tmp" && mv -f "$cmp.tmp" "$cmp"
