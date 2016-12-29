@@ -107,8 +107,13 @@ def play_all(records, tools, backtrack = False, verbose = True, mock_time = Fals
             ok = guesses and guesses[0] == exp
             count += 1
             if ok: count_ok += 1
+
+            if ok: st = "=OK="
+            elif exp in guesses: st = "*FAIL*"
+            else: st = "*NOTFOUND*"
+
             tools.log("[*] Guess %s %s \"%s\" (expected \"%s\"): %s" %
-                      (t["id"], t["context"], guesses[0] if guesses else "?", t["expected"], ("=OK=" if ok else "*FAIL*")))
+                      (t["id"], t["context"], guesses[0] if guesses else "?", t["expected"], st))
 
             if guesses: guessed_context.append(guesses[0])
             else: guessed_context =  []

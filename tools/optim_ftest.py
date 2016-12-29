@@ -6,6 +6,7 @@ import re
 import pickle
 import os
 import getopt
+import time
 
 from dev_tools import Tools
 
@@ -98,7 +99,9 @@ def optim(records, tools, eval_func):
     updated = False
     for p in params0.keys():
         if tools.params[p] != params0[p]: updated = True
-    if updated: tools.save(suffix = ".updated")
+    if updated: tools.save(suffix = "." + tools.cf("suffix", "updated", str),
+                           message = "# Date: %s\n# score %.5f -> %.5f" %
+                           (time.ctime(), score_start, max_score))
 
 
 def score_func(rec, tools, verbose = True):

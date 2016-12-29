@@ -58,11 +58,12 @@ class Tools:
             with open(self.params["logfile"], "a") as f:
                 f.write(message + "\n")
 
-    def save(self, suffix = ".updated"):
+    def save(self, suffix = ".updated", message = None):
         file = self._cpfile + suffix if suffix else ""
         with open(file + ".tmp", 'w') as f:
             f.write("# OKboard default parameters\n\n")
             self._cp.write(f)
+            if message: f.write(message + "\n\n")
         os.rename(file + ".tmp", file)
         print("===> New configuration file saved to: %s" % file)
         print()

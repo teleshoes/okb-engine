@@ -24,8 +24,10 @@ date=$(date)
     echo "# [$date] replay diff $r1 -> $r2"
     echo
     echo "* differences list"
-    paste "$t1" "$t2" | grep 'OK' | grep 'FAIL' | awk '{ print $1 " " $2 " " $4 }' |
+    paste "$t1" "$t2" | awk '{ print $1 " " $2 " " $4 }' |
 	while read id st1 st2 ; do
+	    [ "$st1" = "$st2" ] && continue
+
 	    l1=$(grep -n "^ID: ${id} " "$r1" | cut -d: -f 1)
 	    l2=$(grep -n "^ID: ${id} " "$r2" | cut -d: -f 1)
 
