@@ -459,13 +459,15 @@ class LanguageModel:
     ALL_SCORES = [ "s3", "c3", "s2", "c2", "s1" ]
     ALL_SCORES_NC = [ s for s in ALL_SCORES if s[0] == "s" ]
 
-    def _compare_coefs(self, coefs1, curve_score1, coefs2, curve_score2):
+    def _compare_coefs(self, coefs1, coefs2):
         """ Compare coefficients for two words or parts of text
             Input: dicts score_id => score + curve score (for each word)
             Result:
             <= -1 = first word wins
             >= 1  = second word wins
             x (in ]-1, 1[)  = ex-aequo (x is positive if second word is slightly better) """
+
+        curve_score1, curve_score2 = coefs1["curve"], coefs2["curve"]
 
         curve_max_gap2 = self.cf("p2_curve_max2", cast = float)
 
@@ -525,13 +527,14 @@ class LanguageModel:
                                        ", ".join([ "%s=%.2e" % (cn, cs)
                                                    for (cn, cs) in score_ratio.items() ]) if self._debug else "-")
 
-    def _compare_coefs_debug(self, coefs1, curve_score1, coefs2, curve_score2, word1, word2):
-        result = self._compare_coefs(coefs1, curve_score1, coefs2, curve_score2)
+    def _compare_coefs_debug(self, coefs1, coefs2):
+        word1, word2 = coefs1["word"], coefs2["word"]
+        result = self._compare_coefs(coefs1, coefs2)
         if not self._debug: return result[0]
         tr = lambda coefs: ", ".join([ "%s=%.2e" % (x, y) for (x, y) in coefs.items()
                                        if re.match(r'^[cs].*[123]$', x) and y ])
-        self.debug("%s[%.3f : %s] <=> %s[%.3f : %s] : compare=%.3f [%s]" %
-                   (word1, curve_score1, tr(coefs1), word2, curve_score2, tr(coefs2), result[0], result[1]))
+        self.log("COMPARE: %s[%s] <=> %s[%s]: result=%.6f [%s]" %
+                 (word1, tr(coefs1), word2, tr(coefs2), result[0], result[1]))
         return result[0]
 
     def _eval_score(self, candidates, verbose = False, expected_test = None):
@@ -609,8 +612,7 @@ class LanguageModel:
 
             remove = False
             for c0 in list(green_list):
-                compare = self._compare_coefs_debug(all_coefs[c0], curve_scores.get(c0, 0),
-                                                    all_coefs[c], curve_scores.get(c, 0), c0, c)
+                compare = self._compare_coefs_debug(all_coefs[c0], all_coefs[c])
 
                 if compare >= 1:  # new candidate evict another candidate from reference list
                     green_list.remove(c0)
@@ -640,8 +642,7 @@ class LanguageModel:
 
                 predict_scores[c0] = (adj_f(c0), "*ref*")
                 for c in green_list[1:]:
-                    compare = self._compare_coefs_debug(all_coefs[c0], curve_scores.get(c0, 0),
-                                                        all_coefs[c], curve_scores.get(c, 0), c0, c)
+                    compare = self._compare_coefs_debug(all_coefs[c0], all_coefs[c])
 
                     if compare:
                         if abs(compare) < p2_fine_threshold: compare = 0
@@ -657,8 +658,7 @@ class LanguageModel:
                 predict_scores[c] = (- self.cf("p2_score_unknown", cast = float), "unknown")
                 self.debug("unknown: '%s'" % c)
             elif c not in predict_scores:
-                compare = self._compare_coefs_debug(all_coefs[c0], curve_scores.get(c0, 0),
-                                                    all_coefs[c], curve_scores.get(c, 0), c0, c)
+                compare = self._compare_coefs_debug(all_coefs[c0], all_coefs[c])
                 predict_scores[c] = (compare * self.cf("p2_score_coarse", cast = float), "C:%.2f" % compare)
                 self.debug("coarse[%.4f]: '%s'" % (compare, c))
 
