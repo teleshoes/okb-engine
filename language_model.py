@@ -563,11 +563,10 @@ class LanguageModel:
                     all_coefs[c]["nocluster"] = True   # #NOCLUSTER cluster
 
                 coefs = dict()
-                coef_wc = coefs["coef_wc"] = wi.count.get("coef_wc", 1.)
+                coefs["coef_wc"] = wi.count.get("coef_wc", 1.)
                 for score_id in LanguageModel.ALL_SCORES:
                     if score_id in wi.count and wi.count[score_id].count > 0:
-                        coefs[score_id] = ((coef_wc if score_id[0] == 'c' else 1.0) *
-                                           wi.count[score_id].count / wi.count[score_id].total_count)
+                        coefs[score_id] = wi.count[score_id].count / wi.count[score_id].total_count
                         coefs["n" + score_id] = wi.count[score_id].count
                     else:
                         coefs[score_id] = 0.
@@ -578,8 +577,8 @@ class LanguageModel:
                     all_coefs[c].update(coefs)  # juste overwrite for first word
                     first_word = False
                 else:
+                    all_coefs[c]["coef_wc"] *= coefs["coef_wc"]
                     for score_id in reversed(LanguageModel.ALL_SCORES):
-                        all_coefs[c]["coef_wc"] *= coefs["coef_wc"]
                         if score_id[-1] == '3':
                             # estimation for coefficients with rank = 3
                             all_coefs[c][score_id] = all_coefs[c][score_id] * coefs[score_id]
@@ -589,6 +588,12 @@ class LanguageModel:
                             next_id = score_id[:-1] + chr(ord(score_id[-1]) + 1)
                             all_coefs[c][score_id] = all_coefs[c][score_id] * coefs[next_id]
                             all_coefs[c]["n" + score_id] = coefs["n" + next_id]
+
+            # apply P(wi|Ci) coefficients for all words
+            for score_id in [ "c2", "c3" ]:
+                all_coefs[c][score_id + "-"] = all_coefs[c][score_id]  # keep cluster coefficient without P(wi|Ci) for log / debug
+                all_coefs[c][score_id] *= all_coefs[c]["coef_wc"]  # product for all words
+
 
         # --- prediction score evaluation (stock) ---
         predict_scores = dict()
@@ -780,9 +785,16 @@ class LanguageModel:
                     li = " ----- "
                     for score_id in LanguageModel.ALL_SCORES:
                         cc = all_coefs[c].get(score_id, None)
-                        if cc: li += "%s: [%.2e] " % (score_id, cc)
+                        if cc: li += "%s: [%8.2e] " % (score_id, cc)
                         else: li += " " * 15
                     col3.append(li)
+                    if len(wi_list) >= 2:
+                        li = " -[C]- "
+                        for score_id in LanguageModel.ALL_SCORES:
+                            cc = all_coefs[c].get(score_id, None)
+                            if cc: li += "%s: n=%-8d " % (score_id, all_coefs[c].get("n" + score_id, "-1"))
+                            else: li += " " * 15
+                        col3.append(li)
 
                 if not col3: col3.append(" (unknown)")
 

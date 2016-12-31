@@ -119,6 +119,7 @@ for r in records:
     if pe < pg: flag(id, "predict")
     if pe < pg - 0.002: flag(id, "predict_BAD")
     if pe > pg - 0.002: flag(id, "(predict good)")
+    if predict[expected]["cause"].startswith("C:"): flag(id, "predict_coarse")
 
     # out
     pre = os.path.join(dir, id)
