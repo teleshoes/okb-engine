@@ -485,10 +485,28 @@ class LanguageModel:
         ratio = self.cf("p2_ratio", cast = float)
         default = self.cf("p2_default", cast = float)
 
-        # score evaluation: linear combination of log probability ratios
         if not curve_max_gap: return 0, "parms_max_gap"  # optimizer dirty workaround
         curve_coef = 10. ** (curve_ratio * (curve_score2 - curve_score1) / curve_max_gap)  # [0.1, 10], <1 if first word wins
 
+        # negative filtering
+        cfilter_min_count = self.cf("p2_cfilter_min_count", cast = float)
+        cfilter_ratio = self.cf("p2_cfilter_ratio", cast = float)
+        # score_filter = self.cf("p2_score_filter", cast = float)
+        if "nocluster" not in coefs1 and "nocluster" not in coefs2:
+            for s_id in [ "c3", "c2" ]:
+                c1, c2 = coefs1.get(s_id, 0), coefs2.get(s_id, 0)
+                n = max(coefs1.get("n" + s_id, 0), coefs2.get("n" + s_id, 0))
+                if n < cfilter_min_count: continue
+                if not c1 and not c2: continue
+                if not c2: return (-1, "filter")
+                elif not c1: return (1, "filter")
+
+                s = math.log10(curve_coef * c2 / c1) / math.log10(cfilter_ratio)
+                if abs(s) >= 1:
+                    if s < 0: return (- 1, "filter-p")
+                    else: return (1, "filter-p")
+
+        # score evaluation: linear combination of log probability ratios
         score_ratio = dict()
         for s_id in LanguageModel.ALL_SCORES:
             c1, c2 = coefs1.get(s_id, 0), coefs2.get(s_id, 0)
