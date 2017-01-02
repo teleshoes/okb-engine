@@ -582,8 +582,8 @@ class LanguageModel:
         score = self.cf("p2_master_coef", cast = float) * total / total_coef if total_coef else 0
 
         # lower score of non-clusterized words
-        if "nocluster" in coefs1 and "nocluster" not in coefs2: return (score + self.p_score_nocluster, "nocluster")
-        if "nocluster" in coefs2 and "nocluster" not in coefs1: return (score - self.p_score_nocluster, "nocluster")
+        if "nocluster" in coefs1 and "nocluster" not in coefs2: return (score * self.p_score_fine + self.p_score_nocluster, "nocluster")
+        if "nocluster" in coefs2 and "nocluster" not in coefs1: return (score * self.p_score_fine - self.p_score_nocluster, "nocluster")
 
 
         if sfilter_sign and score * sfilter_sign < 0:
