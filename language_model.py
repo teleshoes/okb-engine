@@ -9,6 +9,8 @@ import unicodedata
 import math
 import os
 
+EPS = 1E-6  # for ex-aequo
+
 def word2letters(word):
     letters = ''.join(c for c in unicodedata.normalize('NFD', word.lower()) if unicodedata.category(c) != 'Mn')
     letters = re.sub(r'[^a-z]', '', letters.lower())
@@ -456,6 +458,25 @@ class LanguageModel:
         return (user_count, user_replace, last_time, proba)
 
 
+    def _init_params(self):
+        self.p_score_unknown = self.cf("p2_score_unknown", cast = float)
+        self.p_score_coarse = self.cf("p2_score_coarse", cast = float)
+        self.p_score_nocluster = self.cf("p2_score_nocluster", cast = float)
+        self.p_score_fine = self.cf("p2_score_fine", cast = float)
+        self.p_curve_max_gap2 = self.cf("p2_curve_max2", cast = float)
+        self.p_curve_coef = self.cf("p2_curve_coef", cast = float)
+        self.p_ratio = self.cf("p2_ratio", cast = float)
+        self.p_default = self.cf("p2_default", cast = float)
+        self.p_filter_min_count = self.cf("p2_filter_min_count", cast = float)
+        self.p_fine_threshold = self.cf("p2_fine_threshold", cast = float)
+        self.p_sfilter_ratio = self.cf("p2_sfilter_ratio", cast = float)
+        self.p_sfilter_value = self.cf("p2_sfilter_value", cast = float)
+        self.p_coef_s2 = self.cf("p2_coef_s2", cast = float)
+        self.p_coef_s3 = self.cf("p2_coef_s3", cast = float)
+        self.p_coef_c2 = self.cf("p2_coef_c2", cast = float)
+        self.p_coef_c3 = self.cf("p2_coef_c3", cast = float)
+        self.p_cfilter_ratio = self.cf("p2_cfilter_ratio", cast = float)
+
     ALL_SCORES = [ "s3", "c3", "s2", "c2", "s1" ]
     ALL_SCORES_NC = [ s for s in ALL_SCORES if s[0] == "s" ]
 
@@ -469,60 +490,85 @@ class LanguageModel:
 
         curve_score1, curve_score2 = coefs1["curve"], coefs2["curve"]
 
-        curve_max_gap2 = self.cf("p2_curve_max2", cast = float)
 
         # filter candidates with bad curve (coarse setting)
-        if curve_score1 > curve_score2 + curve_max_gap2: return -1, "curve"
-        if curve_score2 > curve_score1 + curve_max_gap2: return 1, "curve"
+        if curve_score1 > curve_score2 + self.p_curve_max_gap2: return (-self.p_score_coarse, "curve")
+        if curve_score2 > curve_score1 + self.p_curve_max_gap2: return (self.score_coarse, "curve")
 
-        if not coefs1 and not coefs2: return 0, "none"
-        if not coefs1: return 1, "no coef 1"
-        if not coefs2: return -1, "no coef 2"
+        if not coefs1 and not coefs2: return (0, "none")
+        if not coefs1: return (self.p_score_unknown, "no_coef1")
+        if not coefs2: return (- self.p_score_unknown, "no_coef2")
 
+        # add bias towards candidates with better curve score
+        curve_coef = 10. ** (self.p_curve_coef * (curve_score2 - curve_score1))
 
-        curve_max_gap = self.cf("p2_curve_max", cast = float)
-        curve_ratio = self.cf("p2_curve_ratio", cast = float)
-        ratio = self.cf("p2_ratio", cast = float)
-        default = self.cf("p2_default", cast = float)
+        # positive filtering (S*)
+        sfilter_sign = 0
+        if "nocluster" not in coefs1 and "nocluster" not in coefs2:
+            for s_id in [ "s3", "s2" ]:
+                c1, c2 = coefs1.get(s_id, 0), coefs2.get(s_id, 0)
+                n = max(coefs1.get("n" + s_id, 0), coefs2.get("n" + s_id, 0))
+                if n < self.p_filter_min_count: continue
+                if not c1 and not c2: continue
 
-        if not curve_max_gap: return 0, "parms_max_gap"  # optimizer dirty workaround
-        curve_coef = 10. ** (curve_ratio * (curve_score2 - curve_score1) / curve_max_gap)  # [0.1, 10], <1 if first word wins
+                if not c2: sfilter_sign = -1
+                elif not c1: sfilter_sign = 1
+                else:
+                    s = math.log10(curve_coef * c2 / c1) / math.log10(self.p_sfilter_ratio)
+                    if abs(s) >= 1:
+                        sfilter_sign = 1 if s > 0 else -1
+                break
 
-        # negative filtering
-        cfilter_min_count = self.cf("p2_cfilter_min_count", cast = float)
-        cfilter_ratio = self.cf("p2_cfilter_ratio", cast = float)
-        # score_filter = self.cf("p2_score_filter", cast = float)
+        # negative filtering (C*)
+        negative_filtering = None
         if "nocluster" not in coefs1 and "nocluster" not in coefs2:
             for s_id in [ "c3", "c2" ]:
                 c1, c2 = coefs1.get(s_id, 0), coefs2.get(s_id, 0)
                 n = max(coefs1.get("n" + s_id, 0), coefs2.get("n" + s_id, 0))
-                if n < cfilter_min_count: continue
+                if n < self.p_filter_min_count: continue
                 if not c1 and not c2: continue
-                if not c2: return (-1, "filter")
-                elif not c1: return (1, "filter")
 
-                s = math.log10(curve_coef * c2 / c1) / math.log10(cfilter_ratio)
-                if abs(s) >= 1:
-                    if s < 0: return (- 1, "filter-p")
-                    else: return (1, "filter-p")
+                if not c2: negative_filtering = (- self.p_score_coarse, "filter")
+                elif not c1: negative_filtering = (self.p_score_coarse, "filter")
+                else:
+                    s = math.log10(curve_coef * c2 / c1) / math.log10(self.p_cfilter_ratio)
+                    if abs(s) >= 1:
+                        if s < 0: negative_filtering = (- self.p_score_coarse * abs(s), "filter-p")
+                        else: negative_filtering = (self.p_score_coarse * abs(s), "filter-p")
+                break
+
+        if negative_filtering and sfilter_sign and negative_filtering[0] * sfilter_sign < 0:
+            # both filters conflict with each other, just ignore them
+            negative_filtering = None
+            sfilter_sign = 0
 
         # score evaluation: linear combination of log probability ratios
         score_ratio = dict()
+        found1 = found2 = False
         for s_id in LanguageModel.ALL_SCORES:
             c1, c2 = coefs1.get(s_id, 0), coefs2.get(s_id, 0)
 
+            if c1: found1 = True
+            if c2: found2 = True
+
             if c1 == 0 and c2 == 0: s = 0
-            elif c1 == 0: s = default
-            elif c2 == 0: s = -default
-            else: s = math.log10(curve_coef * c2 / c1) / math.log10(ratio)
+            elif c1 == 0: s = self.p_default
+            elif c2 == 0: s = -self.p_default
+            else: s = math.log10(curve_coef * c2 / c1) / math.log10(self.p_ratio)
 
             score_ratio[s_id] = s
 
+        if not found1 and not found2: return (0, "unknown2x")
+        if not found1: return (self.p_score_unknown, "unknown")
+        if not found2: return (- self.p_score_unknown, "unknown")
+
+        if negative_filtering: return negative_filtering
+
         lst = [ (1, score_ratio["s1"]),
-                (self.cf("p2_coef_s2", cast = float), score_ratio["s2"]),
-                (self.cf("p2_coef_s3", cast = float), score_ratio["s3"]),
-                (self.cf("p2_coef_c2", cast = float), score_ratio["c2"]),
-                (self.cf("p2_coef_c3", cast = float), score_ratio["c3"]) ]
+                (self.p_coef_s2, score_ratio["s2"]),
+                (self.p_coef_s3, score_ratio["s3"]),
+                (self.p_coef_c2, score_ratio["c2"]),
+                (self.p_coef_c3, score_ratio["c3"]) ]
 
         if "nocluster" in coefs1 or "nocluster" in coefs2:
             lst = [ lst[0] ]  # only
@@ -536,24 +582,30 @@ class LanguageModel:
         score = self.cf("p2_master_coef", cast = float) * total / total_coef if total_coef else 0
 
         # lower score of non-clusterized words
-        p2_nocluster = self.cf("p2_score_nocluster", cast = float)
-        if "nocluster" in coefs1: score += p2_nocluster
-        if "nocluster" in coefs2: score -= p2_nocluster
+        if "nocluster" in coefs1 and "nocluster" not in coefs2: return (score + self.p_score_nocluster, "nocluster")
+        if "nocluster" in coefs2 and "nocluster" not in coefs1: return (score - self.p_score_nocluster, "nocluster")
 
 
-        return score, "std:%.3f %s" % (score,
-                                       ", ".join([ "%s=%.2e" % (cn, cs)
-                                                   for (cn, cs) in score_ratio.items() ]) if self._debug else "-")
+        if sfilter_sign and score * sfilter_sign < 0:
+            return (sfilter_sign * self.p_sfilter_value, "filter+")
+        elif abs(score) > 1:
+            return (score * self.p_score_coarse, "C:%.2f" % score)
+
+        if abs(score) < self.p_fine_threshold: score = math.copysign(EPS / 2, score)  # avoid ex-aequo
+        else: score *= self.p_score_fine
+
+        return (score, "fine")
+
 
     def _compare_coefs_debug(self, coefs1, coefs2):
         word1, word2 = coefs1["word"], coefs2["word"]
         result = self._compare_coefs(coefs1, coefs2)
-        if not self._debug: return result[0]
+        if not self._debug: return result
         tr = lambda coefs: ", ".join([ "%s=%.2e" % (x, y) for (x, y) in coefs.items()
                                        if re.match(r'^[cs].*[123]$', x) and y ])
         self.log("COMPARE: %s[%s] <=> %s[%s]: result=%.6f [%s]" %
                  (word1, tr(coefs1), word2, tr(coefs2), result[0], result[1]))
-        return result[0]
+        return result
 
     def _eval_score(self, candidates, verbose = False, expected_test = None):
         """ Evaluate overall score (curve + predict)
@@ -561,6 +613,8 @@ class LanguageModel:
             ouput: score as a dict: candidate id => overall score """
 
         if not candidates: return dict()
+
+        self._init_params()
 
         # no more used? p2_default_coef = 10 ** (- 10 * self.cf("p2_default_coef_log", cast = float))
         current_day = int(self._now() / 86400)
@@ -618,67 +672,33 @@ class LanguageModel:
 
         # --- prediction score evaluation (stock) ---
         predict_scores = dict()
-        score_f = lambda x: curve_scores.get(x, 0) + predict_scores[x][0] if x in predict_scores else 0
 
-        # remove candidate with "coarse comparison failed" and keep others in a "green-list"
-        green_list = set()
-        for c in sorted(all_coefs.keys()):  # sort for repeatable results
-            if not green_list:
-                green_list.add(c)
-                self.debug("green list += %s (first)" % c)
-                continue
+        # find reference candidate
+        csorted = sorted(all_coefs.keys(), key = lambda x: all_coefs[x]["curve"], reverse = True)
+        ref = None
+        for c in csorted:
+            if not ref:
+                ref = c
+            else:
+                cmp = self._compare_coefs_debug(all_coefs[ref], all_coefs[c])[0]  # useless: curve_scores[c] - curve_scores[ref]
+                if cmp > 0: ref = c
+        self.debug("Reference:", ref)
 
-            remove = False
-            for c0 in list(green_list):
-                compare = self._compare_coefs_debug(all_coefs[c0], all_coefs[c])
+        # evaluate other candidate vs. reference
+        predict_scores[ref] = 0, "ref"
+        for c in csorted:
+            if c == ref: continue
+            cmp = self._compare_coefs_debug(all_coefs[ref], all_coefs[c])
+            pscore = cmp[0]
+            predict_scores[c] = pscore, cmp[1]
 
-                if compare >= 1:  # new candidate evict another candidate from reference list
-                    green_list.remove(c0)
-                    self.debug("green list -= %s (%.3f)" % (c0, compare))
+        # heuristics (good for French, maybe not other, but it will change only ex-aequo words anyway)
+        for c in csorted:
+            adj = 0
+            if c[0].isupper(): adj = -EPS
+            elif re.match(r'^[a-zA-Z\-\']+$', c): adj = EPS
+            if adj: predict_scores[c] = (predict_scores[c][0] + adj, predict_scores[c][1])
 
-                elif compare <= -1:  # new candidate is eliminated by another one in reference list
-                    remove = True
-
-            if not remove:
-                green_list.add(c)
-                self.debug("green list += %s" % c)
-
-
-        # ordering fine tuning for candidates still in the green-list
-        last_c0 = None
-        green_list = list(green_list)
-        adj_f = lambda x: -0.0001 if x[0].isupper() else 0
-        p2_fine_threshold = self.cf("p2_fine_threshold", cast = float)
-        if green_list:
-            for _ in range(3):
-                green_list.sort(key = lambda x:  (score_f(x), x), reverse = True)  # the tuple ensures repeatable results
-                p2_score_fine = self.cf("p2_score_fine", cast = float)
-                self.debug("green list", str(green_list))
-                c0 = green_list[0]
-                if c0 == last_c0: break
-                last_c0 = c0
-
-                predict_scores[c0] = (adj_f(c0), "*ref*")
-                for c in green_list[1:]:
-                    compare = self._compare_coefs_debug(all_coefs[c0], all_coefs[c])
-
-                    if compare:
-                        if abs(compare) < p2_fine_threshold: compare = 0
-                        predict_scores[c] = (compare * p2_score_fine + adj_f(c),
-                                             "F:%.4f" % compare)
-                        self.debug("fine[%.4f]: '%s'" % (compare, c))
-                    else:
-                        predict_scores[c] = (adj_f(c), "ex-aequo")
-                        self.debug("ex-aequo: '%s'" % c)
-
-        for c in candidates:
-            if c not in all_coefs:
-                predict_scores[c] = (- self.cf("p2_score_unknown", cast = float), "unknown")
-                self.debug("unknown: '%s'" % c)
-            elif c not in predict_scores:
-                compare = self._compare_coefs_debug(all_coefs[c0], all_coefs[c])
-                predict_scores[c] = (compare * self.cf("p2_score_coarse", cast = float), "C:%.2f" % compare)
-                self.debug("coarse[%.4f]: '%s'" % (compare, c))
 
         # --- prediction score evaluation (user) ---
         user_stats = dict()
@@ -877,7 +897,7 @@ class LanguageModel:
         if len(sorted_candidates) > max_count:
             filt = max_score - candidates_tmp[sorted_candidates[max_count]][1]
         else:
-            filt = self.cf("p2_filter", 0.025, float)
+            filt = self.cf("p2_curve_filter", 0.025, float)
 
         candidates = dict([ (w, v) for w, v in candidates_tmp.items()
                             if v[1] >= max_score - filt ])
