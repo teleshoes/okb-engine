@@ -240,19 +240,19 @@ learn_s23_threshold = 5
 learn_score_ratio = 4
 learning_half_life = 20
 max_predict = 30
-p2_cfilter_ratio = 20
+p2_cfilter_ratio = 20.0000
 p2_coef_c2 = 2.0310
 p2_coef_c3 = 2.5765
 p2_coef_s2 = 1.9670
 p2_coef_s3 = 5.9440
-p2_curve_coef = 358
+p2_curve_coef = 358.0000
 p2_curve_filter = 0.0500
 p2_curve_max = 0.0020
 p2_curve_max2 = 0.0122
 p2_curve_ratio = 0.7167
 p2_default = 1.3970
 p2_default_coef_log = 1.000
-p2_filter_min_count = 20
+p2_filter_min_count = 20.0000
 p2_fine_threshold = 0.0770
 p2_master_coef = 2.4350
 p2_max_candidates = 45
@@ -261,11 +261,14 @@ p2_score_coarse = 0.0150
 p2_score_fine = 0.0022
 p2_score_nocluster = 0.0062
 p2_score_unknown = 0.0134
-p2_sfilter_ratio = 40
-p2_sfilter_value = 0.001
+p2_sfilter_ratio = 40.0000
+p2_sfilter_value = 0.0002
 purge_every = 432000
 purge_min_count1 = 3
 purge_min_count2 = 20
 purge_min_date1 = 30
 purge_min_date2 = 180
+
+# Date: Tue Jan  3 10:47:43 2017
+# score 92.53692 -> 92.56329
 
