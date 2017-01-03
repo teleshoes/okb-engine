@@ -493,7 +493,7 @@ class LanguageModel:
 
         # filter candidates with bad curve (coarse setting)
         if curve_score1 > curve_score2 + self.p_curve_max_gap2: return (-self.p_score_coarse, "curve")
-        if curve_score2 > curve_score1 + self.p_curve_max_gap2: return (self.score_coarse, "curve")
+        if curve_score2 > curve_score1 + self.p_curve_max_gap2: return (self.p_score_coarse, "curve")
 
         if not coefs1 and not coefs2: return (0, "none")
         if not coefs1: return (self.p_score_unknown, "no_coef1")
