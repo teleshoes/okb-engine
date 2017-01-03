@@ -94,12 +94,17 @@ class Predict:
         """ generate information for curve matching to add a new word into user
             dictionary (or at least update statistics) """
 
+        # only learn "real" words with at least 2 letters
+        if not re.match(r'^\w[\w\'\-]+$', word): return None
+
         # we don't check in word DB and just return the word as-is (with just some basic capitalization fix)
         if first_word and word[0].isupper() and word[1:].islower():
             word = word.lower()
 
         # compute letter list (for curve matching plugin) - just copy-paste (ahem) from loadkb.py
         letters = language_model.word2letters(word)
+
+        if len(letters) < 2: return  # not "swipable"
 
         return (letters, word)
 
