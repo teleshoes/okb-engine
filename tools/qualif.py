@@ -3,7 +3,7 @@
 import os, sys
 import pickle
 import json
-import re
+import re, time
 
 manifest = sys.argv[1]
 
@@ -29,12 +29,13 @@ dir = os.path.dirname(manifest)
 flags = dict()
 items = dict()
 
-out.write("# failure cause analysis\n\n* test cases\n")
+out.write("# failure cause analysis\n")
+out.write("# %s\n\n* test cases\n" % time.ctime())
 
-def flag(id, value):
+def flag(id, value, fail_only = True):
     global flags, item
-    if value not in flags: flags[value] = 0
-    flags[value] += 1
+    if value not in flags: flags[value] = dict(count = 0, fail_only = fail_only)
+    flags[value]["count"] += 1
     if id not in items: items[id] = set()
     items[id].add(value)
 
@@ -66,8 +67,12 @@ for r in records:
         for li in f.readlines():
             if li.startswith('-'):
                 mo = re.search(r'^\-\s+([\d\.]+)\s+\[([^\[\]]+)\]([\s\*]+)(\S+)', li.strip())
+                if not mo: raise Exception("Bad line (%s): %s" % (id, li.strip()))
                 score, cause, star, word = float(mo.group(1)), mo.group(2).strip(), mo.group(3), mo.group(4)
-                if star.find('*') > -1 and word != expected: raise Exception("oops")
+                if star.find('*') > -1:
+                    if word != expected: raise Exception("oops")
+                    cause = re.sub(r':.*', '', cause)
+                    flag(id, "predict_cause_%s" % cause, fail_only = False)
                 scenario = [ c for c in js["candidates"] if c["name"] == word or word in c["words"].split(',') ][0]
                 curve_score = scenario["score"]
                 predict[word] = dict(score = score, cause = cause,
@@ -133,8 +138,11 @@ for r in records:
 out.write("\n\n* stats\n")
 out.write("  - count: %d\n" % count)
 out.write("  - fail_count: %d (%.2f%%)\n" % (fail_count, 100. * fail_count / count))
-for flag, flag_count in sorted(flags.items(), key = lambda x: x[1], reverse = True):
-    out.write("  - %s: %d (%.2f%%)\n" % (flag, flag_count, 100. * flag_count / fail_count))
+for flag, flag_stat in sorted(flags.items(), key = lambda x: x[1]["count"], reverse = True):
+    total = fail_count if flag_stat["fail_only"] else count
+    out.write("  - %s: %d (%.2f%%%s)\n" %
+              (flag, flag_stat["count"], 100. * flag_stat["count"] / total,
+               " F" if flag_stat["fail_only"] else ""))
 
 if comment:
     out.write("\n\n* resolved\n")
