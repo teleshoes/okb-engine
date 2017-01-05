@@ -46,7 +46,7 @@ class CurveThread : public QThread
 
   void loadTree(QString fileName);
 
-  void learn(QString letters, QString word);
+  void learn(QString word, int addValue);
 
 protected:
   /* --- variables shared between "client" and computation thread --- */
@@ -59,7 +59,7 @@ protected:
   QString treFile;
 	     
   QMutex learnMutex;
-  QList<QPair<QString, QString> > learnQueue;
+  QList<QPair<QString, int> > learnQueue;
   /* --- end of shared variables --- */
 
   IncrementalMatch *matcher;

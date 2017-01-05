@@ -19,5 +19,6 @@ float response2(float value, float middle);
 float response(float value);
 
 unsigned char caption2letter(QString value);
+QString word2letter(QString word);
 
 #endif /* FUNCTIONS_H */

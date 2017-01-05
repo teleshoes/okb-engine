@@ -1295,8 +1295,10 @@ QString CurveMatch::resultToString(bool indent) {
   return QString(doc.toJson(indent?QJsonDocument::Indented:QJsonDocument::Compact));
 }
 
-void CurveMatch::learn(QString letters, QString word, bool init) {
-  DBG("CM-learn [%s]: %s (%d)", QSTRING2PCHAR(letters), QSTRING2PCHAR(word), (int) init);
+void CurveMatch::learn(QString word, int addValue, bool init) {
+  QString letters = word2letter(word);
+
+  DBG("CM-learn [%s]: %s += %d (init:%d)", QSTRING2PCHAR(letters), QSTRING2PCHAR(word), addValue, (int) init);
 
   if (letters.length() < 2 || word.length() < 2) { return; }
   if (! params.user_dict_learn) { return; }
@@ -1318,10 +1320,10 @@ void CurveMatch::learn(QString letters, QString word, bool init) {
 
   // compute new node value for in-memory tree
   QString payload;
+  bool found = false;
   if (pl.first) { // existing node
     payload = QString((const char*) pl.first);
     QStringList lst = payload.split(",");
-    bool found = false;
     foreach(QString w, lst) {
       if (w == payload_word) {
 	found = true; // we already know this word
@@ -1337,7 +1339,19 @@ void CurveMatch::learn(QString letters, QString word, bool init) {
     payload = payload_word;
   }
 
-  // update user dictionary (and in-memory tree)
+  // do not learn new words if we already know them
+  if (init && found) {
+    // during initialization we try to add a word which is already in the tree
+    // (may be caused by issues with storage file or updated dictionary)
+    userDictionary.remove(word);
+    return;
+  }
+  if (! init && ! userDictionary.contains(word) && found) {
+    // during keyboard usage do not add known word unless they are already in user directory
+    return;
+  }
+
+  // update in-memory tree
   int now = (int) time(0);
   if (! payload.isEmpty()) {
     if (! init) { logdebug("Learned new word: %s [%s]", QSTRING2PCHAR(word), QSTRING2PCHAR(letters)); }
@@ -1349,14 +1363,18 @@ void CurveMatch::learn(QString letters, QString word, bool init) {
     DBG("CM-learn: update tree %s -> '%s' pl=[%s]", QSTRING2PCHAR(letters), QSTRING2PCHAR(word), pl_char);
   }
 
-  if (! entry.letters.isEmpty() || ! payload.isEmpty()) {
-    // if we've added the word to our memory tree or the word already exist in user dictionary
-    userdict_dirty = true;
-    float new_count = entry.count + (init?0.0:1.0);
-    userDictionary[word] = UserDictEntry(letters, now, new_count);
-    logdebug("CM-learn: update user dict '%s' new_count=%.2f", QSTRING2PCHAR(word), new_count);
-  }
+  // update user directory
+  float new_count;
+  if (init) {
+    new_count = entry.count;
+  } else {
+    new_count = entry.getUpdatedCount(now, params.user_dict_decay) + addValue;
+    if (new_count < 0) { new_count = 0; }
 
+    userdict_dirty = true;
+  }
+  userDictionary[word] = UserDictEntry(letters, now, new_count);
+  DBG("CM-learn: update user dict '%s' new_count=%.2f (init=%d)", QSTRING2PCHAR(word), new_count, init);
 }
 
 void CurveMatch::loadUserDict() {
@@ -1382,7 +1400,7 @@ void CurveMatch::loadUserDict() {
 
     if (count && ts) {
       userDictionary[word] = UserDictEntry(letters, ts, count);
-      learn(letters, word, true); // add the word to in memory tree dictionary
+      learn(word, 0, true); // add the word to in memory tree dictionary
     }
   } while (!line.isNull());
 
@@ -1409,7 +1427,10 @@ void CurveMatch::saveUserDict() {
     i.next();
     UserDictEntry entry = i.value();
     QString word = i.key();
-    if (! entry.expire(now) && ! word.isEmpty() && ! entry.letters.isEmpty()) {
+
+    float count = entry.getUpdatedCount(now, params.user_dict_decay);
+
+    if (count > params.user_dict_min_count && ! word.isEmpty() && ! entry.letters.isEmpty()) {
       out << word << " " << entry.letters << " " << entry.count << " " << entry.ts << endl;
     }
   }
@@ -1423,12 +1444,11 @@ void CurveMatch::saveUserDict() {
   userdict_dirty = false;
 }
 
-float UserDictEntry::score() const {
-  return -ts; // we'll just do a simple LRU eviction for now
-}
+float UserDictEntry::getUpdatedCount(int now, int days) const {
+  if (! ts || ! count) { return 0; }
+  if (now < ts) { return count; }
 
-bool UserDictEntry::expire(int /* current time not used yet */) {
-  return false;
+  return count * exp(- (float) (now - ts) * log(2) / days / 86400);
 }
 
 static int userDictLessThan(QPair<QString, float> &e1, QPair<QString, float> &e2) {
@@ -1439,13 +1459,15 @@ static int userDictLessThan(QPair<QString, float> &e1, QPair<QString, float> &e2
 void CurveMatch::purgeUserDict() {
   if (userDictionary.size() <= params.user_dict_size + 100) { return; }
 
+  int now = time(0);
+
   userdict_dirty = true;
 
   QList<QPair<QString, float> > lst;
   QHashIterator<QString, UserDictEntry> i(userDictionary);
   while (i.hasNext()) {
     i.next();
-    float score = i.value().score();
+    float score = - i.value().getUpdatedCount(now, params.user_dict_decay);
     lst.append(QPair<QString, float>(i.key(), score));
   }
 

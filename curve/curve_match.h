@@ -37,8 +37,7 @@ class UserDictEntry {
   UserDictEntry() : letters(QString()), ts(0), count(0.0) {};
   UserDictEntry(QString _l, int _t, float _c) : letters(_l), ts(_t), count(_c) { };
 
-  float score() const;
-  bool expire(int now);
+  float getUpdatedCount(int now, int days) const;
 
   QString letters;
   int ts;
@@ -121,7 +120,7 @@ class CurveMatch {
 
   void setDebug(bool debug);
 
-  void learn(QString letters, QString word, bool init = false);
+  void learn(QString word, int addValue = 1, bool init = false);
   void loadUserDict();
   void saveUserDict();
   void purgeUserDict();

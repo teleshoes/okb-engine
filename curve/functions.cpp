@@ -81,15 +81,27 @@ float response(float value) {
   return (1 - cos(value * M_PI)) / 2;
 }
 
+static QString normalize(QString str) {
+  str = str.normalized(QString::NormalizationForm_KD);
+  str.remove(QRegExp("[^a-zA-Z]"));
+  str = str.toLower();
+  return str;
+}
+
 // convert a key caption (possibly with diacritics) and return the matching ASCII letter (without diacritics)
 // or return 0 if the String does not correspond to a letter
 unsigned char caption2letter(QString value) {
   if (value.length() != 1) { return 0; }
 
   // https://stackoverflow.com/questions/12278448/removing-accents-from-a-qstring
-  QString stringNormalized = value.normalized(QString::NormalizationForm_KD);
-  stringNormalized.remove(QRegExp("[^a-zA-Z]"));
-  stringNormalized = stringNormalized.toLower();
+  QString stringNormalized = normalize(value);
   if (stringNormalized.length() != 1) { return 0; }
   return stringNormalized.at(0).cell();
+}
+
+// get path in .tre file for a given word
+QString word2letter(QString word) {
+  QString letters = normalize(word);
+  letters.replace(QRegExp("(.)\\1+"), "\\1");
+  return letters;
 }

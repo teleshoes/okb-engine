@@ -37,12 +37,12 @@ CurveKB::~CurveKB()
 #endif /* THREAD */
 }
 
-void CurveKB::learn(QString letters, QString word)
+void CurveKB::learn(QString word, int addValue)
 {
 #ifdef THREAD
-  thread.learn(letters, word);
+  thread.learn(word, addValue);
 #else
-  curveMatch.learn(letters, word);
+  curveMatch.learn(word, addValue);
 #endif /* THREAD */
 }
 

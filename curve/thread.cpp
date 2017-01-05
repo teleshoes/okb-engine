@@ -31,10 +31,10 @@ CurveThread::CurveThread(QObject *parent) :
   matcher = NULL;
 }
 
-void CurveThread::learn(QString letters, QString word) {
+void CurveThread::learn(QString word, int addValue) {
   {
     QMutexLocker locker(&learnMutex);
-    learnQueue.append(QPair<QString, QString>(letters, word));
+    learnQueue.append(QPair<QString, int>(word, addValue));
   }
   addPoint(Point(CMD_LEARN, 0));
 }
@@ -219,9 +219,9 @@ void CurveThread::run() {
       } else if (point.x == CMD_LEARN) {
 	QMutexLocker locker(&learnMutex);
 
-	QListIterator<QPair<QString, QString> > i(learnQueue);
+	QListIterator<QPair<QString, int> > i(learnQueue);
 	while(i.hasNext()) {
-	  QPair<QString, QString> item = i.next();
+	  QPair<QString, int> item = i.next();
 	  matcher->learn(item.first, item.second);
 	}
 	learnQueue.clear();
