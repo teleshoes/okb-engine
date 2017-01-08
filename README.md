@@ -1,6 +1,9 @@
 OKboard engine: framework for gesture keyboards
 ===============================================
 
+*Warning: Only original Jolla phone is supported (see first item in 'limitation' part below)*
+
+
 Description
 -----------
 This is a set of libraries & tools for building gesture based virtual keyboards for mobile phones (and maybe tablets?).
@@ -21,10 +24,10 @@ _TODO_
 
 Limitations
 -----------
+* Algorithm is resolution-dependent, which mean it will not work with a device with a screen resolution different than the Jolla1 phone (original target of this project). For this reason it is completely worthless on the Jolla tablet. Result on other devices may vary.
 * Prediction engine is "home made" instead of using of using off-the-shelf tools (e.g. Presage)
   At the moment, our implementation is far more advanced than Presage (clustering support, space/performance optimizations ...), and i don't know about any alternative, so this is not likely to change soon
-* Only gestures over letters (A-Z) are understood. E.g. you can't swipe over the "c-cedilla" key with French keyboard (I noticed this key existed very late during development)
-* There is no "user hints" to indicate word features such as double letters, accents, compound words
+* There is no "user hints" to indicate word features such as double letters, accents, compound words (development has started, but it is far too incomplete to be useful)
 
 How to build
 ------------
@@ -61,12 +64,14 @@ Howto:
   * creating a `$CORPUS_DIR/words-predict-$LANG.txt` containing list of words to use for prediction engine (UTF-8, one word per line). If you do not provide this file, the most used words in the corpus file will be used (cf. `predict_words` setting below). This option is useful for filtering some uncommon words overrepresented in input corpus.
   * Obviously the former should be a superset of the later
 * `$WORK_DIR` should point to a directory with enough space available (English + French requires 1.5 GB)
-* Create a `db/lang-$LANG.cf` configuration file (use examples from other languages). Configuration options include:
+* Create a `db/lang-$LANG.cf` configuration file (use examples from other languages). Look for default values and more documentation in the `db/default.cf` file. Configuration options include:
   * `predict_words`: number of words used for prediction engine (only the most used words in the corpus file will be kept). This option will be ignored if you override the dictionary with `$CORPUS_DIR/words-predict-$LANG.txt`
   * `cluster_wgrams`: number of N-grams used for words. At run-time there may be more N-grams due to learning from user typing.
   * `cluster_cgrams`: number of N-grams used for word clusters (see comments in `cluster/cluster.cpp` for detailed explanation)
   * `cluster_depth`: number of clusters. Actual cluster count will be at most `2^(cluster_depth + 1)`
   * `filter_words`: words to ignore (as a single regular expression). This is for exemple used for filtering "i" from English because "i" and "I" are the same word so the engine will automatically fall back to "I". It may be more convienient to use a cleaned dictionary (cf. `$CORPUS_DIR/words-predict-$LANG.txt` file above)
+  * `cluster_filter_words`: only use top used words for clustering to ensure this coverage (value from 0 to 1)
+  * `cluster_filter`: only use top ngram for clustering to ensure this coverage (value from 0 to 1)
 * Run `db/build.sh` to generate all language files or `db/build.sh <language code>` to build just one language. Add `-r` option to rebuild everything from scratch (this removes all temporary files)
 
 Corpus files should include different chat style. E.g. recommendation is to use formal speech (newletters, wikipedia ...) and informal style (e-mails, IRC and chat logs, movies subtitles). As they are plain text file you can just concatenate them before bzip2 compression.
@@ -144,7 +149,7 @@ TODO
 * Form for sending detailed logs by e-mail for analysis or post-mortem
 * Package as a single project
 * Package as a layout (such as Dolphin keyboard in OpenRepos), not as a separate maliit plugin. This would allow to get rid of the standalone settings application and the need to restart maliit server. This would require an internal language switcher though.
-* Redo score aggregation (swipe score + prediction + learning ...) based on 2015 data collection: filter word list, adjust for low n-gram counts, etc.
+* Redo score aggregation (swipe score + prediction + learning ...) based on 2015/2016 data collection: filter word list, adjust for low n-gram counts, etc.
 * Redo turn-score based on 2015 data collection (currently it has very good average results, but some failures that prevent the right word to be selected)
 * [Runs but unusable due to different resolution] Jolla tablet support
 
@@ -177,7 +182,7 @@ TODO
 * Add new languages [easy: now it's mostly automated, we only need good quality text corpus, and some manual tuning]
 * Large scale testing campaign with lot of users to collect information on different user styles (and improve test cases)
 * Check is there would be a gain if all data files are mmapped (our larger language is now 6MB so it may not matter)
-* Handle letters that appears multiple times on the keyboard (With and without diacritics, such as "ç" or "å"). As this is not handled by the model, this may be a postprocessing workaround (but matching must use a list of coordinates for each key)
+* [DONE] Handle letters that appears multiple times on the keyboard (With and without diacritics, such as "ç" or "å"). As this is not handled by the model, this may be a postprocessing workaround (but matching must use a list of coordinates for each key)
 * Make language file build tools more memory efficient for large corpus files (and if it is not enough, use the same trick as the sort command)
 
 ### Long term / research projects
