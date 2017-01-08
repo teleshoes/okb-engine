@@ -238,7 +238,7 @@ static Params default_params = {
   500, // accel_threshold2
   0.0, // aggressive_mode
   1.5, // anisotropy_ratio
-  6, // atp_excl_gap
+  8, // atp_excl_gap
   5, // atp_max_pts
   34, // atp_min_angle1
   14, // atp_min_turn1
@@ -391,7 +391,7 @@ static Params default_params = {
   170, // st2_max
   70, // st2_min
   0.02, // st5_score
-  5, // straight_max_total
+  15, // straight_max_total
   8, // straight_max_turn
   0.5, // straight_score1
   0.2, // straight_score2
