@@ -187,6 +187,8 @@ void MultiScenario::addSubScenarios() {
 bool MultiScenario::childScenario(LetterNode &childNode, QList<MultiScenario> &result, stats_t &st, int filter_curve_id, bool incremental) {
   unsigned char letter = childNode.getChar();
 
+  char quadrant = keys->quadrant(letter);
+
   while (curve_count < MAX_CURVES && (curves[curve_count].getCount() > 0)) {
     // find how many curve we've got (ugly)
     DBG("[MULTI] new curve added (index=#%d)", curve_count);
@@ -231,6 +233,12 @@ bool MultiScenario::childScenario(LetterNode &childNode, QList<MultiScenario> &r
     Scenario *scenario = S(curve_id);
     if (scenario->isFinished() && ! zombie) { continue; } // we have entirely matched this curve
 
+    /* performance heuristic ... avoid finger crossed :-) */
+    if (curve_count >= 2 && scenario->getQuadrant() * quadrant < 0) {
+      DBG("[MULTI] performance: scenario with same curve pruned: '%s' -> '%c'", scenario->getNameCharPtr(), letter);
+      continue;
+    }
+
     QuickCurve *curve = &(curves[curve_id]);
 
     bool chld_hasPayload = (in_progress > 1)?true:hasPayload;
@@ -258,13 +266,15 @@ bool MultiScenario::childScenario(LetterNode &childNode, QList<MultiScenario> &r
       zombie_if_finished = false;
 
     } else if (zombie) {
-      // zombie scénario has not matched any letter with above tets --> give up
+      // zombie scenario has not matched any letter with above tets --> give up
       continue; // try other curves ...
     } else if (! scenario -> childScenario(childNode, childs, st, 0, incremental, chld_hasPayload, chld_isLeaf)) { return false; }
 
     // @todo optional zone notion. e.g. left & right half keyboard. A curve is contained in a single region (should reduce tree width)
 
     foreach(Scenario child, childs) {
+      child.setQuadrant(quadrant);
+
       int new_ts = child.getTimestamp();
       if (new_ts < ts - params->multi_max_time_rewind) { continue; } // we accept small infraction with events ordering :-)
 

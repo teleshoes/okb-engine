@@ -1056,6 +1056,7 @@ bool CurveMatch::match() {
 
   // change order for equal items: qSort(curve.begin(), curve.end()); // in multi mode we may lose point ordering
 
+  quickKeys.setParams(&params);
   quickKeys.setKeys(keys);
 
   setCurves();

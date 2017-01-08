@@ -198,6 +198,8 @@ void QuickKeys::setKeys(QHash<QString, Key> &keys) {
 
   unsigned char additional_letter = '0';
 
+  int xmin = 0, xmax = 0;
+
   foreach(QString label, keylist) {
     Key key = keys[label];
 
@@ -243,6 +245,9 @@ void QuickKeys::setKeys(QHash<QString, Key> &keys) {
     count ++;
     sum_height += keys[label].height;
     sum_width  += keys[label].width;
+
+    if (keys[label].x > xmax) { xmax = keys[label].x; }
+    if (keys[label].x < xmin || ! xmin)  { xmin = keys[label].x; }
   }
 
   // compute stats
@@ -250,6 +255,19 @@ void QuickKeys::setKeys(QHash<QString, Key> &keys) {
     average_height = sum_height / count;
     average_width = sum_width / count;
   }
+
+  // compute quadrants
+  float ratio = params->multi_quadrant_ratio;
+  for(int i = 0; i < 255; i++) {
+    int x = points_raw[i].x;
+    if (! x) { continue; }
+
+    int q = 0;
+    if (x < xmin + ratio * (xmax - xmin)) { q = -1; }
+    else if (x > xmin + (1. - ratio) * (xmax - xmin)) { q = 1; }
+    m_quadrant[i] = q;
+  }
+
 }
 
 QuickKeys::~QuickKeys() {
@@ -281,6 +299,10 @@ Point const& QuickKeys::get_raw(unsigned char letter) const {
 
 Point const& QuickKeys::size(unsigned char letter) const {
   return dim[letter];
+}
+
+char const& QuickKeys::quadrant(unsigned char letter) const {
+  return m_quadrant[letter];
 }
 
 
@@ -456,6 +478,8 @@ Scenario::Scenario(LetterTree *tree, QuickKeys *keys, QuickCurve *curve, Params 
   fallback_count = 0;
 
   misc_acct = NULL;
+
+  quadrant = 0;
 }
 
 Scenario::Scenario(const Scenario &from) {
@@ -527,6 +551,8 @@ void Scenario::copy_from(const Scenario &from) {
   } else {
     misc_acct = NULL;
   }
+
+  quadrant = from.quadrant;
 }
 
 

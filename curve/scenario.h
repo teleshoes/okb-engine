@@ -148,9 +148,11 @@ class QuickCurve {
 
 class QuickKeys {
  private:
+  Params *params;
   Point points_raw[256];
   Point points[256];
   Point dim[256];
+  char m_quadrant[256];
   unsigned char letter2keys[QUICKKEYS_KEYS_PER_LETTER * 256];
  public:
   QuickKeys(QHash<QString, Key> &keys);
@@ -160,8 +162,10 @@ class QuickKeys {
   inline Point const& get(unsigned char letter) const;
   inline Point const& size(unsigned char letter) const;
   inline Point const& get_raw(unsigned char letter) const;
+  char const& quadrant(unsigned char letter) const;
   unsigned char* getKeysForLetter(unsigned char letter);
   unsigned char getLetterFromKey(unsigned char key);
+  void setParams(Params *params) { this->params = params; };
 
   // statistics
   int average_width, average_height;
@@ -314,6 +318,8 @@ class Scenario {
 
   QList<MiscAcct> *misc_acct;
 
+  char quadrant;
+
  private:
   float calc_distance_score(unsigned char letter, int index, int count, float *return_distance = NULL);
   float calc_cos_score(unsigned char prev_letter, unsigned char letter, int index, int new_index);
@@ -400,6 +406,9 @@ class Scenario {
   QList<QPair<unsigned char, Point> > get_key_error(void);
 
   static int checkHints(QString, unsigned char*, int*, int, bool debug_rules = false);
+
+  char getQuadrant() { return quadrant; };
+  void setQuadrant(char value) { quadrant = (value * quadrant < 0)?0:value; };
 };
 
 

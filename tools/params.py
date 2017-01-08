@@ -123,6 +123,7 @@ defparams = [
     [ "min_turn_index_gap_st", int, 1, 5],
     [ "multi_dot_threshold", int ],
     [ "multi_max_time_rewind", int ],  # impact is not continuous
+    [ "multi_quadrant_ratio", float ],
     [ "newdist_c1", float, 0, 4 ],
     [ "newdist_c2", float, 0, 4 ],
     [ "newdist_c3", float, 0, 10 ],

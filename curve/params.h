@@ -125,6 +125,7 @@ class Params {
   int min_turn_index_gap_st;
   int multi_dot_threshold;
   int multi_max_time_rewind;
+  float multi_quadrant_ratio;
   float new_dist_pow;
   float newdist_c1;
   float newdist_c2;
@@ -351,6 +352,7 @@ static Params default_params = {
   3, // min_turn_index_gap_st
   25, // multi_dot_threshold
   300, // multi_max_time_rewind
+  0.4, // multi_quadrant_ratio
   2.0, // new_dist_pow
   0.5, // newdist_c1
   0.5, // newdist_c2
@@ -571,6 +573,7 @@ void Params::toJson(QJsonObject &json) const {
   json["min_turn_index_gap_st"] = min_turn_index_gap_st;
   json["multi_dot_threshold"] = multi_dot_threshold;
   json["multi_max_time_rewind"] = multi_max_time_rewind;
+  json["multi_quadrant_ratio"] = multi_quadrant_ratio;
   json["new_dist_pow"] = new_dist_pow;
   json["newdist_c1"] = newdist_c1;
   json["newdist_c2"] = newdist_c2;
@@ -793,6 +796,7 @@ Params Params::fromJson(const QJsonObject &json) {
   if (json.contains("min_turn_index_gap_st")) { p.min_turn_index_gap_st = json["min_turn_index_gap_st"].toDouble(); }
   if (json.contains("multi_dot_threshold")) { p.multi_dot_threshold = json["multi_dot_threshold"].toDouble(); }
   if (json.contains("multi_max_time_rewind")) { p.multi_max_time_rewind = json["multi_max_time_rewind"].toDouble(); }
+  if (json.contains("multi_quadrant_ratio")) { p.multi_quadrant_ratio = json["multi_quadrant_ratio"].toDouble(); }
   if (json.contains("new_dist_pow")) { p.new_dist_pow = json["new_dist_pow"].toDouble(); }
   if (json.contains("newdist_c1")) { p.newdist_c1 = json["newdist_c1"].toDouble(); }
   if (json.contains("newdist_c2")) { p.newdist_c2 = json["newdist_c2"].toDouble(); }

@@ -120,6 +120,7 @@ min_turn_index_gap = 2
 min_turn_index_gap_st = 3
 multi_dot_threshold = 25
 multi_max_time_rewind = 300
+multi_quadrant_ratio = 0.4
 newdist_c1 = 0.5
 newdist_c2 = 0.5
 newdist_c3 = 2.63

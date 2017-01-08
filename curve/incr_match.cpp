@@ -368,6 +368,7 @@ void IncrementalMatch::incrementalMatchBegin() {
 
   if (! loaded || ! keys.size()) { return; }
 
+  quickKeys.setParams(&params);
   quickKeys.setKeys(keys);
   setCurves();
 
