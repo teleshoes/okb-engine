@@ -228,8 +228,8 @@ thumb_correction = 0
 [main]
 backtrack = 1
 backtrack_max = 5
-backtrack_min_s3_log = 0.6
-backtrack_score_threshold = 0.01
+backtrack_min_s3_log = 0.45
+backtrack_score_threshold = 0.005
 backtrack_timeout = 3
 commit_delay = 20
 learn_forget = 90
