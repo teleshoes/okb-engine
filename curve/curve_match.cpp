@@ -1353,14 +1353,14 @@ void CurveMatch::learn(QString word, int addValue, bool init) {
 
   // update in-memory tree
   int now = (int) time(0);
-  if (! payload.isEmpty()) {
+  if (addValue >= 0 && ! payload.isEmpty()) {
     if (! init) { logdebug("Learned new word: %s [%s]", QSTRING2PCHAR(word), QSTRING2PCHAR(letters)); }
     unsigned char *ptr = QSTRING2PUCHAR(payload);
     int len = strlen((char*) ptr) + 1;
     unsigned char pl_char[len];
     memmove(pl_char, ptr, len);
     wordtree.setPayload(QSTRING2PUCHAR(letters), pl_char, len);
-    DBG("CM-learn: update tree %s -> '%s' pl=[%s]", QSTRING2PCHAR(letters), QSTRING2PCHAR(word), pl_char);
+    DBG("CM-learn: update tree %s -> '%s' payload=[%s]", QSTRING2PCHAR(letters), QSTRING2PCHAR(word), pl_char);
   }
 
   // update user directory
@@ -1368,13 +1368,19 @@ void CurveMatch::learn(QString word, int addValue, bool init) {
   if (init) {
     new_count = entry.count;
   } else {
-    new_count = entry.getUpdatedCount(now, params.user_dict_decay) + addValue;
+    new_count = entry.getUpdatedCount(now, params.user_dict_halflife) + addValue;
     if (new_count < 0) { new_count = 0; }
 
     userdict_dirty = true;
   }
   userDictionary[word] = UserDictEntry(letters, now, new_count);
-  DBG("CM-learn: update user dict '%s' new_count=%.2f (init=%d)", QSTRING2PCHAR(word), new_count, init);
+
+  if (! init || debug) {
+    logdebug("Learn: %s (%s) (init: %d, add: %d) %.4f->%.4f",
+	     QSTRING2PCHAR(word), QSTRING2PCHAR(letters),
+	     init, addValue,
+	     entry.count, new_count);
+  }
 }
 
 void CurveMatch::loadUserDict() {
@@ -1428,7 +1434,7 @@ void CurveMatch::saveUserDict() {
     UserDictEntry entry = i.value();
     QString word = i.key();
 
-    float count = entry.getUpdatedCount(now, params.user_dict_decay);
+    float count = entry.getUpdatedCount(now, params.user_dict_halflife);
 
     if (count > params.user_dict_min_count && ! word.isEmpty() && ! entry.letters.isEmpty()) {
       out << word << " " << entry.letters << " " << entry.count << " " << entry.ts << endl;
@@ -1448,7 +1454,7 @@ float UserDictEntry::getUpdatedCount(int now, int days) const {
   if (! ts || ! count) { return 0; }
   if (now < ts) { return count; }
 
-  return count * exp(- (float) (now - ts) * log(2) / days / 86400);
+  return ((float) count) * exp(- (float) (now - ts) * log(2) / days / 86400);
 }
 
 static int userDictLessThan(QPair<QString, float> &e1, QPair<QString, float> &e2) {
@@ -1457,7 +1463,7 @@ static int userDictLessThan(QPair<QString, float> &e1, QPair<QString, float> &e2
 
 
 void CurveMatch::purgeUserDict() {
-  if (userDictionary.size() <= params.user_dict_size + 100) { return; }
+  if (userDictionary.size() <= params.user_dict_size) { return; }
 
   int now = time(0);
 
@@ -1467,7 +1473,7 @@ void CurveMatch::purgeUserDict() {
   QHashIterator<QString, UserDictEntry> i(userDictionary);
   while (i.hasNext()) {
     i.next();
-    float score = - i.value().getUpdatedCount(now, params.user_dict_decay);
+    float score = i.value().getUpdatedCount(now, params.user_dict_halflife);
     lst.append(QPair<QString, float>(i.key(), score));
   }
 
@@ -1475,6 +1481,7 @@ void CurveMatch::purgeUserDict() {
 
   for(int i = 0; i < lst.size() - params.user_dict_size; i ++) {
     userDictionary.remove(lst[i].first);
+    logdebug("Learn/purge: %s", QSTRING2PCHAR(lst[i].first));
   }
 }
 

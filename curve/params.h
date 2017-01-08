@@ -206,7 +206,7 @@ class Params {
   int turn_threshold2;
   int turn_threshold3;
   int turn_threshold_st6;
-  int user_dict_decay;
+  int user_dict_halflife;
   int user_dict_learn;
   float user_dict_min_count;
   int user_dict_size;
@@ -432,10 +432,10 @@ static Params default_params = {
   128, // turn_threshold2
   95, // turn_threshold3
   0, // turn_threshold_st6
-  60, // user_dict_decay
+  60, // user_dict_halflife
   1, // user_dict_learn
   0.25, // user_dict_min_count
-  2000, // user_dict_size
+  1000, // user_dict_size
   0.45, // ut_coef
   0.08, // ut_score
   80, // ut_total
@@ -652,7 +652,7 @@ void Params::toJson(QJsonObject &json) const {
   json["turn_threshold2"] = turn_threshold2;
   json["turn_threshold3"] = turn_threshold3;
   json["turn_threshold_st6"] = turn_threshold_st6;
-  json["user_dict_decay"] = user_dict_decay;
+  json["user_dict_halflife"] = user_dict_halflife;
   json["user_dict_learn"] = user_dict_learn;
   json["user_dict_min_count"] = user_dict_min_count;
   json["user_dict_size"] = user_dict_size;
@@ -874,7 +874,7 @@ Params Params::fromJson(const QJsonObject &json) {
   if (json.contains("turn_threshold2")) { p.turn_threshold2 = json["turn_threshold2"].toDouble(); }
   if (json.contains("turn_threshold3")) { p.turn_threshold3 = json["turn_threshold3"].toDouble(); }
   if (json.contains("turn_threshold_st6")) { p.turn_threshold_st6 = json["turn_threshold_st6"].toDouble(); }
-  if (json.contains("user_dict_decay")) { p.user_dict_decay = json["user_dict_decay"].toDouble(); }
+  if (json.contains("user_dict_halflife")) { p.user_dict_halflife = json["user_dict_halflife"].toDouble(); }
   if (json.contains("user_dict_learn")) { p.user_dict_learn = json["user_dict_learn"].toDouble(); }
   if (json.contains("user_dict_min_count")) { p.user_dict_min_count = json["user_dict_min_count"].toDouble(); }
   if (json.contains("user_dict_size")) { p.user_dict_size = json["user_dict_size"].toDouble(); }

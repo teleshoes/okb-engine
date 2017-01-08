@@ -204,7 +204,7 @@ defparams = [
     [ "turn_threshold2", int, 120, 179 ],
     [ "turn_threshold3", int, 90, 145 ],
     [ "turn_threshold_st6", int ],  # not tunable atm: [ 0, 60 ]
-    [ "user_dict_decay", int ],  # days
+    [ "user_dict_halflife", int ],  # days
     [ "user_dict_learn", int ],
     [ "user_dict_min_count", float ],
     [ "user_dict_size", int ],
