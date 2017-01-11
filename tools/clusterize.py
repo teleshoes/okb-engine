@@ -16,8 +16,8 @@ opts, args =  getopt.getopt(sys.argv[1:], 'c:w:l:r:')
 
 if len(args) < 1:
     print("Usage: ", os.path.basename(__file__), " [<options>] <cluster file>")
-    print(" -c <count> : max cluster n-grams")
-    print(" -w <count> : max word n-grams")
+    print(" -c <count> : max cluster n-grams ('0' means unlimited)")
+    print(" -w <count> : max word n-grams ('0' means unlimited)")
     print(" -l <len>   : max cluster name length (relates to binary tree depth")
     print(" -r <file>  : output report file")
     print(" CSV data is read from stdin, clusterized data sent to stdout")

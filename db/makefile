@@ -27,7 +27,7 @@ depend: $(patsubst lang-%.cf,.depend-%,$(wildcard lang-*.cf))
 # split input corpus into learn and test
 %-learn.txt.bz2: $(CORPUS_DIR)/corpus-%.txt.bz2
 	$(eval lang=$*)
-	lbzip2 -d < $(CORPUS_DIR)/corpus-$(lang).txt.bz2 | $(TOOLS_DIR)/corpus-splitter.pl 200 50 $(lang)-learn.tmp.bz2 $(lang)-test.tmp.bz2
+	lbzip2 -d < $(CORPUS_DIR)/corpus-$(lang).txt.bz2 | $(TOOLS_DIR)/corpus-splitter.pl 1000 50 $(lang)-learn.tmp.bz2 $(lang)-test.tmp.bz2
 	mv -vf $(lang)-learn.tmp.bz2 $(lang)-learn.txt.bz2
 	mv -vf $(lang)-test.tmp.bz2 $(lang)-test.txt.bz2
 
@@ -54,15 +54,21 @@ grams-%-full.csv.bz2: %-full.dict %-learn.txt.bz2
 %-predict.dict: grams-%-full.csv.bz2 $(wildcard $(CORPUS_DIR)/words-predict-%.txt)
 	$(eval lang=$*)
 	$(eval words=$(call getconf,lang-$(lang).cf,predict_words))
+	$(eval words_coverage=$(call getconf,lang-$(lang).cf,predict_words_coverage))
 	$(eval filter=$(call getconf,lang-$(lang).cf,filter_words))
 	set -o pipefail ; lbzip2 -d < $< | grep ';#NA;#NA;' | cut -f '1,4' -d';' \
 	 | grep -v '#TOTAL' | sort -rn | cut -d';' -f 2 | egrep -v '^$(filter)$$' > tmp-words-$(lang).txt
 
+	set -o pipefail ; \
 	if [ -f $(CORPUS_DIR)/words-predict-$(lang).txt ] ; then \
 		echo "Using provided prediction dictionary file for language $(lang)" ; \
 		cp -vf $(CORPUS_DIR)/words-predict-$(lang).txt $(lang)-predict.dict.tmp ; \
 		cat $(CORPUS_DIR)/words-predict-$(lang).txt tmp-words-$(lang).txt | sort | uniq > tmp-words-$(lang).txt.tmp ; \
 		mv -f tmp-words-$(lang).txt.tmp tmp-words-$(lang).txt ; \
+	elif [ "$(words)" = 0 ] ; then \
+		lbzip2 -d < $< | grep ';#NA;#NA;' | cut -f '1,4' -d';' \
+		 | grep -v '#TOTAL' | sort -rn | $(TOOLS_DIR)/words_coverage.py $(words_coverage) > $(lang)-predict.dict.tmp ; \
+	        cat $(lang)-predict.dict.tmp >> tmp-words-$(lang).txt ; \
 	else \
 	        cat tmp-words-$(lang).txt | sed -n "1,$(words) p" > $(lang)-predict.dict.tmp ; \
 	fi # ^^^ ok i've re-implemented "head" with sed to avoid ugly sigpipes (which hurt with -o pipefail)

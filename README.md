@@ -1,7 +1,7 @@
 OKboard engine: framework for gesture keyboards
 ===============================================
 
-*Warning: Only original Jolla phone is supported (see first item in 'limitation' part below)*
+*Warning: Only original Jolla phone is supported at the moment (see first item in 'limitation' part below)*
 
 
 Description
@@ -64,10 +64,10 @@ Howto:
   * creating a `$CORPUS_DIR/words-predict-$LANG.txt` containing list of words to use for prediction engine (UTF-8, one word per line). If you do not provide this file, the most used words in the corpus file will be used (cf. `predict_words` setting below). This option is useful for filtering some uncommon words overrepresented in input corpus.
   * Obviously the former should be a superset of the later
 * `$WORK_DIR` should point to a directory with enough space available (English + French requires 1.5 GB)
-* Create a `db/lang-$LANG.cf` configuration file (use examples from other languages). Look for default values and more documentation in the `db/default.cf` file. Configuration options include:
+* Create a `db/lang-$LANG.cf` configuration file (use examples from other languages). Look for default values and more documentation in the `db/default.cf` file. **Since version 0.6 default values should be good for a lot of languages, so the simplest way to get started is just to create an empty configuration file**.  Configuration options include:
   * `predict_words`: number of words used for prediction engine (only the most used words in the corpus file will be kept). This option will be ignored if you override the dictionary with `$CORPUS_DIR/words-predict-$LANG.txt`
-  * `cluster_wgrams`: number of N-grams used for words. At run-time there may be more N-grams due to learning from user typing.
-  * `cluster_cgrams`: number of N-grams used for word clusters (see comments in `cluster/cluster.cpp` for detailed explanation)
+  * `cluster_wgrams`: number of N-grams used for words. At run-time there may be more N-grams due to learning from user typing. "0" value means no filtering at all
+  * `cluster_cgrams`: number of N-grams used for word clusters (see comments in `cluster/cluster.cpp` for detailed explanation).  "0" value means no filtering at all
   * `cluster_depth`: number of clusters. Actual cluster count will be at most `2^(cluster_depth + 1)`
   * `filter_words`: words to ignore (as a single regular expression). This is for exemple used for filtering "i" from English because "i" and "I" are the same word so the engine will automatically fall back to "I". It may be more convienient to use a cleaned dictionary (cf. `$CORPUS_DIR/words-predict-$LANG.txt` file above)
   * `cluster_filter_words`: only use top used words for clustering to ensure this coverage (value from 0 to 1)
@@ -143,6 +143,7 @@ It is provided by the Predict class. All calls should be invoked with pyOtherSid
 TODO
 ----
 ### Short term
+* Resolution indepentent implementation for using tablet & devices other than jolla phone.
 * [DONE] Support for learning new words: updatable .tre file or separate storage, and new C/QML plugin API.
   Now we have reduced DB size, this is most needed to allow users to add new words (jargon words, friends name ...)
 * Handle really badly written words -> detect this case and have much more reliance on word prediction engine. On the contrary add more weight to a simpler algorithm for near-perfect strokes

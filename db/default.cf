@@ -1,4 +1,7 @@
 # OKBoard: Common configuration for language files build
+#
+# These settings should be sane for new languages so you can start
+# with an empty configuration file and tune it later if needed
 
 # number of (most used) words to use for prediction engine
 # (n-grams & clustering models)
@@ -6,10 +9,17 @@
 #
 # this settings is ignored if a predict dictionary is provided
 #  ($CORPUS_DIR/words-predict-$LANG.txt file)
-predict_words=30000
+#
+# If the value is "0", the number of word is computed to match
+# a target coverage of the input corpus (cf. predict_words_coverage below)
+predict_words=0
 
-# number of cluster n-grams
-cluster_cgrams=1000000
+# target corpus coverage (used only if predict_words=0)
+# value betwen 0 and 1
+predict_words_coverage=.993
+
+# number of cluster n-grams (0 means unlimited)
+cluster_cgrams=0
 
 # number of words n-grams
 cluster_wgrams=300000
