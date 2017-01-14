@@ -146,6 +146,7 @@ rt_tip_gaps = 3
 rt_turn_threshold = 5
 same_point_max_angle = 120
 same_point_score = 0.1
+scaling_ratio_multiply = 1
 score_pow = 1
 sharp_turn_penalty = 0.6
 slow_down_max_turn = 3

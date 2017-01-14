@@ -368,8 +368,10 @@ void IncrementalMatch::incrementalMatchBegin() {
 
   if (! loaded || ! keys.size()) { return; }
 
+  computeScalingRatio();
+
   quickKeys.setParams(&params);
-  quickKeys.setKeys(keys);
+  quickKeys.setKeys(keys, scaling_ratio);
   setCurves();
 
   DelayedScenario root(&wordtree, &quickKeys, (QuickCurve*) &quickCurves, &params);
@@ -433,7 +435,8 @@ void IncrementalMatch::incrementalMatchUpdate(bool finished, float aggressive) {
     if (current_length[i] >= next_iteration_length[i]) { proceed = true; }
   }
 
-  logdebug("[== incrementalMatchUpdate: finished=%d, curveIndex=%d, length=[%s], proceed=%d aggressive=%.2f", finished, curve.size(), QSTRING2PCHAR(getLengthStr()), proceed, aggressive);
+  logdebug("[== incrementalMatchUpdate: finished=%d, curveIndex=%d, length=[%s], proceed=%d, aggressive=%.2f, scaling_ratio=%.2f",
+	   finished, curve.size(), QSTRING2PCHAR(getLengthStr()), proceed, aggressive, scaling_ratio);
 
   if (debug) {
     for(int i = 0; i < delayed_scenarios.size(); i ++) {

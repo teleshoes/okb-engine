@@ -76,7 +76,7 @@ void QuickCurve::clearCurve() {
   count = -1;
 }
 
-void QuickCurve::setCurve(QList<CurvePoint> &curve, int curve_id, int min_length) {
+void QuickCurve::setCurve(QList<CurvePoint> &curve, float scaling_ratio, int curve_id, int min_length) {
   clearCurve();
   finished = false;
   isDot = false;
@@ -106,16 +106,16 @@ void QuickCurve::setCurve(QList<CurvePoint> &curve, int curve_id, int min_length
     if (p.curve_id != curve_id) { continue; }
     if (p.end_marker) { finished = true; break; }
 
-    x[j] = p.smoothx?p.smoothx:p.x;
-    y[j] = p.smoothy?p.smoothy:p.y;
+    x[j] = (p.smoothx?p.smoothx:p.x) / scaling_ratio;
+    y[j] = (p.smoothy?p.smoothy:p.y) / scaling_ratio;
     turn[j] = p.turn_angle;
     turnsmooth[j] = p.turn_smooth;
     sharpturn[j] = p.sharp_turn;
     normalx[j] = p.normalx;
     normaly[j] = p.normaly;
     speed[j] = p.speed;
-    points[j].x = p.x;
-    points[j].y = p.y;
+    points[j].x = p.x / scaling_ratio;
+    points[j].y = p.y / scaling_ratio;
     timestamp[j] = p.t;
     length[j] = l;
     flags[j] = p.flags;
@@ -184,11 +184,11 @@ int QuickCurve::getHintOIndex(int index0, bool incremental) {
 QuickKeys::QuickKeys() {
 }
 
-QuickKeys::QuickKeys(QHash<QString, Key> &keys) {
-  setKeys(keys);
+QuickKeys::QuickKeys(QHash<QString, Key> &keys, float scaling_ratio) {
+  setKeys(keys, scaling_ratio);
 }
 
-void QuickKeys::setKeys(QHash<QString, Key> &keys) {
+void QuickKeys::setKeys(QHash<QString, Key> &keys, float scaling_ratio) {
   int count = 0, sum_height = 0, sum_width = 0;
 
   QList<QString> keylist = keys.keys();
@@ -230,17 +230,17 @@ void QuickKeys::setKeys(QHash<QString, Key> &keys) {
     tmp[0] = internal_letter;
     strcat((char*) ptr, (char*) tmp);
 
-    points_raw[internal_letter].x = keys[label].x;
-    points_raw[internal_letter].y = keys[label].y;
+    points_raw[internal_letter].x = keys[label].x / scaling_ratio;
+    points_raw[internal_letter].y = keys[label].y / scaling_ratio;
     if (keys[label].corrected_x == -1) {
-      points[internal_letter].x = keys[label].x;
-      points[internal_letter].y = keys[label].y;
+      points[internal_letter].x = keys[label].x / scaling_ratio;
+      points[internal_letter].y = keys[label].y / scaling_ratio;
     } else {
-      points[internal_letter].x = keys[label].corrected_x;
-      points[internal_letter].y = keys[label].corrected_y;
+      points[internal_letter].x = keys[label].corrected_x / scaling_ratio;
+      points[internal_letter].y = keys[label].corrected_y / scaling_ratio;
     }
-    dim[internal_letter].x = keys[label].height;
-    dim[internal_letter].y = keys[label].width;
+    dim[internal_letter].x = keys[label].height / scaling_ratio;
+    dim[internal_letter].y = keys[label].width / scaling_ratio;
 
     count ++;
     sum_height += keys[label].height;

@@ -89,6 +89,10 @@ class CurveMatch {
 
   QuickKeys quickKeys;
 
+  float scaling_ratio;
+
+  void computeScalingRatio();
+
  public:
   CurveMatch();
   virtual ~CurveMatch() {};
@@ -133,6 +137,8 @@ class CurveMatch {
   void saveKeyPos();
   void updateKeyPosForTest(QString expected);
   void storeKeyPos();
+
+  float getScalingRatio() { computeScalingRatio(); return scaling_ratio; }
 };
 
 #endif /* CURVE_MATCH_H */

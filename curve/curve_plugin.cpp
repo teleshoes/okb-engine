@@ -204,3 +204,6 @@ void CurveExtensionPlugin::registerTypes(const char *uri)
     qmlRegisterType<CurveKB>(uri, 1, 0, CURVE_CLASS_NAME);
 }
 
+double CurveKB::getScalingRatio() {
+  return (double) curveMatch.getScalingRatio();
+}

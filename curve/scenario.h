@@ -111,7 +111,7 @@ class QuickCurve {
   QuickCurve(QList<CurvePoint> &curve, int curve_id = 0, int min_length = 1);
   QuickCurve();
   ~QuickCurve();
-  void setCurve(QList<CurvePoint> &curve, int curve_id = 0, int min_length = 1);
+  void setCurve(QList<CurvePoint> &curve, float scaling_ratio, int curve_id = 0, int min_length = 1);
   void clearCurve();
   inline Point const& point(int index) const;
   inline int getX(int index);
@@ -155,10 +155,10 @@ class QuickKeys {
   char m_quadrant[256];
   unsigned char letter2keys[QUICKKEYS_KEYS_PER_LETTER * 256];
  public:
-  QuickKeys(QHash<QString, Key> &keys);
+  QuickKeys(QHash<QString, Key> &keys, float scaling_ratio);
   QuickKeys();
   ~QuickKeys();
-  void setKeys(QHash<QString, Key> &keys);
+  void setKeys(QHash<QString, Key> &keys, float scaling_ratio);
   inline Point const& get(unsigned char letter) const;
   inline Point const& size(unsigned char letter) const;
   inline Point const& get_raw(unsigned char letter) const;

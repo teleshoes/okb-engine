@@ -222,7 +222,7 @@ bool CurveMatch::curvePreprocess1(int curve_id) {
   int ts[l], len[l];
   len[0] = ts[0] = 0;
   for(int i = 1; i < l; i ++) {
-    len[i] = len[i - 1] + distance(oneCurve[i - 1].smoothx, oneCurve[i - 1].smoothy, oneCurve[i].smoothx, oneCurve[i].smoothy);
+    len[i] = len[i - 1] + distance(oneCurve[i - 1].smoothx, oneCurve[i - 1].smoothy, oneCurve[i].smoothx, oneCurve[i].smoothy) / scaling_ratio;
     ts[i] = oneCurve[i].t;
   }
 
@@ -244,8 +244,8 @@ bool CurveMatch::curvePreprocess1(int curve_id) {
   for(int i = 0; i < l - 1; i ++) {
     float dt = ts[i + 1] - ts[i];
     if (dt > 0) {
-      xspeed[i] = (oneCurve[i + 1].smoothx - oneCurve[i].smoothx) / dt;
-      yspeed[i] = (oneCurve[i + 1].smoothy - oneCurve[i].smoothy) / dt;
+      xspeed[i] = (oneCurve[i + 1].smoothx - oneCurve[i].smoothx) / dt / scaling_ratio;
+      yspeed[i] = (oneCurve[i + 1].smoothy - oneCurve[i].smoothy) / dt / scaling_ratio;
     } else if (i == 0) {
       xspeed[i] = yspeed[i] = 0;
     } else {
@@ -267,7 +267,7 @@ bool CurveMatch::curvePreprocess1(int curve_id) {
     float speed = 0;
     if (i2 > i1 && ts[i2] > ts[i1]) {
       speed = distance(oneCurve[i1].smoothx, oneCurve[i1].smoothy,
-		       oneCurve[i2].smoothx, oneCurve[i2].smoothy) / (ts[i2] - ts[i1]);
+		       oneCurve[i2].smoothx, oneCurve[i2].smoothy) / (ts[i2] - ts[i1]) / scaling_ratio;
     } else if (i > 0) {
       speed = (float) oneCurve[i - 1].speed / 1000;
     }
@@ -660,7 +660,7 @@ bool CurveMatch::curvePreprocess1(int curve_id) {
 	      if (dist > max_dist) { max_dist = dist; }
 	    }
 
-	    if (min_dist >= 0 && max_dist <= params.hint_o_max_radius) {
+	    if (min_dist >= 0 && max_dist <= params.hint_o_max_radius / scaling_ratio) {
 
 	      // remove ST=2 caused by the loop
 	      for(int j = i0; j <= i1; j ++) {
@@ -808,6 +808,7 @@ void CurveMatch::clearKeys() {
 }
 
 void CurveMatch::addKey(Key key) {
+  scaling_ratio = 0; // we will need to re-compute this
   kb_preprocess = true;
   if (key.letter) {
     keys[key.label] = key;
@@ -822,6 +823,41 @@ void CurveMatch::clearCurve() {
   memset(&st, 0, sizeof(st));
   curve_count = 0;
   memset(curve_started, 0, sizeof(curve_started));
+}
+
+
+/* Matching algorithm has been tuned with Jolla1 keyboard,
+   So it will work with keyboards with different size (in pixels).
+   Let's just find a scaling ratio to counteract this issue */
+
+#define JOLLA1_KEY_DISTANCE 54
+
+void CurveMatch::computeScalingRatio() {
+  if (scaling_ratio != 0) { return; } // already computed
+  float total = 0;
+  int count = 0;
+  foreach(Key k1, keys) {
+    float min_dist = 0;
+    foreach(Key k2, keys) {
+      if (k1.letter == k2.letter) { continue; }
+      float d = distance(k1.x, k1.y, k2.x, k2.y);
+      if (d < min_dist || ! min_dist) { min_dist = d; }
+    }
+    total += min_dist;
+    count += 1;
+  }
+
+  if (! count) {
+    // this may occur with some race condition
+    scaling_ratio = 1;
+    DBG("Scaling ratio compute error. Fallback to default value");
+    return;
+  }
+
+  float avg_key_distance = total / count;
+  scaling_ratio = params.scaling_ratio_multiply * avg_key_distance / ((float) JOLLA1_KEY_DISTANCE);
+
+  DBG("Average key distance: %.2f -> Scaling ratio: %.2f", avg_key_distance, scaling_ratio);
 }
 
 void CurveMatch::addPoint(Point point, int curve_id, int timestamp) {
@@ -850,6 +886,12 @@ void CurveMatch::addPoint(Point point, int curve_id, int timestamp) {
 	    QSTRING2PCHAR(key.label), key.x, key.y, key.corrected_x, key.corrected_y, key.letter);
       }
     }
+
+  }
+
+  if (! scaling_ratio) {
+    // compute scaling ratio
+    computeScalingRatio();
   }
 
   if (curve.isEmpty()) {
@@ -1035,7 +1077,7 @@ bool CurveMatch::setCurves() {
   bool result = false;
   for (int i = 0; i < curve_count; i ++) {
     bool on_hold = curvePreprocess1(i);
-    quickCurves[i].setCurve(curve, i, params.multi_dot_threshold);
+    quickCurves[i].setCurve(curve, scaling_ratio, i, params.multi_dot_threshold);
     quickCurves[i].on_hold = on_hold;
 
     result |= on_hold;
@@ -1057,7 +1099,7 @@ bool CurveMatch::match() {
   // change order for equal items: qSort(curve.begin(), curve.end()); // in multi mode we may lose point ordering
 
   quickKeys.setParams(&params);
-  quickKeys.setKeys(keys);
+  quickKeys.setKeys(keys, scaling_ratio);
 
   setCurves();
   curvePreprocess2();
@@ -1220,6 +1262,8 @@ void CurveMatch::fromJson(const QJsonObject &json) {
     Key k = Key::fromJson(json_key.toObject());
     keys[k.label] = k;
   }
+  scaling_ratio = 0;
+  computeScalingRatio();
 
   // curve
   QJsonArray json_curve = json["curve"].toArray();
@@ -1287,6 +1331,8 @@ void CurveMatch::resultToJson(QJsonObject &json) {
   json["straight"] = json_st;
 
   json["multi_count"] = curve_count;
+
+  json["scaling_ratio"] = scaling_ratio;
 }
 
 QString CurveMatch::resultToString(bool indent) {
