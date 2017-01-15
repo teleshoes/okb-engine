@@ -1249,6 +1249,9 @@ void CurveMatch::toJson(QJsonObject &json) {
   // other
   json["treefile"] = treeFile;
   json["datetime"] = QDateTime::currentDateTime().toString(Qt::ISODate);
+
+  // dpi
+  json["dpi"] = dpi;
 }
 
 void CurveMatch::fromJson(const QJsonObject &json) {
