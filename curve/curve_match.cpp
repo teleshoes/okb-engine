@@ -831,6 +831,7 @@ void CurveMatch::clearCurve() {
    Let's just find a scaling ratio to counteract this issue */
 
 #define JOLLA1_KEY_DISTANCE 54
+#define JOLLA1_DPI 245
 
 void CurveMatch::computeScalingRatio() {
   if (scaling_ratio != 0) { return; } // already computed
@@ -859,6 +860,12 @@ void CurveMatch::computeScalingRatio() {
 
   DBG("Average key distance: %.2f -> Scaling ratio: %.2f", avg_key_distance, scaling_ratio);
 }
+
+void CurveMatch::setDpi(int dpi) {
+  this->dpi = dpi;
+  DBG("Screen DPI: %d", dpi);
+}
+
 
 void CurveMatch::addPoint(Point point, int curve_id, int timestamp) {
   QTime now = QTime::currentTime();
@@ -1245,7 +1252,6 @@ void CurveMatch::toJson(QJsonObject &json) {
 }
 
 void CurveMatch::fromJson(const QJsonObject &json) {
-
   QJsonValue input = json["input"];
   if (input != QJsonValue::Undefined) {
     fromJson(input.toObject());
@@ -1275,6 +1281,10 @@ void CurveMatch::fromJson(const QJsonObject &json) {
       curve.append(p);
     }
   }
+
+  // scaling
+  dpi = json["dpi"].toDouble();
+  scaling_ratio = 0; /* we will recompute it: json["scaling_ratio"]; */
 }
 
 void CurveMatch::fromString(const QString &jsonStr) {
@@ -1333,6 +1343,7 @@ void CurveMatch::resultToJson(QJsonObject &json) {
   json["multi_count"] = curve_count;
 
   json["scaling_ratio"] = scaling_ratio;
+  json["dpi"] = dpi;
 }
 
 QString CurveMatch::resultToString(bool indent) {
