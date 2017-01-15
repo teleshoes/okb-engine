@@ -9,7 +9,7 @@ void kb_distort_cancel(QHash<QString, Key> &keys) {
   }
 }
 
-void kb_distort(QHash<QString, Key> &keys, Params &params) {
+void kb_distort(QHash<QString, Key> &keys, Params &params, float scale) {
   int minx = -1;
   int miny = -1;
   int maxx = -1;
@@ -18,15 +18,22 @@ void kb_distort(QHash<QString, Key> &keys, Params &params) {
   QHash<QString, Key>::iterator it = keys.begin();
   for (it = keys.begin(); it != keys.end(); ++ it) {
     Key key = it.value();
-    if (key.x < minx || minx == -1) { minx = key.x; }
-    if (key.x > maxx || maxx == -1) { maxx = key.x; }
-    if (key.y < miny || miny == -1) { miny = key.y; }
-    if (key.y > maxy || maxy == -1) { maxy = key.y; }
+
+    int x = key.x / scale;
+    int y = key.y / scale;
+
+    if (x < minx || minx == -1) { minx = x; }
+    if (x > maxx || maxx == -1) { maxx = x; }
+    if (y < miny || miny == -1) { miny = y; }
+    if (y > maxy || maxy == -1) { maxy = y; }
   }
 
   for (it = keys.begin(); it != keys.end(); ++ it) {
     int x = it.value().x;
     int y = it.value().y;
+
+    x /= scale;
+    y /= scale;
 
     if (x < minx + params.dst_x_max) {
       x +=  1.0 * params.dst_x_add * (params.dst_x_max + minx - x) / params.dst_x_max;
@@ -42,6 +49,8 @@ void kb_distort(QHash<QString, Key> &keys, Params &params) {
       y +=  1.0 * params.dst_y_add * (x - maxx + params.dst_y_max) / params.dst_y_max;
     }
 
+    x *= scale;
+    y *= scale;
 
     it.value().corrected_x = x;
     it.value().corrected_y = y;

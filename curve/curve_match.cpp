@@ -872,12 +872,17 @@ void CurveMatch::addPoint(Point point, int curve_id, int timestamp) {
 
   if (curve_id < 0 || curve_id > MAX_CURVES) { return; }
 
+  if (! scaling_ratio) {
+    // compute scaling ratio
+    computeScalingRatio();
+  }
+
   if (kb_preprocess) {
     // we must apply keyboard biases before feeding the curve
     // in case of incremental processing
     kb_preprocess = false;
     if (params.thumb_correction) {
-      kb_distort(keys, params);
+      kb_distort(keys, params, scaling_ratio);
     } else {
       kb_distort_cancel(keys);
     }
@@ -893,12 +898,6 @@ void CurveMatch::addPoint(Point point, int curve_id, int timestamp) {
 	    QSTRING2PCHAR(key.label), key.x, key.y, key.corrected_x, key.corrected_y, key.letter);
       }
     }
-
-  }
-
-  if (! scaling_ratio) {
-    // compute scaling ratio
-    computeScalingRatio();
   }
 
   if (curve.isEmpty()) {

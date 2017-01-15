@@ -16,6 +16,6 @@
 #include "curve_match.h"
 
 void kb_distort_cancel(QHash<QString, Key> &keys);
-void kb_distort(QHash<QString, Key> &keys, Params &params);
+void kb_distort(QHash<QString, Key> &keys, Params &params, float scale);
 
 #endif /* KB_DISTORT_H */
