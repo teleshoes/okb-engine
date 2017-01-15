@@ -834,6 +834,12 @@ void CurveMatch::clearCurve() {
 #define JOLLA1_DPI 245
 
 void CurveMatch::computeScalingRatio() {
+  if (params.scaling_ratio_override > 0) {
+    scaling_ratio = params.scaling_ratio_override;
+    DBG("Scaling ratio override by configuration file: %.2f", scaling_ratio);
+    return;
+  }
+
   if (scaling_ratio != 0) { return; } // already computed
   float total = 0;
   int count = 0;
@@ -856,9 +862,27 @@ void CurveMatch::computeScalingRatio() {
   }
 
   float avg_key_distance = total / count;
-  scaling_ratio = params.scaling_ratio_multiply * avg_key_distance / ((float) JOLLA1_KEY_DISTANCE);
+  scaling_ratio = avg_key_distance / ((float) JOLLA1_KEY_DISTANCE);
 
-  DBG("Average key distance: %.2f -> Scaling ratio: %.2f", avg_key_distance, scaling_ratio);
+  int real_dpi = dpi;
+  if (real_dpi < 105) {
+    // probable obsolete jolla 1 device or old test
+    real_dpi = JOLLA1_DPI;
+  }
+
+  if (scaling_ratio > 0.95 && scaling_ratio < 1.05) {
+    scaling_ratio = 1; // ignore a 5% change to avoid regression on tests
+  }
+
+  if (params.scaling_ratio_use_dpi) {
+    // scale relatively to jolla1 in term of physical key size (mm)
+    // instead of pixel count
+    scaling_ratio *= JOLLA1_DPI / real_dpi;
+  }
+  scaling_ratio *= params.scaling_ratio_multiply;
+
+  DBG("Average key distance: %.2f - DPI: %d -> Scaling ratio: %.2f",
+      avg_key_distance, real_dpi, scaling_ratio);
 }
 
 void CurveMatch::setDpi(int dpi) {

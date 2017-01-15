@@ -150,6 +150,8 @@ defparams = [
     [ "same_point_max_angle", int, 45, 179 ],
     [ "same_point_score", float, 0, 1 ],
     [ "scaling_ratio_multiply", float ],
+    [ "scaling_ratio_override", float ],
+    [ "scaling_ratio_use_dpi", int ],
     [ "score_pow", float, 0.1, 10 ],
     [ "sharp_turn_penalty", float, 0, 1 ],
     [ "slow_down_max_turn", int, 1, 10 ],
