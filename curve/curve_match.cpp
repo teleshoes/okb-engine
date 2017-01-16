@@ -877,7 +877,7 @@ void CurveMatch::computeScalingRatio() {
   if (params.scaling_ratio_use_dpi) {
     // scale relatively to jolla1 in term of physical key size (mm)
     // instead of pixel count
-    scaling_ratio *= JOLLA1_DPI / real_dpi;
+    scaling_ratio *= ((float) JOLLA1_DPI) / real_dpi;
   }
   scaling_ratio *= params.scaling_ratio_multiply;
 
