@@ -56,6 +56,7 @@ CurveMatch::CurveMatch() : keyShift(&params) {
   done = false;
   kb_preprocess = true;
   id = -1;
+  screen_x = screen_y = 0;
 }
 
 bool CurveMatch::curvePreprocess1(int curve_id) {
@@ -833,13 +834,9 @@ void CurveMatch::clearCurve() {
 #define JOLLA1_KEY_DISTANCE 54
 #define JOLLA1_DPI 245
 
-void CurveMatch::computeScalingRatio() {
-  if (params.scaling_ratio_override > 0) {
-    scaling_ratio = params.scaling_ratio_override;
-    DBG("Scaling ratio override by configuration file: %.2f", scaling_ratio);
-    return;
-  }
+#define JOLLA1_DIAG 4.5
 
+void CurveMatch::computeScalingRatio() {
   if (scaling_ratio != 0) { return; } // already computed
   float total = 0;
   int count = 0;
@@ -856,8 +853,8 @@ void CurveMatch::computeScalingRatio() {
 
   if (! count) {
     // this may occur with some race condition
-    scaling_ratio = 1;
-    DBG("Scaling ratio compute error. Fallback to default value");
+    scaling_ratio = -1;
+    DBG("Scaling ratio compute error");
     return;
   }
 
@@ -865,13 +862,11 @@ void CurveMatch::computeScalingRatio() {
   scaling_ratio = avg_key_distance / ((float) JOLLA1_KEY_DISTANCE);
 
   int real_dpi = dpi;
+  bool ignore_diagonal_test = false;
   if (real_dpi < 105) {
-    // probable obsolete jolla 1 device or old test
+    // probably obsolete SFOS1 device or old test
     real_dpi = JOLLA1_DPI;
-  }
-
-  if (scaling_ratio > 0.95 && scaling_ratio < 1.05) {
-    scaling_ratio = 1; // ignore a 5% change to avoid regression on tests
+    ignore_diagonal_test = true;
   }
 
   if (params.scaling_ratio_use_dpi) {
@@ -881,13 +876,33 @@ void CurveMatch::computeScalingRatio() {
   }
   scaling_ratio *= params.scaling_ratio_multiply;
 
-  DBG("Average key distance: %.2f - DPI: %d -> Scaling ratio: %.2f",
-      avg_key_distance, real_dpi, scaling_ratio);
+  if (scaling_ratio > 0.95 && scaling_ratio < 1.05) {
+    scaling_ratio = 1; // ignore a 5% change to avoid regression on existing tests
+  }
+
+  float diagonal_inches = 0;
+  if (screen_x && ! ignore_diagonal_test) {
+      diagonal_inches = sqrt(screen_x * screen_x + screen_y * screen_y) / 25.4; // mm to inches
+      if (diagonal_inches < JOLLA1_DIAG * 0.95 || diagonal_inches > JOLLA1_DIAG * 1.05) {
+	scaling_ratio = -1;
+      }
+  }
+
+  logdebug("Average key distance: %.2f - DPI: %d - Diagonal: %.2f (%.1fx%.1f) -> Scaling ratio: %.2f",
+	   avg_key_distance, real_dpi, diagonal_inches, screen_x, screen_y, scaling_ratio);
+
+  if (params.scaling_ratio_override > 0) {
+    scaling_ratio = params.scaling_ratio_override;
+    DBG("Scaling ratio override by configuration file: %.2f", scaling_ratio);
+    return;
+  }
 }
 
-void CurveMatch::setDpi(int dpi) {
+void CurveMatch::setScreenInfo(int dpi, float screen_x, float screen_y) {
   this->dpi = dpi;
-  DBG("Screen DPI: %d", dpi);
+  this->screen_x = screen_x;
+  this->screen_y = screen_y;
+  DBG("Screen DPI: %d - size: (%.2f, %.2f)", dpi, screen_x, screen_y);
 }
 
 
@@ -1275,6 +1290,8 @@ void CurveMatch::toJson(QJsonObject &json) {
 
   // dpi
   json["dpi"] = dpi;
+  json["screen_x"] = screen_x;
+  json["screen_y"] = screen_y;
 }
 
 void CurveMatch::fromJson(const QJsonObject &json) {

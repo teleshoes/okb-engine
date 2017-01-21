@@ -24,11 +24,12 @@ void PluginCallBack::call(QList<ScenarioDto> l) {
 /* registered class */
 CurveKB::CurveKB(QObject *parent) : QObject(parent)
 {
-  /* provide screen DPI to matcher for scaling ratio computation */
+  /* provide screen DPI & size to matcher for scaling ratio computation */
   // https://stackoverflow.com/questions/20603931/how-to-get-the-dpi-of-the-display-screen-in-qt
   QScreen *srn = QGuiApplication::screens().at(0);
   int dotsPerInch = (int) srn->physicalDotsPerInch();
-  curveMatch.setDpi(dotsPerInch);
+  QSizeF size = srn->physicalSize();
+  curveMatch.setScreenInfo(dotsPerInch, (float) size.width(), (float) size.height());
 
 #ifdef THREAD
   callback = new PluginCallBack(this);
