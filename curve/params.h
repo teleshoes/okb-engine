@@ -151,9 +151,10 @@ class Params {
   int rt_turn_threshold;
   int same_point_max_angle;
   float same_point_score;
+  float scaling_kb_size_pow;
   float scaling_ratio_multiply;
   float scaling_ratio_override;
-  int scaling_ratio_use_dpi;
+  float scaling_size_pow;
   float score_pow;
   float sharp_turn_penalty;
   int slow_down_max_turn;
@@ -381,9 +382,10 @@ static Params default_params = {
   5, // rt_turn_threshold
   120, // same_point_max_angle
   0.1, // same_point_score
+  0.0, // scaling_kb_size_pow
   1.0, // scaling_ratio_multiply
   -1.0, // scaling_ratio_override
-  1, // scaling_ratio_use_dpi
+  0.5, // scaling_size_pow
   1.0, // score_pow
   0.6, // sharp_turn_penalty
   3, // slow_down_max_turn
@@ -605,9 +607,10 @@ void Params::toJson(QJsonObject &json) const {
   json["rt_turn_threshold"] = rt_turn_threshold;
   json["same_point_max_angle"] = same_point_max_angle;
   json["same_point_score"] = same_point_score;
+  json["scaling_kb_size_pow"] = scaling_kb_size_pow;
   json["scaling_ratio_multiply"] = scaling_ratio_multiply;
   json["scaling_ratio_override"] = scaling_ratio_override;
-  json["scaling_ratio_use_dpi"] = scaling_ratio_use_dpi;
+  json["scaling_size_pow"] = scaling_size_pow;
   json["score_pow"] = score_pow;
   json["sharp_turn_penalty"] = sharp_turn_penalty;
   json["slow_down_max_turn"] = slow_down_max_turn;
@@ -831,9 +834,10 @@ Params Params::fromJson(const QJsonObject &json) {
   if (json.contains("rt_turn_threshold")) { p.rt_turn_threshold = json["rt_turn_threshold"].toDouble(); }
   if (json.contains("same_point_max_angle")) { p.same_point_max_angle = json["same_point_max_angle"].toDouble(); }
   if (json.contains("same_point_score")) { p.same_point_score = json["same_point_score"].toDouble(); }
+  if (json.contains("scaling_kb_size_pow")) { p.scaling_kb_size_pow = json["scaling_kb_size_pow"].toDouble(); }
   if (json.contains("scaling_ratio_multiply")) { p.scaling_ratio_multiply = json["scaling_ratio_multiply"].toDouble(); }
   if (json.contains("scaling_ratio_override")) { p.scaling_ratio_override = json["scaling_ratio_override"].toDouble(); }
-  if (json.contains("scaling_ratio_use_dpi")) { p.scaling_ratio_use_dpi = json["scaling_ratio_use_dpi"].toDouble(); }
+  if (json.contains("scaling_size_pow")) { p.scaling_size_pow = json["scaling_size_pow"].toDouble(); }
   if (json.contains("score_pow")) { p.score_pow = json["score_pow"].toDouble(); }
   if (json.contains("sharp_turn_penalty")) { p.sharp_turn_penalty = json["sharp_turn_penalty"].toDouble(); }
   if (json.contains("slow_down_max_turn")) { p.slow_down_max_turn = json["slow_down_max_turn"].toDouble(); }

@@ -829,15 +829,18 @@ void CurveMatch::clearCurve() {
 
 /* Matching algorithm has been tuned with Jolla1 keyboard,
    So it will work with keyboards with different size (in pixels).
-   Let's just find a scaling ratio to counteract this issue */
+   Let's just find a scaling ratio to counteract this issue.
+   ratios are > 1 if keyboard is bigger (pixel count) due to size and/or
+   resolution. */
 
 #define JOLLA1_KEY_DISTANCE 54
 #define JOLLA1_DPI 245
 
-#define JOLLA1_DIAG 4.5
+#define MIN_DIAG 4.4
+#define MAX_DIAG 4.6
 
 void CurveMatch::computeScalingRatio() {
-  if (scaling_ratio != 0) { return; } // already computed
+  if (scaling_ratio != 0) { return; } // already computed or failed
   float total = 0;
   int count = 0;
   foreach(Key k1, keys) {
@@ -857,35 +860,43 @@ void CurveMatch::computeScalingRatio() {
     DBG("Scaling ratio compute error");
     return;
   }
-
   float avg_key_distance = total / count;
-  scaling_ratio = avg_key_distance / ((float) JOLLA1_KEY_DISTANCE);
 
+  float diagonal_inches = 0;
   int real_dpi = dpi;
-  bool ignore_diagonal_test = false;
   if (real_dpi < 105) {
     // probably obsolete SFOS1 device or old test
     real_dpi = JOLLA1_DPI;
-    ignore_diagonal_test = true;
-  }
+    dpi_ratio = size_ratio = scaling_ratio = 1;
+    screen_size = 0;
 
-  if (params.scaling_ratio_use_dpi) {
-    // scale relatively to jolla1 in term of physical key size (mm)
-    // instead of pixel count
-    scaling_ratio *= ((float) JOLLA1_DPI) / real_dpi;
-  }
-  scaling_ratio *= params.scaling_ratio_multiply;
+  } else {
+    // default case
 
-  if (scaling_ratio > 0.95 && scaling_ratio < 1.05) {
-    scaling_ratio = 1; // ignore a 5% change to avoid regression on existing tests
-  }
+    dpi_ratio = ((float) real_dpi) / JOLLA1_DPI;
+    size_ratio = avg_key_distance / ((float) JOLLA1_KEY_DISTANCE) / dpi_ratio;
 
-  float diagonal_inches = 0;
-  if (screen_x && ! ignore_diagonal_test) {
-      diagonal_inches = sqrt(screen_x * screen_x + screen_y * screen_y) / 25.4; // mm to inches
-      if (diagonal_inches < JOLLA1_DIAG * 0.95 || diagonal_inches > JOLLA1_DIAG * 1.05) {
+    /* Scale relatively to reference (Jolla1) size & resolution
+
+       "params.scaling_size_pow" parameter value:
+       0 : only compensate for resolution and assume all features scale linearly with keyboard size
+       1 : compensate for resolution and size and assume all features size does not depend on keyboard physical size
+       TODO: auto-tune this coefficient when tests case on other devices */
+
+    scaling_ratio = dpi_ratio * pow(size_ratio, params.scaling_size_pow); // TODO temporary formula :-)
+
+    scaling_ratio *= params.scaling_ratio_multiply;
+
+    if (scaling_ratio > 0.95 && scaling_ratio < 1.05) {
+      scaling_ratio = 1; // ignore a 5% change to avoid regression on existing tests
+    }
+
+    if (screen_x) {
+      this->screen_size = diagonal_inches = sqrt(screen_x * screen_x + screen_y * screen_y) / 25.4; // mm to inches
+      if (diagonal_inches < MIN_DIAG || diagonal_inches > MAX_DIAG) {
 	scaling_ratio = -1;
       }
+    }
   }
 
   logdebug("Average key distance: %.2f - DPI: %d - Diagonal: %.2f (%.1fx%.1f) -> Scaling ratio: %.2f",
@@ -902,6 +913,7 @@ void CurveMatch::setScreenInfo(int dpi, float screen_x, float screen_y) {
   this->dpi = dpi;
   this->screen_x = screen_x;
   this->screen_y = screen_y;
+  this->scaling_ratio = 0;
   DBG("Screen DPI: %d - size: (%.2f, %.2f)", dpi, screen_x, screen_y);
 }
 
@@ -921,7 +933,9 @@ void CurveMatch::addPoint(Point point, int curve_id, int timestamp) {
     // in case of incremental processing
     kb_preprocess = false;
     if (params.thumb_correction) {
-      kb_distort(keys, params, scaling_ratio);
+      float kb_scaling_ratio = dpi_ratio * pow(size_ratio, params.scaling_kb_size_pow); // TODO temporary formula :-)
+
+      kb_distort(keys, params, kb_scaling_ratio);
     } else {
       kb_distort_cancel(keys);
     }
@@ -1288,10 +1302,17 @@ void CurveMatch::toJson(QJsonObject &json) {
   json["treefile"] = treeFile;
   json["datetime"] = QDateTime::currentDateTime().toString(Qt::ISODate);
 
-  // dpi
-  json["dpi"] = dpi;
-  json["screen_x"] = screen_x;
-  json["screen_y"] = screen_y;
+  // screen features
+  computeScalingRatio(); // make sure it is up-to-date
+  QJsonObject json_scaling;
+  json_scaling["scaling_ratio"] = scaling_ratio;
+  json_scaling["dpi_ratio"] = dpi_ratio;
+  json_scaling["size_ratio"] = size_ratio;
+  json_scaling["dpi"] = dpi;
+  json_scaling["screen_size"] = screen_size;
+  json_scaling["screen_x"] = screen_x;
+  json_scaling["screen_y"] = screen_y;
+  json["scaling"] = json_scaling;
 }
 
 void CurveMatch::fromJson(const QJsonObject &json) {
@@ -1326,8 +1347,11 @@ void CurveMatch::fromJson(const QJsonObject &json) {
   }
 
   // scaling
-  dpi = json["dpi"].toDouble();
-  scaling_ratio = 0; /* we will recompute it: json["scaling_ratio"]; */
+  QJsonObject json_scaling = json["scaling"].toObject();
+  dpi = json_scaling["dpi"].toDouble();
+  screen_x = json_scaling["screen_x"].toDouble();
+  screen_y = json_scaling["screen_y"].toDouble();
+  scaling_ratio = 0; /* we will recompute it */
 }
 
 void CurveMatch::fromString(const QString &jsonStr) {
@@ -1384,9 +1408,6 @@ void CurveMatch::resultToJson(QJsonObject &json) {
   json["straight"] = json_st;
 
   json["multi_count"] = curve_count;
-
-  json["scaling_ratio"] = scaling_ratio;
-  json["dpi"] = dpi;
 }
 
 QString CurveMatch::resultToString(bool indent) {

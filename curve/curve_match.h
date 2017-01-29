@@ -89,7 +89,7 @@ class CurveMatch {
 
   QuickKeys quickKeys;
 
-  float scaling_ratio, screen_x, screen_y;
+  float scaling_ratio, dpi_ratio, screen_x, screen_y, screen_size, size_ratio;
   int dpi;
 
   void computeScalingRatio();

@@ -341,11 +341,18 @@ if st: st = ",".join("%.2f" % x for x in st)
 
 body.p(font_size="-2").i("Word tree file: %s" % input["treefile"]).br. \
     i(("Time: %d ms - CPU time: %d ms - Matches: %d - Nodes: %d - Points: %d - " +
-       "Scaling ratio: %.2f - DPI: %d - Straight: %s - Draw time: %d ms [%s] - Build: [%s]") %
+       "Straight: %s - Draw time: %d ms [%s] - Build: [%s]") %
       (js["stats"]["time"], js["stats"]["cputime"], len(candidates), js["stats"]["count"],
-       len(curve), js["scaling_ratio"], js["dpi"], st, curve[-1]["t"] - curve[0]["t"], js["ts"],
+       len(curve), st, curve[-1]["t"] - curve[0]["t"], js["ts"],
        js.get("build", "unknown"))).br. \
     i("Speed: max=%d, average=%d" % (max_speed, js["stats"]["speed"]))
+
+scaling = js["input"]["scaling"]
+body.p(font_size="-2").i("Scaling: ratio: %.2f - DPI: %d - Screen: %.2f\" (%dx%d mm) - DPI ratio : %.2f - size ratio: %.2f" %
+                         (scaling["scaling_ratio"], scaling["dpi"],
+                          scaling["screen_size"], scaling["screen_x"],
+                          scaling["screen_y"], scaling["dpi_ratio"],
+                          scaling["size_ratio"])).br
 
 # params
 params = sorted(input["params"].items())
