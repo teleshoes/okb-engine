@@ -902,9 +902,9 @@ void CurveMatch::computeScalingRatio() {
   logdebug("Average key distance: %.2f - DPI: %d - Diagonal: %.2f (%.1fx%.1f) -> Scaling ratio: %.2f",
 	   avg_key_distance, real_dpi, diagonal_inches, screen_x, screen_y, scaling_ratio);
 
-  if (params.scaling_ratio_override > 0) {
+  if (params.scaling_ratio_override != 0) {
     scaling_ratio = params.scaling_ratio_override;
-    DBG("Scaling ratio override by configuration file: %.2f", scaling_ratio);
+    logdebug("Scaling ratio override by configuration file: %.2f", scaling_ratio);
     return;
   }
 }
