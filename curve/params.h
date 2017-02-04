@@ -384,7 +384,7 @@ static Params default_params = {
   0.1, // same_point_score
   0.0, // scaling_kb_size_pow
   1.0, // scaling_ratio_multiply
-  -1.0, // scaling_ratio_override
+  0.0, // scaling_ratio_override
   0.5, // scaling_size_pow
   1.0, // score_pow
   0.6, // sharp_turn_penalty
