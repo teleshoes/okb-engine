@@ -57,6 +57,7 @@ CurveMatch::CurveMatch() : keyShift(&params) {
   kb_preprocess = true;
   id = -1;
   screen_x = screen_y = 0;
+  pixels_x = pixels_y = 0;
 }
 
 bool CurveMatch::curvePreprocess1(int curve_id) {
@@ -839,6 +840,8 @@ void CurveMatch::clearCurve() {
 #define MIN_DIAG 4.4
 #define MAX_DIAG 4.6
 
+#define MM_TO_INCHES 25.4
+
 void CurveMatch::computeScalingRatio() {
   if (scaling_ratio != 0) { return; } // already computed or failed
   float total = 0;
@@ -865,14 +868,34 @@ void CurveMatch::computeScalingRatio() {
   float diagonal_inches = 0;
   int real_dpi = dpi;
   if (real_dpi < 105) {
-    // probably obsolete SFOS1 device or old test
-    real_dpi = JOLLA1_DPI;
-    dpi_ratio = size_ratio = scaling_ratio = 1;
-    screen_size = 0;
+    // bogus screen information: probably obsolete SFOS1 device, old test of bad port
+
+    // try to guess based on screen size
+    float diagonal_px = sqrt(pixels_x * pixels_x + pixels_y * pixels_y);
+
+    if (diagonal_px > 1230 && diagonal_px < 2300) {
+      // screen size may match Jolla C / Fairphone 2 / Nexus 5, let's assume it is a 5" screen
+      // (this occurs at least on Nexus 5 with CM11 + SFOS 1.1.9)
+      this->screen_size = diagonal_inches = 5;
+      real_dpi = diagonal_px / diagonal_inches;
+    } else {
+      // fall back to Jolla1 and ignore all measurements (probably an old test) --> scaling_ratio = 1
+      real_dpi = JOLLA1_DPI;
+      avg_key_distance = JOLLA1_KEY_DISTANCE;
+    }
 
   } else {
-    // default case
+    // screen information available
 
+    if (screen_x) {
+      this->screen_size = diagonal_inches = sqrt(screen_x * screen_x + screen_y * screen_y) / MM_TO_INCHES;
+      if (diagonal_inches < MIN_DIAG || diagonal_inches > MAX_DIAG) {
+	scaling_ratio = -1;
+      }
+    }
+  }
+
+  if (scaling_ratio == 0) {
     dpi_ratio = ((float) real_dpi) / JOLLA1_DPI;
     size_ratio = avg_key_distance / ((float) JOLLA1_KEY_DISTANCE) / dpi_ratio;
 
@@ -891,16 +914,11 @@ void CurveMatch::computeScalingRatio() {
       scaling_ratio = 1; // ignore a 5% change to avoid regression on existing tests
     }
 
-    if (screen_x) {
-      this->screen_size = diagonal_inches = sqrt(screen_x * screen_x + screen_y * screen_y) / 25.4; // mm to inches
-      if (diagonal_inches < MIN_DIAG || diagonal_inches > MAX_DIAG) {
-	scaling_ratio = -1;
-      }
-    }
   }
 
-  logdebug("Average key distance: %.2f - DPI: %d - Diagonal: %.2f (%.1fx%.1f) -> Scaling ratio: %.2f",
-	   avg_key_distance, real_dpi, diagonal_inches, screen_x, screen_y, scaling_ratio);
+  logdebug("Average key distance: %.2f - DPI: %d - Diagonal: %.2f (%.1fx%.1f, %dx%d px) -> Scaling ratio: %.2f (dpi: %.2f, size: %.2f)",
+	   avg_key_distance, real_dpi, diagonal_inches, screen_x, screen_y, pixels_x, pixels_y,
+	   scaling_ratio, dpi_ratio, size_ratio);
 
   if (params.scaling_ratio_override != 0) {
     scaling_ratio = params.scaling_ratio_override;
@@ -914,9 +932,13 @@ void CurveMatch::setScreenInfo(int dpi, float screen_x, float screen_y) {
   this->screen_x = screen_x;
   this->screen_y = screen_y;
   this->scaling_ratio = 0;
-  DBG("Screen DPI: %d - size: (%.2f, %.2f)", dpi, screen_x, screen_y);
+  DBG("Screen DPI: %d - size: (%.2f, %.2f) (%dx%d px)", dpi, screen_x, screen_y, pixels_x, pixels_y);
 }
 
+void CurveMatch::setScreenSizePixels(int pixels_x, int pixels_y) {
+  this->pixels_x = pixels_x;
+  this->pixels_y = pixels_y;
+}
 
 void CurveMatch::addPoint(Point point, int curve_id, int timestamp) {
   QTime now = QTime::currentTime();
@@ -1312,6 +1334,8 @@ void CurveMatch::toJson(QJsonObject &json) {
   json_scaling["screen_size"] = screen_size;
   json_scaling["screen_x"] = screen_x;
   json_scaling["screen_y"] = screen_y;
+  json_scaling["pixels_x"] = pixels_x;
+  json_scaling["pixels_y"] = pixels_y;
   json["scaling"] = json_scaling;
 }
 
@@ -1351,6 +1375,8 @@ void CurveMatch::fromJson(const QJsonObject &json) {
   dpi = json_scaling["dpi"].toDouble();
   screen_x = json_scaling["screen_x"].toDouble();
   screen_y = json_scaling["screen_y"].toDouble();
+  pixels_x = json_scaling["pixels_x"].toDouble();
+  pixels_y = json_scaling["pixels_y"].toDouble();
   scaling_ratio = 0; /* we will recompute it */
 }
 

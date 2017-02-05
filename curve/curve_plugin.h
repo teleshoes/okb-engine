@@ -62,6 +62,7 @@ class CurveKB : public QObject {
 
     Q_INVOKABLE void learn(QString word, int addValue);
     Q_INVOKABLE double getScalingRatio();
+    Q_INVOKABLE void setScreenSizePixels(int x, int y);
 
     void sendSignal(QList<ScenarioDto> &candidates);
 

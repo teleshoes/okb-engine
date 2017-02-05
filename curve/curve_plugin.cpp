@@ -216,3 +216,7 @@ void CurveExtensionPlugin::registerTypes(const char *uri)
 double CurveKB::getScalingRatio() {
   return (double) curveMatch.getScalingRatio();
 }
+
+void CurveKB::setScreenSizePixels(int x, int y) {
+  curveMatch.setScreenSizePixels(x, y);
+}
