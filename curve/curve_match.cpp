@@ -1007,9 +1007,9 @@ void CurveMatch::addPoint(Point point, int curve_id, int timestamp) {
       float dist = distancep(lastPoint, point);
 
       int max_length = params.max_segment_length;
-      if (dist > max_length) {
+      if (dist > max_length * scaling_ratio) {
 	Point dp = point - lastPoint;
-	int n = dist / max_length;
+	int n = dist / (max_length * scaling_ratio);
 	for(int i = 0; i < n; i ++) {
 	  float coef = (i + 1.0) / (n + 1);
 	  curve << CurvePoint(lastPoint + dp * coef, curve_id, lastPoint.t + coef * (ts - lastPoint.t), curve_length + coef * dist, true /* "dummy" point */);
