@@ -838,7 +838,7 @@ void CurveMatch::clearCurve() {
 #define JOLLA1_DPI 245
 
 #define MIN_DIAG 4.4
-#define MAX_DIAG 4.6
+#define MAX_DIAG 5.3
 
 #define MM_TO_INCHES 25.4
 
