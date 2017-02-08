@@ -690,6 +690,15 @@ float Scenario::calc_distance_score(unsigned char letter, int index, int count, 
     ratio = params->dist_max_next;
   }
 
+
+  /* acceptable error may scale diffently with screen size
+     so adjust accordingly
+     (keey in mind we have already scaled everything based on
+     screen resulution & suze, so this is only a relative
+     adjustment */
+  ratio *= pow(params->glob_size_ratio, params->scaling_size_pow);
+
+
   Point k = keys->get(letter);
 
   float cplus;

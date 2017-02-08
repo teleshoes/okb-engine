@@ -148,6 +148,7 @@ same_point_max_angle = 120
 same_point_score = 0.1
 scaling_ratio_multiply = 1
 scaling_ratio_override = 0
+scaling_filtering_pow = 0
 scaling_kb_size_pow = 0
 scaling_size_pow = 0.5
 score_pow = 1

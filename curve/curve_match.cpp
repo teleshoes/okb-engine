@@ -916,6 +916,8 @@ void CurveMatch::computeScalingRatio() {
 
   }
 
+  params.glob_size_ratio = size_ratio;
+
   logdebug("Average key distance: %.2f - DPI: %d - Diagonal: %.2f (%.1fx%.1f, %dx%d px) -> Scaling ratio: %.2f (dpi: %.2f, size: %.2f)",
 	   avg_key_distance, real_dpi, diagonal_inches, screen_x, screen_y, pixels_x, pixels_y,
 	   scaling_ratio, dpi_ratio, size_ratio);

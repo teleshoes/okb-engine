@@ -151,6 +151,7 @@ defparams = [
     [ "same_point_score", float, 0, 1 ],
     [ "scaling_ratio_multiply", float ],
     [ "scaling_ratio_override", float ],
+    [ "scaling_filtering_pow", float, -1, 1 ],
     [ "scaling_kb_size_pow", float, 0.2, 5 ],
     [ "scaling_size_pow", float, 0.2, 5 ],
     [ "score_pow", float, 0.1, 10 ],

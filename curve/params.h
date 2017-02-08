@@ -151,6 +151,7 @@ class Params {
   int rt_turn_threshold;
   int same_point_max_angle;
   float same_point_score;
+  float scaling_filtering_pow;
   float scaling_kb_size_pow;
   float scaling_ratio_multiply;
   float scaling_ratio_override;
@@ -229,6 +230,9 @@ class Params {
   /* END DECL */
   void toJson(QJsonObject &json) const;
   static Params fromJson(const QJsonObject &json);
+
+  // stuff some "global variables" in params structure (fugly !)
+  float glob_size_ratio;
 };
 #endif /* PARAMS_H */
 
@@ -382,6 +386,7 @@ static Params default_params = {
   5, // rt_turn_threshold
   120, // same_point_max_angle
   0.1, // same_point_score
+  0.0, // scaling_filtering_pow
   0.0, // scaling_kb_size_pow
   1.0, // scaling_ratio_multiply
   0.0, // scaling_ratio_override
@@ -458,6 +463,9 @@ static Params default_params = {
   8.0, // weight_turn
 
   /* END DEFAULT */
+
+  // global variables :-)
+  0, // glob_size_ratio
 };
 
 void Params::toJson(QJsonObject &json) const {
@@ -607,6 +615,7 @@ void Params::toJson(QJsonObject &json) const {
   json["rt_turn_threshold"] = rt_turn_threshold;
   json["same_point_max_angle"] = same_point_max_angle;
   json["same_point_score"] = same_point_score;
+  json["scaling_filtering_pow"] = scaling_filtering_pow;
   json["scaling_kb_size_pow"] = scaling_kb_size_pow;
   json["scaling_ratio_multiply"] = scaling_ratio_multiply;
   json["scaling_ratio_override"] = scaling_ratio_override;
@@ -834,6 +843,7 @@ Params Params::fromJson(const QJsonObject &json) {
   if (json.contains("rt_turn_threshold")) { p.rt_turn_threshold = json["rt_turn_threshold"].toDouble(); }
   if (json.contains("same_point_max_angle")) { p.same_point_max_angle = json["same_point_max_angle"].toDouble(); }
   if (json.contains("same_point_score")) { p.same_point_score = json["same_point_score"].toDouble(); }
+  if (json.contains("scaling_filtering_pow")) { p.scaling_filtering_pow = json["scaling_filtering_pow"].toDouble(); }
   if (json.contains("scaling_kb_size_pow")) { p.scaling_kb_size_pow = json["scaling_kb_size_pow"].toDouble(); }
   if (json.contains("scaling_ratio_multiply")) { p.scaling_ratio_multiply = json["scaling_ratio_multiply"].toDouble(); }
   if (json.contains("scaling_ratio_override")) { p.scaling_ratio_override = json["scaling_ratio_override"].toDouble(); }
