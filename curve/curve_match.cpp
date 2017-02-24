@@ -72,14 +72,21 @@ bool CurveMatch::curvePreprocess1(int curve_id) {
   QList<int> idxmap = QList<int>();
 
   bool end_flag = false;
+  CurvePoint lastPoint(Point(-1, -1), curve_id, -1);
   for(int i = 0; i < curve.size(); i++) {
     if (curve[i].curve_id != curve_id) { continue; }
     if (curve[i].end_marker) {
       end_flag = true;
       break;
     }
+
+    // point deduplication (workaround for bad data in old replay logs)
+    if (curve[i].x == lastPoint.x && curve[i].y == lastPoint.y) { continue; }
+
     oneCurve.append(curve[i]);
     idxmap.append(i);
+
+    lastPoint = curve[i];
   }
   int l = oneCurve.size();
 
