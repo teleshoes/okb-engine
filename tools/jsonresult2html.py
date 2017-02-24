@@ -170,7 +170,7 @@ def mkimg(scale = 1, xsize = None, scenario = None, base64 = True):
             if lastx is not None:
                 if pt['sharp_turn'] and not scenario:
                     s = int(50 * scale)
-                    if 'normalx' in pt:
+                    if pt.get('normalx', None):
                         draw.line((x, y, x + int(0.5 * pt['normalx'] * scale), y + int(0.5 * pt['normaly'] * scale)), fill="#008000", width = int(2 * scale))
                     draw.line((x - s, y, x + s, y), fill="#C00000", width = int(2 * scale))
                     draw.line((x, y - s, x, y + s), fill="#C00000", width = int(2 * scale))
