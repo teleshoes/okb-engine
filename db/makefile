@@ -125,8 +125,9 @@ predict-%.db: clusters-%.txt grams-%-learn.csv.bz2 db.version
 	$(eval cgrams=$(call getconf,lang-$(lang).cf,cluster_cgrams))
 	$(eval wgrams=$(call getconf,lang-$(lang).cf,cluster_wgrams))
 
-	set -o pipefail ; lbzip2 -d < grams-$(lang)-learn.csv.bz2 \
-	 | $(TOOLS_DIR)/clusterize.py -r ngrams-$(lang).rpt -l $(depth) -w $(wgrams) -c $(cgrams) clusters-$(lang).txt \
+	set -o pipefail ; (lbzip2 -d < grams-$(lang)-learn.csv.bz2 ; echo "=" ; lbzip2 -d < grams-$(lang)-test.csv.bz2) \
+	 | $(TOOLS_DIR)/clusterize.py -r ngrams-$(lang).rpt -l $(depth) -w $(wgrams) -c $(cgrams) \
+	                              -t $(TOOLS_DIR)/threshold.cfg clusters-$(lang).txt \
 	 | tee predict-$(lang).txt \
 	 | $(TOOLS_DIR)/load_cdb_fslm.py predict-$(lang)-tmp.db
 
