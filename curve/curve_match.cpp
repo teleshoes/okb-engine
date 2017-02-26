@@ -896,8 +896,16 @@ void CurveMatch::computeScalingRatio() {
 
     if (screen_x) {
       this->screen_size = diagonal_inches = sqrt(screen_x * screen_x + screen_y * screen_y) / MM_TO_INCHES;
-      if (diagonal_inches < MIN_DIAG || diagonal_inches > MAX_DIAG) {
+      if (diagonal_inches >= 7.8 && diagonal_inches <= 7.9 && pixels_x == 1536) {
+	// hardcoded mode for the tablet for people insisting on swiping on the tablet
+
+	/* some dummy values:
+	scaling_ratio = 1.33;
+	dpi_ratio = size_ratio = sqrt(scaling_ratio);
+	*/
+      } else if (diagonal_inches < MIN_DIAG || diagonal_inches > MAX_DIAG) {
 	scaling_ratio = -1;
+	dpi_ratio = size_ratio = 0;
       }
     }
   }
