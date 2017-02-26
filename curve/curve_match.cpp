@@ -1083,6 +1083,8 @@ void CurveMatch::log(QString txt) {
 
 void CurveMatch::setLogFile(QString fileName) {
   logFile = fileName;
+
+  log_setfile(fileName); // for debug logging
 }
 
 QList<ScenarioType> CurveMatch::getCandidates() {
