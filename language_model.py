@@ -190,7 +190,7 @@ class LanguageModel:
         self.log("Commit: Lines updated:", len(learn))
 
 
-    def learn(self, add, word, context, replaces = None, silent = False):
+    def learn(self, add, word, context, replaces = None, silent = False, explicit_replace = False):
         if re.search(r'\d', word): return  # don't learn numbers (they are matched by \w regexp)
 
         now = int(time.time())
@@ -205,8 +205,15 @@ class LanguageModel:
         context = context[:2]
         wordl = [ word ] + context
 
+        # detect "hunt-and-peck" typing
+        # unfinished word must not be learned (even as "replaced" learning) because they are not real words
+        huntnpeck = False
+        if replaces and not explicit_replace:
+            if len(word) == len(replaces) and word[:-1] == replaces[:-1]: huntnpeck = True
+            if len(word) > len(replaces) and word.startswith(replaces): huntnpeck = True
+
         if not silent:
-            self.log("Learn:", "add" if add else "remove", wordl, "{replaces '%s'}" % replaces if replaces else "")
+            self.log("Learn:", "add" if add else "remove", wordl, "{replaces '%s' huntnpeck=%s}" % (replaces, huntnpeck) if replaces else "")
 
         wordl = wordl[0:3]
         key = '_'.join(wordl)
@@ -214,7 +221,10 @@ class LanguageModel:
             self._learn_history[key] = (True, wordl, now, pos)  # add occurence
             if replaces and replaces != word:  # ignore replacement by the same word
                 key2 = '_'.join(([ replaces ] + context)[0:3])
-                self._learn_history[key2] = (False, [ replaces ] + context, now, pos)  # add replacement occurence (failed prediction)
+                if huntnpeck:
+                    self._learn_history.pop(key2, None)
+                else:
+                    self._learn_history[key2] = (False, [ replaces ] + context, now, pos)  # add replacement occurence (failed prediction)
         else:
             if key in self._learn_history and not self._learn_history[key][0]:
                 pass  # don't remove word replacements

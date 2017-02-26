@@ -86,9 +86,10 @@ class Predict:
         self.preedit = preedit
         if self.debug_surrounding: self.log("Preedit: [%s]" % preedit)
 
-    def _learn(self, add, word, context, replaces = None, silent = False):
+    def _learn(self, add, word, context, replaces = None, silent = False, explicit_replace = False):
         if not self.lm: return
-        self.lm.learn(add, word, context, replaces, silent)
+        self.lm.learn(add, word, context, replaces = replaces,
+                      silent = silent, explicit_replace = explicit_replace)
 
     def _get_curve_learn_info(self, word, first_word):
         """ generate information for curve matching to add a new word into user
@@ -209,7 +210,7 @@ class Predict:
 
         if not context: context = self.last_words
         context = list(context)
-        self._learn(True, new, context, replaces = old)
+        self._learn(True, new, context, replaces = old, explicit_replace = True)
 
         if self.debug_surrounding: self.log("Surrounding text (replace_word %s->%s): %s" % (old, new, context))
 
