@@ -696,7 +696,7 @@ float Scenario::calc_distance_score(unsigned char letter, int index, int count, 
      (keey in mind we have already scaled everything based on
      screen resulution & suze, so this is only a relative
      adjustment */
-  ratio *= pow(params->glob_size_ratio, params->scaling_size_pow);
+  ratio *= pow(params->glob_size_ratio, params->scaling_filtering_pow);
 
 
   Point k = keys->get(letter);
