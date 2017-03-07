@@ -54,6 +54,10 @@ class FslmCdbBackend:
 
         self.params = dict()
 
+        self.id2tag = dict()
+        for tag, value in FslmCdbBackend.TAGS.items(): self.id2tag[value[0]] = tag
+
+
     def _load(self):
         if self.loaded: return
 
@@ -240,3 +244,44 @@ class FslmCdbBackend:
                 result[word] = info
 
         return result
+
+
+    def _id2word(self, id):
+        if id in self.id2tag: return self.id2tag[id]
+        return self.get_word_by_id(id)  # None if not found
+
+    def _word2id(self, word):
+        if word in FslmCdbBackend.TAGS: return FslmCdbBackend.TAGS[word][0]
+        wid = self.get_word(word)
+        if wid: return wid[0]
+        return self.add_word(word)
+
+    def file_export(self, f):
+        """ dump all user data to a text file (used for version upgrade) """
+        self._load()
+
+
+        lst = cdb.get_keys()
+        for key in lst:
+            if key.find(":") == -1: continue
+            gram = [ self._id2word(int(x)) for x in key.split(":") ]
+            if None in gram or len(gram) != 3: continue  # unknown word, should not happen
+            gramtxt = ':'.join(gram)
+
+            (user_count, user_replace, last_time) = cdb.get_gram(key)
+            f.write(';'.join([ str(x) for x in [ gramtxt, user_count, user_replace, last_time ] ]) + "\n")
+
+    def file_import(self, f):
+        """ reads all user data from a text file (used for version upgrade) """
+        self._load()
+
+        for li in f.readlines():
+            cols = li.strip().split(';')
+            if len(cols) != 4: continue
+
+            (gramtxt, user_count, user_replace, last_time) = (cols[0], float(cols[1]), float(cols[2]), float(cols[3]))
+            gram = [ self._word2id(x) for x in gramtxt.split(':') ]
+
+            self.set_gram(gram, [ 0, user_count, user_replace, last_time ])
+
+        self.save()
