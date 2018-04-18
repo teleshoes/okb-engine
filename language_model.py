@@ -900,6 +900,10 @@ class LanguageModel:
                                                               key = lambda x: candidates[x],
                                                               reverse = True) ]))
 
+        if not candidates_tmp:  # workaround for empty candidate sent by curve plugin
+            self.log("no valid candidate")
+            return []
+
         sorted_candidates = sorted(candidates_tmp.keys(), key = lambda x: candidates_tmp[x][1], reverse = True)
 
         max_score = candidates_tmp[sorted_candidates[0]][1]
