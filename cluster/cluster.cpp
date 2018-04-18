@@ -1158,7 +1158,6 @@ int main(int argc, char* argv[]) {
     cl.reserve(2<<depth);
 
     // split clusters
-    int c = 0;
     for(int i = 0; i < depth; i ++) {
       qDebug("Depth: %d / %d", i + 1, depth);
       QList<Cluster *> new_clusters;

@@ -6,7 +6,7 @@ PLUGIN_IMPORT_PATH = org/glop/curvekb
 
 TEMPLATE = lib
 CONFIG += qt plugin debug
-QT += qml quick
+QT += qml quick widgets
 
 DEPENDPATH += .
 INCLUDEPATH += .
