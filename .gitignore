@@ -33,3 +33,4 @@ key_shift_*.ks
 ngrams-*.rpt
 .cache
 wordstats-*.rpt
+.qmake.stash
