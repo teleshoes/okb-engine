@@ -1,6 +1,6 @@
 #include "thread.h"
 
-#ifdef THREAD 
+#ifdef THREAD
 
 #include <sys/time.h>
 #include <sys/resource.h>
@@ -102,7 +102,8 @@ void CurveThread::setCallBack(ThreadCallBack *cb) {
 }
 
 void CurveThread::run() {
-  logdebug("Thread starting ...");
+  logdebug(" ---"); // empty line (helps for log reading)
+  logdebug_ts("Thread starting ...");
   matcher->clearCurve();
   QList<CurvePoint> inProgress;
   bool started = false;
@@ -143,7 +144,7 @@ void CurveThread::run() {
     QTime now = QTime::currentTime();
 
     if (inProgress.size() == 0 && last_activity.secsTo(now) >= (AUTO_UNLOAD_DELAY) && tre_loaded && ! started) {
-      logdebug("unloading tree ...");
+      logdebug_ts("unloading tree ...");
       matcher->saveUserDict();
       matcher->loadTree(QString());
       tre_loaded = false;
@@ -168,7 +169,7 @@ void CurveThread::run() {
 	QString file = treFile;
 	mutex.unlock();
 
-	logdebug("loading tree: %s ...", QSTRING2PCHAR(file));
+	logdebug_ts("loading tree: %s ...", QSTRING2PCHAR(file));
 	tre_ok = matcher->loadTree(file); // status ignored for now
 	matcher->clearCurve();
 	started = false; // don't block the thread with a non-idle condition :-)
@@ -188,6 +189,7 @@ void CurveThread::run() {
 
       } else if (point.x == CMD_END) {
 	int id = point.y;
+	logdebug_ts("Curve completed: %d", id)
 
 	t_completed = QTime::currentTime();
 	getrusage(RUSAGE_THREAD, &ru_completed);
@@ -210,7 +212,7 @@ void CurveThread::run() {
 
       } else if (point.x == CMD_QUIT) {
 	matcher->saveUserDict();
-	logdebug("thread exiting ...");
+	logdebug_ts("thread exiting ...");
 	mutex.lock();
 	setIdle(true);
 	mutex.unlock();
