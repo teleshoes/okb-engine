@@ -38,7 +38,6 @@ static void free_data(phash_t* h) {
   h->data = NULL;
   h->entries = NULL;
   h->buckets = NULL;
-  memset(h, 0, sizeof(h));
 }
 
 static int load(phash_t* h) {
