@@ -15,7 +15,7 @@ cd "$tmp"
 # --- setup ---
 
 INIT="plop toto bidon a b c"  # original language file
-ADD="plopi plopa totototo"  # user learned words
+ADD="pipo plopi plopa totototo tôtô"  # user learned words
 
 # create tree DB
 tre="db.tre"

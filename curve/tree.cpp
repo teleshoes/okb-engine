@@ -64,7 +64,13 @@ void LetterTree::dump(QString prefix, LetterNode node) {
   int offset = 0;
   while (1) {
     node_t info = node.getNodeInfo(offset);
-    // cout << "dump - index: " << index << "/" << offset << " -> " << info.payload << " " << info.last_child << " [" << (unsigned char) (info.letter + 96) << "] index=" << info.child_index << endl;
+
+    if (getenv("TREE_DUMP_DEBUG")) {
+      cout << "# dump '" << QSTRING2PCHAR(prefix) << "' - index: " << node.index << "/" << offset \
+	   << " -> PL=" << info.payload << " LS=" << info.last_child << " [" << (unsigned char) (info.letter + 96) << "] target=" \
+	   << info.child_index << endl;
+    }
+
     if (info.payload) {
       cout << QSTRING2PCHAR(prefix) << " -> payload: " << (char*) node.getPayload().first << endl;
     } else {
@@ -108,11 +114,13 @@ QPair<void*, int> LetterTree::getPayload(unsigned char *key) {
 void LetterTree::setPayload(unsigned char *key, void* value, int len) {
   /* limited support for adding new words (ie. modifying tree payloads)
      this will produce "memory holes", but this not a problem as this
-     is only intended to add user dictionary word after loading tree
-     into memory */
+     is only intended to add (small) user dictionary words after loading
+     tree into memory */
 
-  if ((int) (new_index * 4 + 256 * strlen((char *)key) + len + 1000) > alloc) {
-    int new_alloc = alloc * 1.1;
+  // allocate a larger buffer if needed
+  int min_size = new_index * 4 + 256 * strlen((char *)key) + len + 1000;
+  if (alloc < min_size) {
+    int new_alloc = min_size;
     unsigned char *new_data = new unsigned char[new_alloc];
     memcpy(new_data, data, alloc);
     delete[] data;
@@ -121,84 +129,106 @@ void LetterTree::setPayload(unsigned char *key, void* value, int len) {
     alloc = new_alloc;
   }
 
-  setPayloadRec(key, value, len, 0);
+  if (len >= 255) { return; } // silent failing (bad!)
+
+  setPayloadRec(key, value, len, 0); // return value is ignored (which mean we can not learn a new starting letter)
+}
+
+int LetterTree::addPayloadValue(void* value, int len) {
+  int return_index = new_index;
+  unsigned char *ptr = (data + 4 * new_index);
+  *(ptr ++) = len % 8;
+  *(ptr ++) = len >> 8;
+  memcpy(ptr, value, len);
+  ptr += len;
+  *(ptr) = '\0';
+  this -> new_index += (len + 3) >> 2;
+  return return_index;
 }
 
 int LetterTree::setPayloadRec(unsigned char *key, void* value, int len, int index) {
-  bool end = (! *key);
-  int start_index = index;
+  bool leaf = (! *key);
 
-  if ((! end) && (*key < 'a' || *key > 'z')) { return -1; }
+  if ((! leaf) && (*key < 'a' || *key > 'z')) { return -1; } // sanity check
 
-  if (start_index != -1) {
-    if (end) {
-      // we've reached the requested leaf node
-      node_t *node_p = (node_t*) (data + start_index * 4);
-      if (node_p -> payload) {
-	// node already has a payload
-	if (node_p -> last_child) {
-	  // node did not have any child, there is no information to be kept
-	  start_index = -1;
-	} else {
-	  start_index ++; // just skip the existing payload slot (always first)
-	}
-      }
+  int offset = 0;
+  bool done = false;
+  int cur_count = 0;
 
-    } else {
-      // look for child node
-      while(1) {
-	node_t *node_p = (node_t*) (data + index * 4);
-	unsigned char letter = node_p -> letter + 96;
-	if (letter == *key && ! node_p -> payload) {
-	  int updated_index = setPayloadRec(key + 1, value, len, node_p -> child_index);
-	  if (updated_index > 0) {
-	    // child has been moved -> update our pointer
-	    node_p -> child_index = updated_index;
-	  }
-	  return -1;
-	}
-	if (node_p -> last_child) { break; }
-	index ++;
-      }
-    }
-  }
-
-  // we need to duplicate the current node with exactly one new slot (child or payload)
-  int new_start_index = this -> new_index;
-
-  // create the new slot
-  node_t *start_node_p = (node_t*)(data + new_start_index * 4);
-  start_node_p -> letter = end?0:(*key - 96);
-  start_node_p -> last_child = (start_index == -1)?1:0;
-  start_node_p -> payload = end;
-
-  this -> new_index ++;
-
-  // copy older slots
-  if (start_index > -1) {
-    index = start_index;
+  // check existing node
+  if (index != -1) { // index == -1 means node does not exist yet
     while(1) {
-      node_t node = *((node_t*) (data + (index ++) * 4));
-      *((node_t*) (data + (this -> new_index ++) * 4)) = node; // yuck!
-      if (node.last_child) { break; }
+      node_t *node_p = (node_t*) (data + (index + offset) * 4);
+      unsigned char letter = node_p -> letter + 96;
+
+      cur_count ++;
+
+      if (leaf && node_p -> payload) {
+	/* case 1: we just have found the leaf node and it has already got a payload
+	   -> just replace the payload */
+	node_p -> child_index = addPayloadValue(value, len);
+	done = true;
+      } else if ((! leaf) && (letter == *key)) {
+	/* case 2: we have not reached leaf node but a child node already exist to match the next letter
+	   -> just recurse down the tree */
+	int updated_index = setPayloadRec(key + 1, value, len, node_p -> child_index);
+	if (updated_index > 0) {
+	  /* child node has been created or moved -> update our pointer */
+	  node_p -> child_index = updated_index;
+	}
+	done = true;
+      }
+
+      if (node_p -> last_child) { break; }
+
+      offset ++;
+    }
+
+    if (done) {
+      /* node has been updated in place, processing for this node is done */
+      return -1;
     }
   }
 
-  if (end) {
-    start_node_p -> child_index = this -> new_index;
+  /* we need to create a new block for the current node
+     case 1 (leaf == true): we need to add a payload pointer to a new or existing node
+     case 2 (leaf == false) : we need to add a new child to a new or existing node */
+  int return_index = new_index;
+  node_t *node_payload_p, *node_child_p;
 
-    unsigned char* ptr = data + this -> new_index * 4;
-    *(ptr ++) = len & 0xFF;
-    *(ptr ++) = len >> 8;
-    memmove(ptr, value, len);
-    *(ptr + len) = '\0';
-
-    this -> new_index += (6 + len) >> 2;
-  } else {
-    start_node_p -> child_index = setPayloadRec(key + 1, value, len, -1);
+  /* 1) add payload slot */
+  if (leaf) {
+    node_payload_p = (node_t*) (data + (new_index ++) * 4);
+    node_payload_p -> payload = true;
+    node_payload_p -> child_index = 0; // will be set later
+    node_payload_p -> last_child = (cur_count == 0);
+    node_payload_p -> letter = '\0'; // irrelevant
   }
 
-  return new_start_index;
+  /* 2) copy previous block */
+  if (cur_count > 0) {
+    memcpy(data + 4 * new_index, data + 4 * index, 4 * cur_count);
+    new_index += cur_count;
+
+    node_t *node_last_p = (node_t*) (data + 4 * (new_index - 1));
+    node_last_p -> last_child = leaf;
+  }
+
+  /* 3) add new child */
+  if (! leaf) {
+    node_child_p = (node_t*) (data + (new_index ++) * 4);
+    node_child_p -> payload = false;
+    node_child_p -> child_index = setPayloadRec(key + 1, value, len, -1);
+    node_child_p -> last_child = 1;
+    node_child_p -> letter = (*key) - 96;
+  }
+
+  /* 1-bis) store payload content */
+  if (leaf) {
+    node_payload_p -> child_index = addPayloadValue(value, len);
+  }
+
+  return return_index;
 }
 
 

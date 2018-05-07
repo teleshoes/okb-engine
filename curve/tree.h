@@ -31,6 +31,7 @@ class LetterTree {
 
   void dump(QString prefix, LetterNode node);
   int setPayloadRec(unsigned char *key, void* payload, int len, int index);
+  int addPayloadValue(void* value, int len);
   
  public:
   LetterTree();
