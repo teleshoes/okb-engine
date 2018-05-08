@@ -117,6 +117,10 @@ void LetterTree::setPayload(unsigned char *key, void* value, int len) {
      is only intended to add (small) user dictionary words after loading
      tree into memory */
 
+  // filter bad input: silent failing (bad!)
+  if (strlen((char*) key) < 2) { return; }
+  if (len >= 255) { return; }
+
   // allocate a larger buffer if needed
   int min_size = new_index * 4 + 256 * strlen((char *)key) + len + 1000;
   if (alloc < min_size) {
@@ -129,8 +133,6 @@ void LetterTree::setPayload(unsigned char *key, void* value, int len) {
     alloc = new_alloc;
   }
 
-  if (len >= 255) { return; } // silent failing (bad!)
-
   setPayloadRec(key, value, len, 0); // return value is ignored (which mean we can not learn a new starting letter)
 }
 
@@ -142,7 +144,10 @@ int LetterTree::addPayloadValue(void* value, int len) {
   memcpy(ptr, value, len);
   ptr += len;
   *(ptr) = '\0';
-  this -> new_index += (len + 3) >> 2;
+
+  this -> new_index += (len + 6) >> 2;
+  // ^^ "6" value because of: 2 for 2-byte length, 1 for additional null-termination (redundant), 3 for rounding to next integer
+
   return return_index;
 }
 

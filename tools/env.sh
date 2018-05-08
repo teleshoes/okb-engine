@@ -12,17 +12,17 @@ _filter_path() {
 
 if [ -z "$_me" ] ; then
     echo "only bash is supported!"
-else 
+else
     _mydir=$(cd $(dirname "$_me") ; cd .. ; pwd)
 
     _parent=$(dirname "$_mydir")
-    
+
     machine=$(uname -m)
     ngram_lib=$(find "${_mydir}/ngrams/build/" -type d -name "lib.*" | grep '\b'"$machine"'\b' | sort | tail -n 1)
-    
+
     export LD_LIBRARY_PATH=$(_filter_path "$_parent" "${LD_LIBRARY_PATH}")":${_mydir}/curve/build"
     export QML2_IMPORT_PATH=`readlink -f "${_mydir}/${OKB_QML}"`
-    export PATH=$(_filter_path "$_parent" "${PATH}")":${_mydir}/cli/build:${_mydir}/tools"
+    export PATH="$(_filter_path "$_parent" "${PATH}"):${_mydir}/cli/build:${_mydir}/tools:${_mydir}/qa"
     export PYTHONPATH="${ngram_lib}"
     OKBOARD_TEST_DIR=1
     [ -f "$HOME/.okboard-test" ] && . $HOME/.okboard-test
