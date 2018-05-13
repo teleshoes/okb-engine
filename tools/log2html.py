@@ -19,7 +19,9 @@ if len(sys.argv) < 2:
 out = sys.argv[1]
 mydir = os.path.dirname(__file__)
 
-parsedate = lambda d: calendar.timegm(dateutil.parser.parse(d).timetuple())
+def parsedate(d):
+    return calendar.timegm(dateutil.parser.parse(d).timetuple())
+
 
 current = None
 history = []
@@ -72,6 +74,7 @@ def json2html(fname, tre, js):
     except Exception as e:
         print("BOUM", e)
 
+
 for item in history:
     word = item["word"]
     ts = item["ts"]
@@ -82,11 +85,13 @@ for item in history:
 
     body.h5("Word: %s [%s] %s %s" % (word, time.ctime(ts), device_id, id))
 
+    cleaned_word = re.sub(r'[^a-zA-Z]+', '_', word)
+
     if js:
         li = body.p("Details: ")
         li.a("json", href = "%s.json" % id)
         li += " - "
-        name = "%s-%s.html" % (word, id)
+        name = "%s-%s.html" % (cleaned_word, id)
         li.a("curve show", href = name)
         trefile = os.path.join(mydir, "../db", os.path.basename(js["input"]["treefile"]))
         htmlfile = os.path.join(out, name)
