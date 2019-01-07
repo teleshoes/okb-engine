@@ -74,7 +74,7 @@ if [ -n "$clean" ] ; then
 fi
 
 for target in $tgt_list ; do
-    $MAKE -j
+    $MAKE -j $target
 done
 
 rsync -av *.tre *.db *.ng *.rpt.bz2 clusters-*.txt *.id ngrams-*.rpt wordstats-*.rpt $mydir/

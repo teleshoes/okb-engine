@@ -84,7 +84,6 @@ affixes-%.txt: %-predict.dict
 # build dictionary file for gesture engine
 %.tre: %-full.dict %-predict.dict
 	$(eval lang=$*)
-	$(TOOLS_DIR)/loadkb.py $(lang)-full.tre < $(lang)-full.dict
 	$(TOOLS_DIR)/loadkb.py $@ < tmp-words-$(lang).txt  # all word seen in learn corpus (smaller than full directory, but bigger than prediction learning dictionary)
 
 # build N-grams list for learning & test corpora

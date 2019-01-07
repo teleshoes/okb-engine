@@ -34,3 +34,4 @@ ngrams-*.rpt
 .cache
 wordstats-*.rpt
 .qmake.stash
+.csearchindex
