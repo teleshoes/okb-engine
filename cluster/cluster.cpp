@@ -1036,7 +1036,12 @@ void Clustering::perplexity_check() {
 
   double save_perplexity = perplexity;
   eval_full();
-  if (abs(perplexity - save_perplexity) > MAX_ERR) {
+
+  double a = fabsl(perplexity);
+  double b = fabsl(save_perplexity);
+  double max_abs = (a > b)?a:b;
+
+  if (fabsl(perplexity - save_perplexity) / max_abs > MAX_ERR) {
     QString err;
     err.sprintf("Perplexity mismatch : incremental=%f / full=%f", save_perplexity, perplexity);
     throw err;
